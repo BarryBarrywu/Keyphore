@@ -70,6 +70,12 @@ impl PluginLifecycle {
                 "another NuPhy plugin installation is already managed"
             );
         }
+        run_checked_command(
+            Command::new(&self.codex)
+                .args(["plugin", "add"])
+                .arg(plugin_id),
+            "failed to install the NuPhy plugin",
+        )?;
         self.activate(plugin_root, plugin_id)
     }
 
@@ -110,6 +116,7 @@ impl PluginLifecycle {
             "status.lock",
             "companion.stdout.log",
             "companion.stderr.log",
+            "hardware-health.json",
         ] {
             remove_file_if_present(&self.data_dir.join(name))?;
         }

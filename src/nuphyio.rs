@@ -42,49 +42,75 @@ pub trait ReportTransport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExerciseEvidence {
     pub blue_main: [u8; MAIN_LIGHT_LEN],
+    pub orange_main: [u8; MAIN_LIGHT_LEN],
+    pub green_main: [u8; MAIN_LIGHT_LEN],
     pub signal_off_main: [u8; MAIN_LIGHT_LEN],
     pub rhythm_before: [u8; RHYTHM_LIGHT_LEN],
     pub rhythm_after_blue: [u8; RHYTHM_LIGHT_LEN],
+    pub rhythm_after_orange: [u8; RHYTHM_LIGHT_LEN],
+    pub rhythm_after_green: [u8; RHYTHM_LIGHT_LEN],
     pub rhythm_after_off: [u8; RHYTHM_LIGHT_LEN],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AcceptanceSignal {
+    Execution,
+    Attention,
+    Completion,
 }
 
 pub fn exercise_main_backlight<T, F>(
     transport: &mut T,
     challenge: SessionChallenge,
-    observe_blue: F,
+    mut observe: F,
 ) -> Result<ExerciseEvidence>
 where
     T: ReportTransport,
-    F: FnOnce(),
+    F: FnMut(AcceptanceSignal),
 {
     let key = start_temporary_session(transport, challenge)?;
     let initial = read_light_state(transport, key)?;
 
-    let blue = match apply_and_verify_state(
-        transport,
-        key,
-        &initial,
-        &BLUE_EXECUTION_MAIN,
-        "blue execution signal",
-    ) {
-        Ok(state) => state,
-        Err(error) => {
-            let cleanup = apply_and_verify_state(
-                transport,
-                key,
-                &initial,
-                &SIGNAL_OFF_MAIN,
-                "signal-off cleanup",
-            );
-            return match cleanup {
-                Ok(_) => Err(error.context("signal-off cleanup verified after diagnostic failure")),
-                Err(cleanup_error) => Err(anyhow::anyhow!(
-                    "{error:#}; signal-off cleanup also failed: {cleanup_error:#}"
-                )),
-            };
+    let mut verified = Vec::new();
+    for (expected, operation, signal) in [
+        (
+            &BLUE_EXECUTION_MAIN,
+            "blue execution signal",
+            AcceptanceSignal::Execution,
+        ),
+        (
+            &ORANGE_ATTENTION_MAIN,
+            "orange attention signal",
+            AcceptanceSignal::Attention,
+        ),
+        (
+            &GREEN_COMPLETION_MAIN,
+            "green completion signal",
+            AcceptanceSignal::Completion,
+        ),
+    ] {
+        match apply_and_verify_state(transport, key, &initial, expected, operation) {
+            Ok(state) => verified.push(state),
+            Err(error) => {
+                let cleanup = apply_and_verify_state(
+                    transport,
+                    key,
+                    &initial,
+                    &SIGNAL_OFF_MAIN,
+                    "signal-off cleanup",
+                );
+                return match cleanup {
+                    Ok(_) => {
+                        Err(error.context("signal-off cleanup verified after diagnostic failure"))
+                    }
+                    Err(cleanup_error) => Err(anyhow::anyhow!(
+                        "{error:#}; signal-off cleanup also failed: {cleanup_error:#}"
+                    )),
+                };
+            }
         }
-    };
-    observe_blue();
+        observe(signal);
+    }
 
     let off = apply_and_verify_state(
         transport,
@@ -95,10 +121,14 @@ where
     )?;
 
     Ok(ExerciseEvidence {
-        blue_main: blue[..MAIN_LIGHT_LEN].try_into().unwrap(),
+        blue_main: verified[0][..MAIN_LIGHT_LEN].try_into().unwrap(),
+        orange_main: verified[1][..MAIN_LIGHT_LEN].try_into().unwrap(),
+        green_main: verified[2][..MAIN_LIGHT_LEN].try_into().unwrap(),
         signal_off_main: off[..MAIN_LIGHT_LEN].try_into().unwrap(),
         rhythm_before: initial[MAIN_LIGHT_LEN..].try_into().unwrap(),
-        rhythm_after_blue: blue[MAIN_LIGHT_LEN..].try_into().unwrap(),
+        rhythm_after_blue: verified[0][MAIN_LIGHT_LEN..].try_into().unwrap(),
+        rhythm_after_orange: verified[1][MAIN_LIGHT_LEN..].try_into().unwrap(),
+        rhythm_after_green: verified[2][MAIN_LIGHT_LEN..].try_into().unwrap(),
         rhythm_after_off: off[MAIN_LIGHT_LEN..].try_into().unwrap(),
     })
 }
@@ -223,6 +253,9 @@ fn write_main_state<T: ReportTransport>(
 ) -> Result<()> {
     let state_request = Request::write(0, state)?;
     exchange_request(transport, &state_request, key)?;
+
+    let brightness_request = Request::write(1, &state[1..2])?;
+    exchange_request(transport, &brightness_request, key)?;
     Ok(())
 }
 

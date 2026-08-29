@@ -110,6 +110,8 @@ fn setup_is_idempotent_and_preserves_unrelated_product_state() {
     )
     .unwrap();
     assert!(plist.contains("plugin-v1/bin/nuphy-codex"));
+    let calls = fs::read_to_string(&fixture.command_log).unwrap();
+    assert!(calls.contains("codex plugin add nuphy-codex@local"));
 }
 
 #[test]
@@ -161,6 +163,7 @@ fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
         "codex-zectrix-dashboard@codex-zectrix-dashboard\n"
     );
     assert!(!fixture.data_dir.join("lifecycle.json").exists());
+    assert!(!fixture.data_dir.join("hardware-health.json").exists());
     assert!(
         !fixture
             .launch_agents_dir
@@ -173,6 +176,11 @@ fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
 fn diagnostics_report_every_health_surface_without_private_codex_content() {
     let fixture = Fixture::new();
     fixture.install();
+    fs::write(
+        fixture.data_dir.join("hardware-health.json"),
+        r#"{"keyboard_discovery":"air65-v3","protocol_health":"healthy","verified_transport":"wired-usb"}"#,
+    )
+    .unwrap();
     let private_values = [
         "private prompt",
         "private assistant prose",
@@ -214,9 +222,9 @@ fn diagnostics_report_every_health_surface_without_private_codex_content() {
         "hook_ownership=owned",
         "durable_status=healthy",
         "companion=running",
-        "keyboard_discovery=",
-        "protocol_health=",
-        "verified_transport=",
+        "keyboard_discovery=air65-v3",
+        "protocol_health=healthy",
+        "verified_transport=wired-usb",
         "aggregate_state=Execution",
     ] {
         assert!(

@@ -10,6 +10,9 @@ fn diagnostic_is_directly_executable_and_requires_an_explicit_lighting_flag() {
         predicate::str::contains("Discover the verified Air65 V3")
             .and(predicate::str::contains("--exercise"))
             .and(predicate::str::contains(
+                "execution, attention, completion, and signal-off",
+            ))
+            .and(predicate::str::contains(
                 "No lighting report is sent unless",
             )),
     );

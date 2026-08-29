@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use anyhow::{Result, bail};
 use nuphy_codex::nuphyio::{
-    GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN, ReportTransport, apply_attention_signal,
-    apply_completion_signal, exercise_main_backlight, main_signal_matches,
+    AcceptanceSignal, GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN, ReportTransport,
+    apply_attention_signal, apply_completion_signal, exercise_main_backlight, main_signal_matches,
 };
 use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 
@@ -144,7 +144,7 @@ fn failed_blue_verification_still_turns_the_main_backlight_off() {
     let mut keyboard = FakeKeyboard::new(challenge);
     keyboard.corrupt_blue_readback = true;
 
-    assert!(exercise_main_backlight(&mut keyboard, challenge, || {}).is_err());
+    assert!(exercise_main_backlight(&mut keyboard, challenge, |_| {}).is_err());
     assert_eq!(keyboard.state[..9], SIGNAL_OFF);
     assert_eq!(keyboard.state[9..], INITIAL_RHYTHM);
 }
@@ -155,7 +155,7 @@ fn unrelated_reports_are_skipped_until_the_correlated_response_arrives() {
     let mut keyboard = FakeKeyboard::new(challenge);
     keyboard.inject_unrelated_reports = true;
 
-    let evidence = exercise_main_backlight(&mut keyboard, challenge, || {}).unwrap();
+    let evidence = exercise_main_backlight(&mut keyboard, challenge, |_| {}).unwrap();
 
     assert_eq!(evidence.blue_main, BLUE_MAIN);
     assert_eq!(evidence.signal_off_main, SIGNAL_OFF);
@@ -167,28 +167,39 @@ fn malformed_reports_cannot_satisfy_an_outstanding_request() {
     let mut keyboard = FakeKeyboard::new(challenge);
     keyboard.inject_malformed_reports = true;
 
-    let evidence = exercise_main_backlight(&mut keyboard, challenge, || {}).unwrap();
+    let evidence = exercise_main_backlight(&mut keyboard, challenge, |_| {}).unwrap();
 
     assert_eq!(evidence.blue_main, BLUE_MAIN);
     assert_eq!(evidence.signal_off_main, SIGNAL_OFF);
 }
 
 #[test]
-fn exercise_applies_blue_then_off_without_changing_the_rhythm_light_bar() {
+fn exercise_applies_every_shipping_signal_then_off_without_changing_the_rhythm_light_bar() {
     let challenge = std::array::from_fn(|index| index as u8);
     let mut keyboard = FakeKeyboard::new(challenge);
-    let mut observed_blue = false;
+    let mut observed = Vec::new();
 
-    let evidence = exercise_main_backlight(&mut keyboard, challenge, || {
-        observed_blue = true;
+    let evidence = exercise_main_backlight(&mut keyboard, challenge, |signal| {
+        observed.push(signal);
     })
     .unwrap();
 
-    assert!(observed_blue);
+    assert_eq!(
+        observed,
+        [
+            AcceptanceSignal::Execution,
+            AcceptanceSignal::Attention,
+            AcceptanceSignal::Completion,
+        ]
+    );
     assert_eq!(evidence.blue_main, BLUE_MAIN);
+    assert_eq!(evidence.orange_main, ORANGE_ATTENTION_MAIN);
+    assert_eq!(evidence.green_main, GREEN_COMPLETION_MAIN);
     assert_eq!(evidence.signal_off_main, SIGNAL_OFF);
     assert_eq!(evidence.rhythm_before, INITIAL_RHYTHM);
     assert_eq!(evidence.rhythm_after_blue, INITIAL_RHYTHM);
+    assert_eq!(evidence.rhythm_after_orange, INITIAL_RHYTHM);
+    assert_eq!(evidence.rhythm_after_green, INITIAL_RHYTHM);
     assert_eq!(evidence.rhythm_after_off, INITIAL_RHYTHM);
     assert_eq!(keyboard.state[..9], SIGNAL_OFF);
     assert_eq!(keyboard.state[9..], INITIAL_RHYTHM);
@@ -198,7 +209,18 @@ fn exercise_applies_blue_then_off_without_changing_the_rhythm_light_bar() {
         .iter()
         .filter(|report| report[1] == 0xd6)
         .collect();
-    assert_eq!(lighting_writes.len(), 2);
+    assert_eq!(lighting_writes.len(), 8);
+    for writes in lighting_writes.chunks_exact(2) {
+        let main = writes[0];
+        let brightness = writes[1];
+        let main_length = main[4] ^ KEY;
+        let main_address = u16::from(main[5] ^ KEY) | (u16::from(main[6] ^ KEY) << 8);
+        assert_eq!(main_length, 9);
+        assert_eq!(main_address, 0);
+        assert_eq!(brightness[4] ^ KEY, 1);
+        assert_eq!(brightness[5] ^ KEY, 1);
+        assert_eq!(brightness[8], main[9]);
+    }
     assert!(lighting_writes.iter().all(|report| {
         let length = report[4] ^ KEY;
         let address = u16::from(report[5] ^ KEY) | (u16::from(report[6] ^ KEY) << 8);

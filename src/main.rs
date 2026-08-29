@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::{
@@ -13,8 +14,18 @@ use nuphy_codex::companion::{
 use nuphy_codex::hid::discover_air65_v3;
 use nuphy_codex::hook::handle_codex_event_at;
 use nuphy_codex::lifecycle::PluginLifecycle;
-use nuphy_codex::nuphyio::{exercise_main_backlight, generate_session_challenge};
+use nuphy_codex::nuphyio::{AcceptanceSignal, exercise_main_backlight, generate_session_challenge};
 use nuphy_codex::status::{DurableStatusStore, Timestamp};
+use serde::{Deserialize, Serialize};
+
+const HARDWARE_HEALTH_MAX_AGE: Duration = Duration::from_secs(3);
+
+#[derive(Deserialize, Serialize)]
+struct HardwareHealth {
+    keyboard_discovery: String,
+    protocol_health: String,
+    verified_transport: String,
+}
 
 #[derive(Parser)]
 #[command(name = "nuphy-codex", version)]
@@ -29,7 +40,7 @@ enum Command {
     ///
     /// No lighting report is sent unless --exercise is provided.
     Diagnose {
-        /// Apply a blue execution effect for three seconds, then turn the main backlight off.
+        /// Apply execution, attention, completion, and signal-off to the main backlight.
         #[arg(long)]
         exercise: bool,
     },
@@ -140,7 +151,8 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
         }
     );
     println!("plugin_id={plugin_id}");
-    println!("companion={}", lifecycle.companion_status()?);
+    let companion_status = lifecycle.companion_status()?;
+    println!("companion={companion_status}");
     let store = DurableStatusStore::new(lifecycle.data_dir().join("status.json"));
     let status = store.load()?;
     println!("durable_status=healthy");
@@ -157,9 +169,18 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
             println!("protocol_health={protocol_health}");
         }
         Err(_) => {
-            println!("keyboard_discovery=unavailable");
-            println!("verified_transport=unavailable");
-            println!("protocol_health=unavailable");
+            if companion_status == "running"
+                && let Some(health) =
+                    read_recent_hardware_health(&lifecycle.data_dir().join("hardware-health.json"))
+            {
+                println!("keyboard_discovery={}", health.keyboard_discovery);
+                println!("verified_transport={}", health.verified_transport);
+                println!("protocol_health={}", health.protocol_health);
+            } else {
+                println!("keyboard_discovery=unavailable");
+                println!("verified_transport=unavailable");
+                println!("protocol_health=unavailable");
+            }
         }
     }
     Ok(())
@@ -179,20 +200,25 @@ fn run_hook(status: Option<PathBuf>) -> Result<()> {
 }
 
 fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
-    let store = DurableStatusStore::new(status.unwrap_or_else(default_status_path));
+    let status_path = status.unwrap_or_else(default_status_path);
+    let health_path = status_path.with_file_name("hardware-health.json");
+    let store = DurableStatusStore::new(status_path);
     let mut companion = Companion::default();
     if once {
         let mut keyboard = discover_air65_v3()?;
-        return companion.device_reconnected(
+        let result = companion.device_reconnected(
             &store,
             &mut VerifiedNuPhyIoAdapter::new(&mut keyboard.transport),
         );
+        write_hardware_health(&health_path, result.is_ok())?;
+        return result;
     }
 
     loop {
         let mut keyboard = match discover_air65_v3() {
             Ok(keyboard) => keyboard,
             Err(error) => {
+                write_hardware_health(&health_path, false)?;
                 eprintln!("waiting for verified Air65 V3: {error:#}");
                 thread::sleep(Duration::from_secs(1));
                 continue;
@@ -200,26 +226,51 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         };
         let mut adapter = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport);
         if let Err(error) = companion.device_reconnected(&store, &mut adapter) {
+            write_hardware_health(&health_path, false)?;
             eprintln!("Air65 V3 connection lost while replaying status: {error:#}");
             thread::sleep(Duration::from_secs(1));
             continue;
         }
+        write_hardware_health(&health_path, true)?;
         let mut last_health_check = Instant::now();
         loop {
             thread::sleep(Duration::from_millis(100));
             if let Err(error) = companion.sync(&store, &mut adapter) {
+                write_hardware_health(&health_path, false)?;
                 eprintln!("Air65 V3 connection lost while applying status: {error:#}");
                 break;
             }
             if last_health_check.elapsed() >= Duration::from_secs(1) {
                 if let Err(error) = companion.health_check(&store, &mut adapter) {
+                    write_hardware_health(&health_path, false)?;
                     eprintln!("Air65 V3 health check failed: {error:#}");
                     break;
                 }
+                write_hardware_health(&health_path, true)?;
                 last_health_check = Instant::now();
             }
         }
     }
+}
+
+fn write_hardware_health(path: &std::path::Path, healthy: bool) -> Result<()> {
+    let health = HardwareHealth {
+        keyboard_discovery: if healthy { "air65-v3" } else { "unavailable" }.into(),
+        protocol_health: if healthy { "healthy" } else { "unavailable" }.into(),
+        verified_transport: if healthy { "wired-usb" } else { "unavailable" }.into(),
+    };
+    let replacement = path.with_file_name(format!(".hardware-health.{}.tmp", std::process::id()));
+    fs::write(&replacement, serde_json::to_vec(&health)?)
+        .context("failed to write hardware-health replacement")?;
+    fs::rename(replacement, path).context("failed to replace hardware health")
+}
+
+fn read_recent_hardware_health(path: &std::path::Path) -> Option<HardwareHealth> {
+    let metadata = fs::metadata(path).ok()?;
+    if metadata.modified().ok()?.elapsed().ok()? > HARDWARE_HEALTH_MAX_AGE {
+        return None;
+    }
+    serde_json::from_slice(&fs::read(path).ok()?).ok()
 }
 
 fn default_status_path() -> PathBuf {
@@ -249,9 +300,14 @@ fn diagnose(exercise: bool) -> Result<()> {
     let evidence = exercise_main_backlight(
         &mut keyboard.transport,
         generate_session_challenge(),
-        || {
-            println!("blue execution effect verified by readback; observing for 3 seconds");
-            thread::sleep(Duration::from_secs(3));
+        |signal| {
+            let (description, seconds) = match signal {
+                AcceptanceSignal::Execution => ("blue execution signal", 3),
+                AcceptanceSignal::Attention => ("orange attention pulse", 3),
+                AcceptanceSignal::Completion => ("green completion", 5),
+            };
+            println!("{description} verified by readback; observing for {seconds} seconds");
+            thread::sleep(Duration::from_secs(seconds));
         },
     )?;
     println!(
