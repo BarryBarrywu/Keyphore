@@ -10,6 +10,7 @@ struct Fixture {
     launchctl: PathBuf,
     codex: PathBuf,
     command_log: PathBuf,
+    plugin_state: PathBuf,
     plugin_root: PathBuf,
     other_product_state: PathBuf,
 }
@@ -20,13 +21,19 @@ impl Fixture {
         let plugin_root = temp.path().join("plugin-v1");
         copy_plugin_fixture(&plugin_root);
         let command_log = temp.path().join("commands.log");
+        let plugin_state = temp.path().join("plugins.txt");
+        fs::write(
+            &plugin_state,
+            "nuphy-codex@local\ncodex-zectrix-dashboard@codex-zectrix-dashboard\n",
+        )
+        .unwrap();
         let launchctl = executable(
             temp.path().join("launchctl"),
-            "#!/bin/sh\nprintf 'launchctl' >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf ' %s' \"$@\" >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf '\\n' >> \"$NUPHY_TEST_COMMAND_LOG\"\nexit 0\n",
+            "#!/bin/sh\nprintf 'launchctl' >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf ' %s' \"$@\" >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf '\\n' >> \"$NUPHY_TEST_COMMAND_LOG\"\nif [ \"${1:-}\" = print ]; then printf 'state = running\\n'; fi\nexit 0\n",
         );
         let codex = executable(
             temp.path().join("codex"),
-            "#!/bin/sh\nprintf 'codex' >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf ' %s' \"$@\" >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf '\\n' >> \"$NUPHY_TEST_COMMAND_LOG\"\nif [ \"${1:-}\" = plugin ] && [ \"${2:-}\" = list ]; then\n  printf '%s\\n' '{\"installed\":[{\"pluginId\":\"nuphy-codex@local\",\"enabled\":true}]}'\nfi\nexit 0\n",
+            "#!/bin/sh\nprintf 'codex' >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf ' %s' \"$@\" >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf '\\n' >> \"$NUPHY_TEST_COMMAND_LOG\"\nif [ \"${1:-}\" = plugin ] && [ \"${2:-}\" = list ]; then\n  printf '%s\\n' '{\"installed\":[{\"pluginId\":\"nuphy-codex@local\",\"enabled\":true},{\"pluginId\":\"codex-zectrix-dashboard@codex-zectrix-dashboard\",\"enabled\":true}]}'\nelif [ \"${1:-}\" = plugin ] && [ \"${2:-}\" = add ]; then\n  /usr/bin/grep -Fqx \"$3\" \"$NUPHY_TEST_PLUGIN_STATE\" || printf '%s\\n' \"$3\" >> \"$NUPHY_TEST_PLUGIN_STATE\"\nelif [ \"${1:-}\" = plugin ] && [ \"${2:-}\" = remove ]; then\n  /usr/bin/grep -Fvx \"$3\" \"$NUPHY_TEST_PLUGIN_STATE\" > \"$NUPHY_TEST_PLUGIN_STATE.tmp\"\n  /bin/mv \"$NUPHY_TEST_PLUGIN_STATE.tmp\" \"$NUPHY_TEST_PLUGIN_STATE\"\nfi\nexit 0\n",
         );
         let other_product_state = temp.path().join("zectrix-state.json");
         fs::write(&other_product_state, "leave-me-alone").unwrap();
@@ -36,6 +43,7 @@ impl Fixture {
             launchctl,
             codex,
             command_log,
+            plugin_state,
             plugin_root,
             other_product_state,
             _temp: temp,
@@ -51,6 +59,7 @@ impl Fixture {
             .env("NUPHY_CODEX_CODEX_BIN", &self.codex)
             .env("NUPHY_CODEX_LAUNCH_DOMAIN", "gui/501")
             .env("NUPHY_TEST_COMMAND_LOG", &self.command_log);
+        command.env("NUPHY_TEST_PLUGIN_STATE", &self.plugin_state);
         command
     }
 
@@ -85,6 +94,11 @@ fn setup_is_idempotent_and_preserves_unrelated_product_state() {
     assert_eq!(
         fs::read_to_string(&fixture.other_product_state).unwrap(),
         "leave-me-alone"
+    );
+    assert!(
+        fs::read_to_string(&fixture.plugin_state)
+            .unwrap()
+            .contains("codex-zectrix-dashboard@codex-zectrix-dashboard")
     );
     let state = fs::read_to_string(fixture.data_dir.join("lifecycle.json")).unwrap();
     assert!(state.contains("nuphy-codex@local"));
@@ -142,6 +156,10 @@ fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
         fs::read_to_string(&fixture.other_product_state).unwrap(),
         "leave-me-alone"
     );
+    assert_eq!(
+        fs::read_to_string(&fixture.plugin_state).unwrap(),
+        "codex-zectrix-dashboard@codex-zectrix-dashboard\n"
+    );
     assert!(!fixture.data_dir.join("lifecycle.json").exists());
     assert!(
         !fixture
@@ -197,7 +215,7 @@ fn diagnostics_report_every_health_surface_without_private_codex_content() {
         "durable_status=healthy",
         "companion=running",
         "keyboard_discovery=",
-        "protocol_health=ready",
+        "protocol_health=",
         "verified_transport=",
         "aggregate_state=Execution",
     ] {
@@ -208,6 +226,59 @@ fn diagnostics_report_every_health_surface_without_private_codex_content() {
     }
     for private in private_values {
         assert!(!diagnostics.contains(private));
+    }
+}
+
+#[test]
+fn removal_refuses_to_forget_a_companion_that_did_not_stop() {
+    let fixture = Fixture::new();
+    fixture.install();
+    executable(
+        fixture.launchctl.clone(),
+        "#!/bin/sh\nif [ \"${1:-}\" = bootout ]; then exit 1; fi\nif [ \"${1:-}\" = print ]; then printf 'state = running\\n'; exit 0; fi\nexit 0\n",
+    );
+
+    let output = fixture
+        .command()
+        .args(["lifecycle", "uninstall"])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(fixture.data_dir.join("lifecycle.json").exists());
+    assert!(
+        fixture
+            .launch_agents_dir
+            .join("com.barrybarrywu.nuphy-codex.plist")
+            .exists()
+    );
+    assert!(
+        fs::read_to_string(&fixture.plugin_state)
+            .unwrap()
+            .contains("nuphy-codex@local")
+    );
+}
+
+#[test]
+fn diagnostics_report_all_surfaces_when_not_installed() {
+    let fixture = Fixture::new();
+
+    let output = fixture.command().arg("diagnostics").output().unwrap();
+    assert!(output.status.success());
+    let diagnostics = String::from_utf8(output.stdout).unwrap();
+    for field in [
+        "hook_ownership=not-installed",
+        "durable_status=not-installed",
+        "companion=not-installed",
+        "keyboard_discovery=unavailable",
+        "protocol_health=unavailable",
+        "verified_transport=unavailable",
+        "aggregate_state=unavailable",
+    ] {
+        assert!(
+            diagnostics.contains(field),
+            "missing {field}: {diagnostics}"
+        );
     }
 }
 

@@ -21,6 +21,16 @@ pub enum LightingCommand {
 }
 
 impl LightingCommand {
+    pub fn from_aggregate(aggregate: AggregateState) -> Self {
+        match aggregate {
+            AggregateState::Attention => Self::OrangeAttention,
+            AggregateState::Failure => Self::Failure,
+            AggregateState::Execution => Self::BlueExecution,
+            AggregateState::Completion => Self::GreenCompletion,
+            AggregateState::SignalOff => Self::SignalOff,
+        }
+    }
+
     fn main_signal(self) -> (&'static [u8; 9], &'static str) {
         match self {
             Self::OrangeAttention => (&ORANGE_ATTENTION_MAIN, "orange attention signal"),
@@ -61,7 +71,7 @@ impl Companion {
         adapter: &mut impl HealthAwareNuPhyIoAdapter,
     ) -> Result<()> {
         let aggregate = StatusCore::reduce_at(&store.load()?, Timestamp::now());
-        let command = command_for(aggregate);
+        let command = LightingCommand::from_aggregate(aggregate);
         if adapter.displays(command)? {
             self.applied = Some(aggregate);
             return Ok(());
@@ -94,7 +104,7 @@ impl Companion {
         if self.applied == Some(aggregate) {
             return Ok(());
         }
-        adapter.apply(command_for(aggregate))?;
+        adapter.apply(LightingCommand::from_aggregate(aggregate))?;
         self.applied = Some(aggregate);
         Ok(())
     }
@@ -161,14 +171,4 @@ impl<T: ReportTransport> HealthAwareNuPhyIoAdapter for VerifiedNuPhyIoAdapter<'_
 
 pub fn sync_once(store: &DurableStatusStore, adapter: &mut impl NuPhyIoAdapter) -> Result<()> {
     Companion::default().sync(store, adapter)
-}
-
-fn command_for(aggregate: AggregateState) -> LightingCommand {
-    match aggregate {
-        AggregateState::Attention => LightingCommand::OrangeAttention,
-        AggregateState::Failure => LightingCommand::Failure,
-        AggregateState::Execution => LightingCommand::BlueExecution,
-        AggregateState::Completion => LightingCommand::GreenCompletion,
-        AggregateState::SignalOff => LightingCommand::SignalOff,
-    }
 }

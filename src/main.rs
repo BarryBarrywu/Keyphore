@@ -7,7 +7,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use nuphy_codex::companion::{Companion, VerifiedNuPhyIoAdapter};
+use nuphy_codex::companion::{
+    Companion, HealthAwareNuPhyIoAdapter, LightingCommand, VerifiedNuPhyIoAdapter,
+};
 use nuphy_codex::hid::discover_air65_v3;
 use nuphy_codex::hook::handle_codex_event_at;
 use nuphy_codex::lifecycle::PluginLifecycle;
@@ -122,6 +124,10 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
         println!("hook_ownership=not-installed");
         println!("durable_status=not-installed");
         println!("companion=not-installed");
+        println!("keyboard_discovery=unavailable");
+        println!("protocol_health=unavailable");
+        println!("verified_transport=unavailable");
+        println!("aggregate_state=unavailable");
         return Ok(());
     };
     nuphy_codex::lifecycle::validate_plugin_bundle(&plugin_root)?;
@@ -134,30 +140,26 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
         }
     );
     println!("plugin_id={plugin_id}");
-    println!(
-        "companion={}",
-        if lifecycle.companion_is_loaded() {
-            "running"
-        } else {
-            "stopped"
-        }
-    );
+    println!("companion={}", lifecycle.companion_status()?);
     let store = DurableStatusStore::new(lifecycle.data_dir().join("status.json"));
     let status = store.load()?;
     println!("durable_status=healthy");
-    println!(
-        "aggregate_state={:?}",
-        nuphy_codex::status_core::StatusCore::reduce_at(&status, Timestamp::now())
-    );
-    println!("protocol_health=ready");
+    let aggregate = nuphy_codex::status_core::StatusCore::reduce_at(&status, Timestamp::now());
+    println!("aggregate_state={aggregate:?}");
     match discover_air65_v3() {
-        Ok(_) => {
+        Ok(mut keyboard) => {
             println!("keyboard_discovery=air65-v3");
             println!("verified_transport=wired-usb");
+            let protocol_health = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport)
+                .displays(LightingCommand::from_aggregate(aggregate))
+                .map(|_| "healthy")
+                .unwrap_or("unhealthy");
+            println!("protocol_health={protocol_health}");
         }
         Err(_) => {
             println!("keyboard_discovery=unavailable");
             println!("verified_transport=unavailable");
+            println!("protocol_health=unavailable");
         }
     }
     Ok(())

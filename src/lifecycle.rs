@@ -70,12 +70,7 @@ impl PluginLifecycle {
                 "another NuPhy plugin installation is already managed"
             );
         }
-        self.start_companion(plugin_root)?;
-        self.write_state(&LifecycleState {
-            plugin_id: plugin_id.into(),
-            plugin_root: plugin_root.to_owned(),
-        })?;
-        Ok(())
+        self.activate(plugin_root, plugin_id)
     }
 
     pub fn update(&self, plugin_root: &Path, plugin_id: &str) -> Result<()> {
@@ -88,18 +83,13 @@ impl PluginLifecycle {
             existing.plugin_id == plugin_id,
             "update cannot change plugin ownership"
         );
-        checked(
+        run_checked_command(
             Command::new(&self.codex)
                 .args(["plugin", "add"])
                 .arg(plugin_id),
             "failed to update the NuPhy plugin",
         )?;
-        self.start_companion(plugin_root)?;
-        self.write_state(&LifecycleState {
-            plugin_id: plugin_id.into(),
-            plugin_root: plugin_root.to_owned(),
-        })?;
-        Ok(())
+        self.activate(plugin_root, plugin_id)
     }
 
     pub fn uninstall(&self) -> Result<()> {
@@ -107,8 +97,8 @@ impl PluginLifecycle {
             .read_state()?
             .context("NuPhy plugin is not installed")?;
         validate_plugin_id(&state.plugin_id)?;
-        self.stop_companion();
-        checked(
+        self.stop_companion()?;
+        run_checked_command(
             Command::new(&self.codex)
                 .args(["plugin", "remove"])
                 .arg(&state.plugin_id),
@@ -144,15 +134,31 @@ impl PluginLifecycle {
             .map(|state| (state.plugin_id, state.plugin_root)))
     }
 
-    pub fn companion_is_loaded(&self) -> bool {
-        Command::new(&self.launchctl)
+    pub fn companion_status(&self) -> Result<&'static str> {
+        let output = Command::new(&self.launchctl)
             .args(["print", &self.launch_target()])
             .output()
-            .is_ok_and(|output| output.status.success())
+            .context("failed to inspect NuPhy companion")?;
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            return Ok(if stdout.contains("state = running") {
+                "running"
+            } else {
+                "loaded-not-running"
+            });
+        }
+        let error = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
+        if error.contains("could not find service")
+            || error.contains("service not found")
+            || error.contains("not found")
+        {
+            return Ok("stopped");
+        }
+        bail!("failed to determine NuPhy companion state")
     }
 
     pub fn plugin_is_enabled(&self, plugin_id: &str) -> Result<bool> {
-        let output = checked(
+        let output = run_checked_command(
             Command::new(&self.codex).args(["plugin", "list", "--json"]),
             "failed to inspect installed Codex plugins",
         )?;
@@ -180,25 +186,38 @@ impl PluginLifecycle {
             &self.data_dir.join("companion.stderr.log"),
         );
         fs::write(self.plist_path(), plist).context("failed to write NuPhy LaunchAgent")?;
-        self.stop_companion();
-        checked(
+        self.stop_companion()?;
+        run_checked_command(
             Command::new(&self.launchctl)
                 .arg("bootstrap")
                 .arg(&self.launch_domain)
                 .arg(self.plist_path()),
             "failed to load NuPhy companion",
         )?;
-        checked(
+        run_checked_command(
             Command::new(&self.launchctl).args(["kickstart", "-k", &self.launch_target()]),
             "failed to start NuPhy companion",
         )?;
         Ok(())
     }
 
-    fn stop_companion(&self) {
-        let _ = Command::new(&self.launchctl)
+    fn stop_companion(&self) -> Result<()> {
+        let output = Command::new(&self.launchctl)
             .args(["bootout", &self.launch_target()])
-            .output();
+            .output()
+            .context("failed to stop NuPhy companion")?;
+        if output.status.success() || self.companion_status()? == "stopped" {
+            return Ok(());
+        }
+        bail!("NuPhy companion is still loaded")
+    }
+
+    fn activate(&self, plugin_root: &Path, plugin_id: &str) -> Result<()> {
+        self.start_companion(plugin_root)?;
+        self.write_state(&LifecycleState {
+            plugin_id: plugin_id.into(),
+            plugin_root: plugin_root.to_owned(),
+        })
     }
 
     fn state_path(&self) -> PathBuf {
@@ -309,7 +328,7 @@ fn validate_plugin_id(plugin_id: &str) -> Result<()> {
     Ok(())
 }
 
-fn checked(command: &mut Command, context: &str) -> Result<Output> {
+fn run_checked_command(command: &mut Command, context: &str) -> Result<Output> {
     let output = command.output().with_context(|| context.to_owned())?;
     if !output.status.success() {
         bail!("{context}")
