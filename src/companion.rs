@@ -14,6 +14,7 @@ const STATUS_LOCK_TIMEOUT: Duration = Duration::from_millis(100);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LightingCommand {
     OrangeAttention,
+    Failure,
     BlueExecution,
     GreenCompletion,
     SignalOff,
@@ -104,6 +105,9 @@ impl<T: ReportTransport> NuPhyIoAdapter for VerifiedNuPhyIoAdapter<'_, T> {
             LightingCommand::OrangeAttention => {
                 apply_attention_signal(self.transport, generate_session_challenge())
             }
+            LightingCommand::Failure => {
+                apply_attention_signal(self.transport, generate_session_challenge())
+            }
             LightingCommand::BlueExecution => {
                 apply_execution_signal(self.transport, generate_session_challenge())
             }
@@ -124,7 +128,7 @@ pub fn sync_once(store: &DurableStatusStore, adapter: &mut impl NuPhyIoAdapter) 
 fn command_for(aggregate: AggregateState) -> LightingCommand {
     match aggregate {
         AggregateState::Attention => LightingCommand::OrangeAttention,
-        AggregateState::Failure => LightingCommand::OrangeAttention,
+        AggregateState::Failure => LightingCommand::Failure,
         AggregateState::Execution => LightingCommand::BlueExecution,
         AggregateState::Completion => LightingCommand::GreenCompletion,
         AggregateState::SignalOff => LightingCommand::SignalOff,

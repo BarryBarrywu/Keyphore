@@ -120,6 +120,7 @@ fn events_from_an_older_turn_cannot_overwrite_current_session_facts() {
         event("SubagentStart", "session-1", Some("stale-child"), "turn-1"),
         event("SubagentStop", "session-1", Some("current-child"), "turn-1"),
         event("Stop", "session-1", None, "turn-1"),
+        event("UserPromptSubmit", "session-1", None, "turn-1"),
     ] {
         handle(&stale_event, &store, 40);
     }
@@ -180,6 +181,11 @@ fn aggregate_priority_includes_unmapped_failure_without_hook_inference() {
         StatusCore::reduce_at(&store.load().unwrap(), now),
         AggregateState::Failure
     );
+    let mut adapter = FakeNuPhyIo::default();
+    Companion::default()
+        .sync_at(&store, &mut adapter, now)
+        .unwrap();
+    assert_eq!(adapter.commands, [LightingCommand::Failure]);
     store
         .remove_owner(&owner("failure"), Duration::from_millis(100))
         .unwrap();
@@ -323,8 +329,8 @@ fn session_cleanup_removes_only_the_matching_session_scope() {
             .iter()
             .all(|owner| owner.id.session_id == "session-2")
     );
-    assert_eq!(status.sessions.len(), 1);
-    assert_eq!(status.sessions[0].session_id, "session-2");
+    assert_eq!(status.current_session_turns.len(), 1);
+    assert_eq!(status.current_session_turns[0].session_id, "session-2");
 }
 
 #[test]
@@ -371,7 +377,7 @@ fn concurrent_hooks_finish_with_atomic_aggregate_status_within_the_lock_budget()
                 handle_codex_event_at(
                     &input,
                     &DurableStatusStore::new(status_path),
-                    Duration::from_secs(1),
+                    Duration::from_millis(100),
                     Timestamp::from_millis(0),
                 )
                 .unwrap();
@@ -381,7 +387,7 @@ fn concurrent_hooks_finish_with_atomic_aggregate_status_within_the_lock_budget()
         .collect();
 
     for thread in threads {
-        assert!(thread.join().unwrap() < Duration::from_secs(1));
+        assert!(thread.join().unwrap() < Duration::from_millis(100));
     }
     let store = DurableStatusStore::new(status_path);
     let status = store.load().unwrap();

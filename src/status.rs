@@ -59,17 +59,19 @@ pub struct OwnerStatus {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct SessionTurn {
+pub struct CurrentSessionTurn {
     pub product: String,
     pub session_id: String,
-    pub turn_id: String,
+    pub current_turn_id: String,
+    #[serde(default)]
+    pub previous_turn_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DurableStatus {
     pub owners: Vec<OwnerStatus>,
     #[serde(default)]
-    pub sessions: Vec<SessionTurn>,
+    pub current_session_turns: Vec<CurrentSessionTurn>,
     #[serde(default)]
     pub generation: u64,
 }
@@ -86,19 +88,47 @@ impl DurableStatus {
         self.generation
     }
 
-    fn accepts_turn(&mut self, id: &SignalOwnerId, turn_id: &str) -> bool {
+    fn accepts_or_initializes_current_turn(&mut self, id: &SignalOwnerId, turn_id: &str) -> bool {
         if let Some(session) = self
-            .sessions
+            .current_session_turns
             .iter()
             .find(|session| session.product == id.product && session.session_id == id.session_id)
         {
-            return session.turn_id == turn_id;
+            return session.current_turn_id == turn_id;
         }
-        self.sessions.push(SessionTurn {
+        self.current_session_turns.push(CurrentSessionTurn {
             product: id.product.clone(),
             session_id: id.session_id.clone(),
-            turn_id: turn_id.into(),
+            current_turn_id: turn_id.into(),
+            previous_turn_ids: Vec::new(),
         });
+        true
+    }
+
+    fn advances_or_reenters_turn(&mut self, id: &SignalOwnerId, turn_id: &str) -> bool {
+        let Some(session) = self
+            .current_session_turns
+            .iter_mut()
+            .find(|session| session.product == id.product && session.session_id == id.session_id)
+        else {
+            self.current_session_turns.push(CurrentSessionTurn {
+                product: id.product.clone(),
+                session_id: id.session_id.clone(),
+                current_turn_id: turn_id.into(),
+                previous_turn_ids: Vec::new(),
+            });
+            return true;
+        };
+        if session.current_turn_id == turn_id {
+            return true;
+        }
+        if session.previous_turn_ids.iter().any(|seen| seen == turn_id) {
+            return false;
+        }
+        session.previous_turn_ids.push(std::mem::replace(
+            &mut session.current_turn_id,
+            turn_id.into(),
+        ));
         true
     }
 }
@@ -145,7 +175,7 @@ impl DurableStatusStore {
     ) -> Result<u64> {
         let mut recorded_generation = 0;
         self.update(lock_timeout, |status| {
-            if !status.accepts_turn(&id, &turn_id) {
+            if !status.accepts_or_initializes_current_turn(&id, &turn_id) {
                 return;
             }
             recorded_generation = status.next_generation();
@@ -183,7 +213,7 @@ impl DurableStatusStore {
         lock_timeout: Duration,
     ) -> Result<()> {
         self.update(lock_timeout, |status| {
-            if status.accepts_turn(id, turn_id) {
+            if status.accepts_or_initializes_current_turn(id, turn_id) {
                 status.owners.retain(|owner| &owner.id != id);
             }
         })
@@ -200,7 +230,7 @@ impl DurableStatusStore {
                 .owners
                 .retain(|owner| owner.id.product != product || owner.id.session_id != session_id);
             status
-                .sessions
+                .current_session_turns
                 .retain(|session| session.product != product || session.session_id != session_id);
         })
     }
@@ -213,17 +243,12 @@ impl DurableStatusStore {
         lock_timeout: Duration,
     ) -> Result<()> {
         self.update(lock_timeout, |status| {
+            if !status.advances_or_reenters_turn(&id, &turn_id) {
+                return;
+            }
             let generation = status.next_generation();
             status.owners.retain(|owner| {
                 owner.id.product != id.product || owner.id.session_id != id.session_id
-            });
-            status.sessions.retain(|session| {
-                session.product != id.product || session.session_id != id.session_id
-            });
-            status.sessions.push(SessionTurn {
-                product: id.product.clone(),
-                session_id: id.session_id.clone(),
-                turn_id: turn_id.clone(),
             });
             status.owners.push(OwnerStatus {
                 id,
@@ -301,7 +326,6 @@ impl DurableStatusStore {
                 .context("failed to create atomic durable-status replacement")?;
             serde_json::to_writer(&mut file, status)?;
             file.write_all(b"\n")?;
-            file.sync_all()?;
             fs::rename(&temporary, &self.path).context("failed to replace durable status")?;
             Ok(())
         })();
