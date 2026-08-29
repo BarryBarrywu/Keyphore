@@ -11,6 +11,7 @@ pub struct SignalExpiry {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AggregateState {
     Attention,
+    Failure,
     Completion,
     Execution,
     SignalOff,
@@ -29,6 +30,13 @@ impl StatusCore {
                 && owner.expires_at.is_some_and(|expires_at| expires_at > now)
         }) {
             return AggregateState::Attention;
+        }
+        if status
+            .owners
+            .iter()
+            .any(|owner| owner.signal == Signal::Failure)
+        {
+            return AggregateState::Failure;
         }
         if status
             .owners

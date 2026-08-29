@@ -28,20 +28,25 @@ pub fn handle_codex_event_at(
 ) -> Result<()> {
     let input: Value = serde_json::from_str(input).context("Hook input is not valid JSON")?;
     let event_name = field(&input, "hook_event_name")?;
+    let agent_id = match event_name {
+        "SubagentStart" | "SubagentStop" => field(&input, "agent_id")?,
+        "PermissionRequest" | "PostToolUse" => input
+            .get("agent_id")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("main"),
+        _ => "main",
+    };
     let owner_id = SignalOwnerId {
         product: "codex".into(),
         session_id: field(&input, "session_id")?.into(),
-        agent_id: input
-            .get("agent_id")
-            .and_then(Value::as_str)
-            .unwrap_or("main")
-            .into(),
+        agent_id: agent_id.into(),
     };
     if matches!(event_name, "SessionStart" | "SessionEnd") {
         return store.remove_session("codex", &owner_id.session_id, lock_timeout);
     }
     if event_name == "SubagentStop" {
-        return store.remove_owner(&owner_id, lock_timeout);
+        return store.remove_owner_for_turn(&owner_id, field(&input, "turn_id")?, lock_timeout);
     }
     if event_name == "Stop" {
         return store
@@ -63,7 +68,7 @@ pub fn handle_codex_event_at(
         );
     }
     let (signal, expires_at) = match event_name {
-        "PostToolUse" => (Signal::Execution, None),
+        "PostToolUse" | "SubagentStart" => (Signal::Execution, None),
         "PermissionRequest" => (
             Signal::Attention,
             Some(now.saturating_add(ATTENTION_LIFETIME)),

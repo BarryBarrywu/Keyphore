@@ -37,6 +37,7 @@ pub enum Signal {
     Attention,
     Completion,
     Execution,
+    Failure,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -57,9 +58,18 @@ pub struct OwnerStatus {
     pub expires_at: Option<Timestamp>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SessionTurn {
+    pub product: String,
+    pub session_id: String,
+    pub turn_id: String,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DurableStatus {
     pub owners: Vec<OwnerStatus>,
+    #[serde(default)]
+    pub sessions: Vec<SessionTurn>,
     #[serde(default)]
     pub generation: u64,
 }
@@ -74,6 +84,22 @@ impl DurableStatus {
             .unwrap_or_default();
         self.generation = self.generation.max(owner_generation).saturating_add(1);
         self.generation
+    }
+
+    fn accepts_turn(&mut self, id: &SignalOwnerId, turn_id: &str) -> bool {
+        if let Some(session) = self
+            .sessions
+            .iter()
+            .find(|session| session.product == id.product && session.session_id == id.session_id)
+        {
+            return session.turn_id == turn_id;
+        }
+        self.sessions.push(SessionTurn {
+            product: id.product.clone(),
+            session_id: id.session_id.clone(),
+            turn_id: turn_id.into(),
+        });
+        true
     }
 }
 
@@ -119,6 +145,9 @@ impl DurableStatusStore {
     ) -> Result<u64> {
         let mut recorded_generation = 0;
         self.update(lock_timeout, |status| {
+            if !status.accepts_turn(&id, &turn_id) {
+                return;
+            }
             recorded_generation = status.next_generation();
             if let Some(existing) = status.owners.iter_mut().find(|owner| owner.id == id) {
                 *existing = OwnerStatus {
@@ -147,6 +176,19 @@ impl DurableStatusStore {
         })
     }
 
+    pub fn remove_owner_for_turn(
+        &self,
+        id: &SignalOwnerId,
+        turn_id: &str,
+        lock_timeout: Duration,
+    ) -> Result<()> {
+        self.update(lock_timeout, |status| {
+            if status.accepts_turn(id, turn_id) {
+                status.owners.retain(|owner| &owner.id != id);
+            }
+        })
+    }
+
     pub fn remove_session(
         &self,
         product: &str,
@@ -157,6 +199,9 @@ impl DurableStatusStore {
             status
                 .owners
                 .retain(|owner| owner.id.product != product || owner.id.session_id != session_id);
+            status
+                .sessions
+                .retain(|session| session.product != product || session.session_id != session_id);
         })
     }
 
@@ -171,6 +216,14 @@ impl DurableStatusStore {
             let generation = status.next_generation();
             status.owners.retain(|owner| {
                 owner.id.product != id.product || owner.id.session_id != id.session_id
+            });
+            status.sessions.retain(|session| {
+                session.product != id.product || session.session_id != id.session_id
+            });
+            status.sessions.push(SessionTurn {
+                product: id.product.clone(),
+                session_id: id.session_id.clone(),
+                turn_id: turn_id.clone(),
             });
             status.owners.push(OwnerStatus {
                 id,

@@ -124,6 +124,7 @@ pub fn sync_once(store: &DurableStatusStore, adapter: &mut impl NuPhyIoAdapter) 
 fn command_for(aggregate: AggregateState) -> LightingCommand {
     match aggregate {
         AggregateState::Attention => LightingCommand::OrangeAttention,
+        AggregateState::Failure => LightingCommand::OrangeAttention,
         AggregateState::Execution => LightingCommand::BlueExecution,
         AggregateState::Completion => LightingCommand::GreenCompletion,
         AggregateState::SignalOff => LightingCommand::SignalOff,
