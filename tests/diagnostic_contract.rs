@@ -3,7 +3,8 @@ use std::time::Duration;
 
 use anyhow::{Result, bail};
 use nuphy_codex::nuphyio::{
-    ORANGE_ATTENTION_MAIN, ReportTransport, apply_attention_signal, exercise_main_backlight,
+    GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN, ReportTransport, apply_attention_signal,
+    apply_completion_signal, exercise_main_backlight,
 };
 use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 
@@ -189,5 +190,16 @@ fn attention_applies_orange_breath_to_main_backlight_only() {
     apply_attention_signal(&mut keyboard, challenge).unwrap();
 
     assert_eq!(keyboard.state[..9], ORANGE_ATTENTION_MAIN);
+    assert_eq!(keyboard.state[9..], INITIAL_RHYTHM);
+}
+
+#[test]
+fn completion_applies_static_green_to_main_backlight_only() {
+    let challenge = std::array::from_fn(|index| index as u8);
+    let mut keyboard = FakeKeyboard::new(challenge);
+
+    apply_completion_signal(&mut keyboard, challenge).unwrap();
+
+    assert_eq!(keyboard.state[..9], GREEN_COMPLETION_MAIN);
     assert_eq!(keyboard.state[9..], INITIAL_RHYTHM);
 }

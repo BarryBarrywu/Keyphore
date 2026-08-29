@@ -1,4 +1,4 @@
-use nuphy_codex::nuphyio::ORANGE_ATTENTION_MAIN;
+use nuphy_codex::nuphyio::{GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN};
 use nuphy_codex::protocol::{
     REPORT_LEN, Request, SessionKey, build_session_request, validate_response,
     validate_session_response,
@@ -34,6 +34,23 @@ fn orange_attention_uses_the_verified_breath_effect_packet() {
         &[
             0x55, 0xd6, 0x00, 0x3e, 0x53, 0x5a, 0x5a, 0x5a, 0x5e, 0x3e, 0x59, 0x5a, 0x5b, 0x5a,
             0xa5, 0xda, 0x5a,
+        ]
+    );
+    assert!(report[17..].iter().all(|byte| *byte == 0));
+}
+
+#[test]
+fn green_completion_uses_the_static_effect_packet() {
+    let report = Request::write(0, &GREEN_COMPLETION_MAIN)
+        .unwrap()
+        .encode(SessionKey::new(0x5a));
+
+    assert_eq!(report.len(), REPORT_LEN);
+    assert_eq!(
+        &report[..17],
+        &[
+            0x55, 0xd6, 0x00, 0xb9, 0x53, 0x5a, 0x5a, 0x5a, 0x59, 0x3e, 0x59, 0x5a, 0x5b, 0x5a,
+            0x5a, 0xa5, 0x5a,
         ]
     );
     assert!(report[17..].iter().all(|byte| *byte == 0));

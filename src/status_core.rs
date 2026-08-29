@@ -7,9 +7,17 @@ pub struct AttentionExpiry {
     pub(crate) expires_at: Timestamp,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompletionExpiry {
+    pub(crate) owner_id: crate::status::SignalOwnerId,
+    pub(crate) generation: u64,
+    pub(crate) expires_at: Timestamp,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AggregateState {
     Attention,
+    Completion,
     Execution,
     SignalOff,
 }
@@ -34,6 +42,11 @@ impl StatusCore {
             .any(|owner| owner.signal == Signal::Execution)
         {
             AggregateState::Execution
+        } else if status.owners.iter().any(|owner| {
+            owner.signal == Signal::Completion
+                && owner.expires_at.is_some_and(|expires_at| expires_at > now)
+        }) {
+            AggregateState::Completion
         } else {
             AggregateState::SignalOff
         }
@@ -48,6 +61,23 @@ impl StatusCore {
                     return None;
                 }
                 owner.expires_at.map(|expires_at| AttentionExpiry {
+                    owner_id: owner.id.clone(),
+                    generation: owner.generation,
+                    expires_at,
+                })
+            })
+            .collect()
+    }
+
+    pub fn completion_expiries(status: &DurableStatus) -> Vec<CompletionExpiry> {
+        status
+            .owners
+            .iter()
+            .filter_map(|owner| {
+                if owner.signal != Signal::Completion {
+                    return None;
+                }
+                owner.expires_at.map(|expires_at| CompletionExpiry {
                     owner_id: owner.id.clone(),
                     generation: owner.generation,
                     expires_at,

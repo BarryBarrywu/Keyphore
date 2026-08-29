@@ -227,7 +227,7 @@ fn a_new_prompt_cleans_stale_attention_from_the_same_session() {
 }
 
 #[test]
-fn stop_releases_only_the_main_owner() {
+fn stop_completion_does_not_clear_another_sessions_attention() {
     let directory = tempfile::tempdir().unwrap();
     let store = DurableStatusStore::new(directory.path().join("status.json"));
     for session in ["session-1", "session-2"] {
@@ -245,8 +245,13 @@ fn stop_releases_only_the_main_owner() {
         .unwrap();
 
     assert_eq!(adapter.commands, [LightingCommand::OrangeAttention]);
-    assert_eq!(store.load().unwrap().owners.len(), 1);
-    assert_eq!(store.load().unwrap().owners[0].id.session_id, "session-2");
+    let owners = store.load().unwrap().owners;
+    assert_eq!(owners.len(), 2);
+    assert!(
+        owners
+            .iter()
+            .any(|owner| owner.id.session_id == "session-2")
+    );
 }
 
 #[test]

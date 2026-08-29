@@ -14,6 +14,7 @@ const RHYTHM_LIGHT_LEN: usize = 8;
 
 pub const BLUE_EXECUTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0, 0, 0xff];
 pub const ORANGE_ATTENTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0xff, 0x80, 0];
+pub const GREEN_COMPLETION_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 100, 3, 0, 1, 0, 0, 0xff, 0];
 pub const SIGNAL_OFF_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 0, 3, 0, 1, 0, 0, 0, 0];
 
 pub fn generate_session_challenge() -> SessionChallenge {
@@ -131,6 +132,18 @@ pub fn apply_signal_off<T: ReportTransport>(
     challenge: SessionChallenge,
 ) -> Result<()> {
     apply_main_signal(transport, challenge, &SIGNAL_OFF_MAIN, "signal-off state")
+}
+
+pub fn apply_completion_signal<T: ReportTransport>(
+    transport: &mut T,
+    challenge: SessionChallenge,
+) -> Result<()> {
+    apply_main_signal(
+        transport,
+        challenge,
+        &GREEN_COMPLETION_MAIN,
+        "green completion signal",
+    )
 }
 
 fn apply_main_signal<T: ReportTransport>(

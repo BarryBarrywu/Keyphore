@@ -6,6 +6,7 @@ use serde_json::Value;
 use crate::status::{DurableStatusStore, Signal, SignalOwnerId, Timestamp};
 
 const ATTENTION_LIFETIME: Duration = Duration::from_secs(60 * 60);
+const COMPLETION_LIFETIME: Duration = Duration::from_secs(5);
 
 pub fn handle_user_prompt_submit(
     input: &str,
@@ -36,11 +37,22 @@ pub fn handle_codex_event_at(
             .unwrap_or("main")
             .into(),
     };
-    if event_name == "SessionStart" {
+    if matches!(event_name, "SessionStart" | "SessionEnd") {
         return store.remove_session("codex", &owner_id.session_id, lock_timeout);
     }
-    if matches!(event_name, "Stop" | "SubagentStop") {
+    if event_name == "SubagentStop" {
         return store.remove_owner(&owner_id, lock_timeout);
+    }
+    if event_name == "Stop" {
+        return store
+            .record_signal(
+                owner_id,
+                field(&input, "turn_id")?.into(),
+                Signal::Completion,
+                Some(now.saturating_add(COMPLETION_LIFETIME)),
+                lock_timeout,
+            )
+            .map(|_| ());
     }
     if event_name == "UserPromptSubmit" {
         return store.replace_session_with_signal(
