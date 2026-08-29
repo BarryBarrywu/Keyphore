@@ -1,7 +1,7 @@
 {
   "name": "nuphy-codex",
   "version": "0.1.0",
-  "description": "Show aggregate Codex task status on a NuPhy Air65 V3 keyboard",
+  "description": "Show Codex status on a stock NuPhy Air65 V3 over macOS wired USB",
   "author": {
     "name": "Barry Barry Wu",
     "url": "https://github.com/BarryBarrywu"
@@ -14,7 +14,7 @@
   "interface": {
     "displayName": "Codex Status for NuPhy",
     "shortDescription": "Show Codex task status on a NuPhy Air65 V3",
-    "longDescription": "Display privacy-constrained aggregate Codex task status on the main backlight of a wired NuPhy Air65 V3 through a bundled native companion.",
+    "longDescription": "Display aggregate Codex task status on stock Air65 V3 firmware over macOS wired USB. Bluetooth, 2.4 GHz, other NuPhy models, Claude Code, custom firmware, and automatic terminal failure signals are not supported.",
     "developerName": "Barry Barry Wu",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],

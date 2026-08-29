@@ -1,5 +1,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
 
 #[test]
 fn diagnostic_is_directly_executable_and_requires_an_explicit_lighting_flag() {
@@ -16,6 +18,27 @@ fn diagnostic_is_directly_executable_and_requires_an_explicit_lighting_flag() {
                 "No lighting report is sent unless",
             )),
     );
+}
+
+#[test]
+fn lighting_exercise_refuses_to_race_the_installed_companion() {
+    let directory = tempfile::tempdir().unwrap();
+    let launchctl = directory.path().join("launchctl");
+    fs::write(
+        &launchctl,
+        "#!/bin/sh\nif [ \"${1:-}\" = print ]; then printf 'state = running\\n'; fi\n",
+    )
+    .unwrap();
+    fs::set_permissions(&launchctl, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    command
+        .args(["diagnose", "--exercise"])
+        .env("NUPHY_CODEX_LAUNCHCTL_BIN", launchctl)
+        .env("NUPHY_CODEX_LAUNCH_DOMAIN", "gui/501");
+
+    command.assert().failure().stderr(predicate::str::contains(
+        "stop the installed companion before exercising the keyboard",
+    ));
 }
 
 #[test]

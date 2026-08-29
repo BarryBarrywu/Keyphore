@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use nuphy_codex::companion::{
     Companion, HealthAwareNuPhyIoAdapter, LightingCommand, VerifiedNuPhyIoAdapter,
@@ -20,11 +20,20 @@ use serde::{Deserialize, Serialize};
 
 const HARDWARE_HEALTH_MAX_AGE: Duration = Duration::from_secs(3);
 
-#[derive(Deserialize, Serialize)]
-struct HardwareHealth {
-    keyboard_discovery: String,
-    protocol_health: String,
-    verified_transport: String,
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum HardwareHealth {
+    Healthy,
+    Unavailable,
+}
+
+impl HardwareHealth {
+    fn fields(self) -> (&'static str, &'static str, &'static str) {
+        match self {
+            Self::Healthy => ("air65-v3", "wired-usb", "healthy"),
+            Self::Unavailable => ("unavailable", "unavailable", "unavailable"),
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -173,9 +182,10 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
                 && let Some(health) =
                     read_recent_hardware_health(&lifecycle.data_dir().join("hardware-health.json"))
             {
-                println!("keyboard_discovery={}", health.keyboard_discovery);
-                println!("verified_transport={}", health.verified_transport);
-                println!("protocol_health={}", health.protocol_health);
+                let (keyboard, transport, protocol) = health.fields();
+                println!("keyboard_discovery={keyboard}");
+                println!("verified_transport={transport}");
+                println!("protocol_health={protocol}");
             } else {
                 println!("keyboard_discovery=unavailable");
                 println!("verified_transport=unavailable");
@@ -210,7 +220,14 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
             &store,
             &mut VerifiedNuPhyIoAdapter::new(&mut keyboard.transport),
         );
-        write_hardware_health(&health_path, result.is_ok())?;
+        write_hardware_health(
+            &health_path,
+            if result.is_ok() {
+                HardwareHealth::Healthy
+            } else {
+                HardwareHealth::Unavailable
+            },
+        )?;
         return result;
     }
 
@@ -218,7 +235,7 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         let mut keyboard = match discover_air65_v3() {
             Ok(keyboard) => keyboard,
             Err(error) => {
-                write_hardware_health(&health_path, false)?;
+                write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
                 eprintln!("waiting for verified Air65 V3: {error:#}");
                 thread::sleep(Duration::from_secs(1));
                 continue;
@@ -226,39 +243,34 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         };
         let mut adapter = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport);
         if let Err(error) = companion.device_reconnected(&store, &mut adapter) {
-            write_hardware_health(&health_path, false)?;
+            write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
             eprintln!("Air65 V3 connection lost while replaying status: {error:#}");
             thread::sleep(Duration::from_secs(1));
             continue;
         }
-        write_hardware_health(&health_path, true)?;
+        write_hardware_health(&health_path, HardwareHealth::Healthy)?;
         let mut last_health_check = Instant::now();
         loop {
             thread::sleep(Duration::from_millis(100));
             if let Err(error) = companion.sync(&store, &mut adapter) {
-                write_hardware_health(&health_path, false)?;
+                write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
                 eprintln!("Air65 V3 connection lost while applying status: {error:#}");
                 break;
             }
             if last_health_check.elapsed() >= Duration::from_secs(1) {
                 if let Err(error) = companion.health_check(&store, &mut adapter) {
-                    write_hardware_health(&health_path, false)?;
+                    write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
                     eprintln!("Air65 V3 health check failed: {error:#}");
                     break;
                 }
-                write_hardware_health(&health_path, true)?;
+                write_hardware_health(&health_path, HardwareHealth::Healthy)?;
                 last_health_check = Instant::now();
             }
         }
     }
 }
 
-fn write_hardware_health(path: &std::path::Path, healthy: bool) -> Result<()> {
-    let health = HardwareHealth {
-        keyboard_discovery: if healthy { "air65-v3" } else { "unavailable" }.into(),
-        protocol_health: if healthy { "healthy" } else { "unavailable" }.into(),
-        verified_transport: if healthy { "wired-usb" } else { "unavailable" }.into(),
-    };
+fn write_hardware_health(path: &std::path::Path, health: HardwareHealth) -> Result<()> {
     let replacement = path.with_file_name(format!(".hardware-health.{}.tmp", std::process::id()));
     fs::write(&replacement, serde_json::to_vec(&health)?)
         .context("failed to write hardware-health replacement")?;
@@ -281,6 +293,9 @@ fn default_status_path() -> PathBuf {
 }
 
 fn diagnose(exercise: bool) -> Result<()> {
+    if exercise && PluginLifecycle::from_environment()?.companion_status()? == "running" {
+        bail!("stop the installed companion before exercising the keyboard");
+    }
     let mut keyboard = discover_air65_v3()?;
     println!(
         "supported device: NuPhy {} (USB {:04x}:{:04x}, interface {}, usage {:04x}:{:04x})",

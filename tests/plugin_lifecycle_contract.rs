@@ -178,7 +178,7 @@ fn diagnostics_report_every_health_surface_without_private_codex_content() {
     fixture.install();
     fs::write(
         fixture.data_dir.join("hardware-health.json"),
-        r#"{"keyboard_discovery":"air65-v3","protocol_health":"healthy","verified_transport":"wired-usb"}"#,
+        r#""healthy""#,
     )
     .unwrap();
     let private_values = [

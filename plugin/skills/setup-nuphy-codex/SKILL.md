@@ -15,4 +15,6 @@ For an update, run `lifecycle update --plugin-root <new-plugin-root> --plugin-id
 
 For removal, run `lifecycle uninstall`. Report whether Codex needs to reload before the removed Hooks disappear from the current process.
 
-For physical acceptance, run `diagnose --exercise` and observe the blue execution signal, orange attention pulse, green completion, and signal-off. Separately verify wired reconnect behavior, normal keyboard input, and an unchanged rhythm light bar on a real Air65 V3. Readback or automated validation alone is not physical acceptance.
+For installed end-to-end acceptance, use real Codex tasks to observe execution, attention, completion, signal-off, concurrency, and restart recovery. Do not run the direct lighting exercise while the companion is active because it is the sole HID owner.
+
+For an isolated hardware exercise, first ensure the companion is stopped, then run `diagnose --exercise` and observe the blue execution signal, orange attention pulse, green completion, and signal-off. Separately verify wired reconnect behavior, normal keyboard input, and an unchanged rhythm light bar on a real Air65 V3. Readback or automated validation alone is not physical acceptance.

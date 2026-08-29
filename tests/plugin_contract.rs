@@ -15,6 +15,19 @@ fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
         serde_json::from_slice(&fs::read("plugin/.codex-plugin/plugin.json").unwrap()).unwrap();
     assert_eq!(manifest["name"], "nuphy-codex");
     assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"));
+    let release_claim = manifest["interface"]["longDescription"].as_str().unwrap();
+    for boundary in [
+        "macOS wired USB",
+        "stock Air65 V3 firmware",
+        "Bluetooth",
+        "2.4 GHz",
+        "other NuPhy models",
+        "Claude Code",
+        "custom firmware",
+        "automatic terminal failure",
+    ] {
+        assert!(release_claim.contains(boundary));
+    }
 
     let companion = fs::metadata("plugin/bin/nuphy-codex").unwrap();
     assert!(companion.is_file());
