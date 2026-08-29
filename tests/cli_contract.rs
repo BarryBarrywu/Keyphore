@@ -21,7 +21,7 @@ fn diagnostic_is_directly_executable_and_requires_an_explicit_lighting_flag() {
 }
 
 #[test]
-fn lighting_exercise_refuses_to_race_the_installed_companion() {
+fn diagnostics_refuse_to_race_the_installed_companion() {
     let directory = tempfile::tempdir().unwrap();
     let launchctl = directory.path().join("launchctl");
     fs::write(
@@ -30,15 +30,17 @@ fn lighting_exercise_refuses_to_race_the_installed_companion() {
     )
     .unwrap();
     fs::set_permissions(&launchctl, fs::Permissions::from_mode(0o755)).unwrap();
-    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
-    command
-        .args(["diagnose", "--exercise"])
-        .env("NUPHY_CODEX_LAUNCHCTL_BIN", launchctl)
-        .env("NUPHY_CODEX_LAUNCH_DOMAIN", "gui/501");
+    for arguments in [vec!["diagnose"], vec!["diagnose", "--exercise"]] {
+        let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+        command
+            .args(arguments)
+            .env("NUPHY_CODEX_LAUNCHCTL_BIN", &launchctl)
+            .env("NUPHY_CODEX_LAUNCH_DOMAIN", "gui/501");
 
-    command.assert().failure().stderr(predicate::str::contains(
-        "stop the installed companion before exercising the keyboard",
-    ));
+        command.assert().failure().stderr(predicate::str::contains(
+            "stop the installed companion before diagnosing the keyboard",
+        ));
+    }
 }
 
 #[test]

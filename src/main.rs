@@ -295,8 +295,8 @@ fn default_status_path() -> PathBuf {
 }
 
 fn diagnose(exercise: bool) -> Result<()> {
-    if exercise && PluginLifecycle::from_environment()?.companion_status()? == "running" {
-        bail!("stop the installed companion before exercising the keyboard");
+    if PluginLifecycle::from_environment()?.companion_status()? == "running" {
+        bail!("stop the installed companion before diagnosing the keyboard");
     }
     let mut keyboard = discover_air65_v3()?;
     println!(
