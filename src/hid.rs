@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use hidapi::{BusType, DeviceInfo, HidApi, HidDevice};
 
 use crate::device::{Bus, DeviceDescriptor, select_supported_device};
-use crate::diagnostic::ReportTransport;
+use crate::nuphyio::ReportTransport;
 use crate::protocol::{REPORT_LEN, Report, parse_report};
 
 pub struct DiscoveredKeyboard {

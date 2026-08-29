@@ -14,3 +14,35 @@ fn diagnostic_is_directly_executable_and_requires_an_explicit_lighting_flag() {
             )),
     );
 }
+
+#[test]
+fn hook_and_companion_are_directly_executable() {
+    for subcommand in ["hook", "companion"] {
+        let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+        command.args([subcommand, "--help"]);
+
+        command
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("--status"));
+    }
+}
+
+#[test]
+fn hook_persists_without_a_running_companion_or_keyboard() {
+    let directory = tempfile::tempdir().unwrap();
+    let status = directory.path().join("status.json");
+    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    command
+        .args(["hook", "--status"])
+        .arg(&status)
+        .write_stdin(
+            r#"{"hook_event_name":"UserPromptSubmit","session_id":"session-1","turn_id":"turn-1","prompt":"secret"}"#,
+        );
+
+    command.assert().success().stdout("");
+
+    let persisted = std::fs::read_to_string(status).unwrap();
+    assert!(persisted.contains("session-1"));
+    assert!(!persisted.contains("secret"));
+}

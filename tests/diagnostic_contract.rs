@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use anyhow::{Result, bail};
-use nuphy_codex::diagnostic::{ReportTransport, exercise_main_backlight};
+use nuphy_codex::nuphyio::{ReportTransport, exercise_main_backlight};
 use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 
 const KEY: u8 = 0xa5;

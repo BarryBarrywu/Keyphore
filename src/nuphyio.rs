@@ -101,6 +101,38 @@ where
     })
 }
 
+pub fn apply_execution_signal<T: ReportTransport>(
+    transport: &mut T,
+    challenge: SessionChallenge,
+) -> Result<()> {
+    let key = start_temporary_session(transport, challenge)?;
+    let initial = read_light_state(transport, key)?;
+    apply_and_verify_state(
+        transport,
+        key,
+        &initial,
+        &BLUE_EXECUTION_MAIN,
+        "blue execution signal",
+    )?;
+    Ok(())
+}
+
+pub fn apply_signal_off<T: ReportTransport>(
+    transport: &mut T,
+    challenge: SessionChallenge,
+) -> Result<()> {
+    let key = start_temporary_session(transport, challenge)?;
+    let initial = read_light_state(transport, key)?;
+    apply_and_verify_state(
+        transport,
+        key,
+        &initial,
+        &SIGNAL_OFF_MAIN,
+        "signal-off state",
+    )?;
+    Ok(())
+}
+
 fn apply_and_verify_state<T: ReportTransport>(
     transport: &mut T,
     key: SessionKey,
