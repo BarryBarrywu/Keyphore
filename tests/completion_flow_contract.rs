@@ -120,10 +120,7 @@ fn a_stale_completion_timeout_cannot_clear_new_execution_for_the_same_owner() {
     handle(&event("Stop", "session-1", "turn-1"), &store, 100);
 
     let mut companion = Companion::default();
-    let stale_timeout = companion
-        .pending_completion_expiries(&store)
-        .unwrap()
-        .remove(0);
+    let stale_timeout = companion.pending_expiries(&store).unwrap().remove(0);
     handle(
         &event("UserPromptSubmit", "session-1", "turn-2"),
         &store,
@@ -132,7 +129,7 @@ fn a_stale_completion_timeout_cannot_clear_new_execution_for_the_same_owner() {
 
     let mut adapter = FakeNuPhyIo::default();
     companion
-        .handle_completion_timeout_at(
+        .handle_timeout_at(
             &store,
             &mut adapter,
             stale_timeout,

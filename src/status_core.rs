@@ -1,15 +1,9 @@
 use crate::status::{DurableStatus, Signal, Timestamp};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AttentionExpiry {
+pub struct SignalExpiry {
     pub(crate) owner_id: crate::status::SignalOwnerId,
-    pub(crate) generation: u64,
-    pub(crate) expires_at: Timestamp,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompletionExpiry {
-    pub(crate) owner_id: crate::status::SignalOwnerId,
+    pub(crate) signal: Signal,
     pub(crate) generation: u64,
     pub(crate) expires_at: Timestamp,
 }
@@ -52,33 +46,14 @@ impl StatusCore {
         }
     }
 
-    pub fn attention_expiries(status: &DurableStatus) -> Vec<AttentionExpiry> {
+    pub fn expiries(status: &DurableStatus) -> Vec<SignalExpiry> {
         status
             .owners
             .iter()
             .filter_map(|owner| {
-                if owner.signal != Signal::Attention {
-                    return None;
-                }
-                owner.expires_at.map(|expires_at| AttentionExpiry {
+                owner.expires_at.map(|expires_at| SignalExpiry {
                     owner_id: owner.id.clone(),
-                    generation: owner.generation,
-                    expires_at,
-                })
-            })
-            .collect()
-    }
-
-    pub fn completion_expiries(status: &DurableStatus) -> Vec<CompletionExpiry> {
-        status
-            .owners
-            .iter()
-            .filter_map(|owner| {
-                if owner.signal != Signal::Completion {
-                    return None;
-                }
-                owner.expires_at.map(|expires_at| CompletionExpiry {
-                    owner_id: owner.id.clone(),
+                    signal: owner.signal,
                     generation: owner.generation,
                     expires_at,
                 })

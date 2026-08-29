@@ -7,7 +7,7 @@ use crate::nuphyio::{
     apply_signal_off, generate_session_challenge,
 };
 use crate::status::{DurableStatusStore, Timestamp};
-use crate::status_core::{AggregateState, AttentionExpiry, CompletionExpiry, StatusCore};
+use crate::status_core::{AggregateState, SignalExpiry, StatusCore};
 
 const STATUS_LOCK_TIMEOUT: Duration = Duration::from_millis(100);
 
@@ -43,14 +43,9 @@ impl Companion {
         adapter: &mut impl NuPhyIoAdapter,
         now: Timestamp,
     ) -> Result<()> {
-        for expiry in self.pending_attention_expiries(store)? {
+        for expiry in self.pending_expiries(store)? {
             if expiry.expires_at <= now {
-                expire_attention_callback(store, &expiry, now)?;
-            }
-        }
-        for expiry in self.pending_completion_expiries(store)? {
-            if expiry.expires_at <= now {
-                expire_completion_callback(store, &expiry, now)?;
+                expire_signal_callback(store, &expiry, now)?;
             }
         }
         let aggregate = StatusCore::reduce_at(&store.load()?, now);
@@ -62,64 +57,30 @@ impl Companion {
         Ok(())
     }
 
-    pub fn pending_completion_expiries(
-        &self,
-        store: &DurableStatusStore,
-    ) -> Result<Vec<CompletionExpiry>> {
-        Ok(StatusCore::completion_expiries(&store.load()?))
+    pub fn pending_expiries(&self, store: &DurableStatusStore) -> Result<Vec<SignalExpiry>> {
+        Ok(StatusCore::expiries(&store.load()?))
     }
 
-    pub fn pending_attention_expiries(
-        &self,
-        store: &DurableStatusStore,
-    ) -> Result<Vec<AttentionExpiry>> {
-        Ok(StatusCore::attention_expiries(&store.load()?))
-    }
-
-    pub fn handle_attention_timeout_at(
+    pub fn handle_timeout_at(
         &mut self,
         store: &DurableStatusStore,
         adapter: &mut impl NuPhyIoAdapter,
-        expiry: AttentionExpiry,
+        expiry: SignalExpiry,
         now: Timestamp,
     ) -> Result<()> {
-        expire_attention_callback(store, &expiry, now)?;
-        self.sync_at(store, adapter, now)
-    }
-
-    pub fn handle_completion_timeout_at(
-        &mut self,
-        store: &DurableStatusStore,
-        adapter: &mut impl NuPhyIoAdapter,
-        expiry: CompletionExpiry,
-        now: Timestamp,
-    ) -> Result<()> {
-        expire_completion_callback(store, &expiry, now)?;
+        expire_signal_callback(store, &expiry, now)?;
         self.sync_at(store, adapter, now)
     }
 }
 
-fn expire_completion_callback(
+fn expire_signal_callback(
     store: &DurableStatusStore,
-    expiry: &CompletionExpiry,
+    expiry: &SignalExpiry,
     now: Timestamp,
 ) -> Result<()> {
-    store.expire_completion(
+    store.expire_signal(
         &expiry.owner_id,
-        expiry.generation,
-        expiry.expires_at,
-        now,
-        STATUS_LOCK_TIMEOUT,
-    )
-}
-
-fn expire_attention_callback(
-    store: &DurableStatusStore,
-    expiry: &AttentionExpiry,
-    now: Timestamp,
-) -> Result<()> {
-    store.expire_attention(
-        &expiry.owner_id,
+        expiry.signal,
         expiry.generation,
         expiry.expires_at,
         now,

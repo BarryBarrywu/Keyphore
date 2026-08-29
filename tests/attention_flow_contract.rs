@@ -179,15 +179,12 @@ fn stale_timeout_cannot_clear_a_newer_generation_of_the_same_owner() {
     handle(&permission, &store, 0);
 
     let mut companion = Companion::default();
-    let stale_timeout = companion
-        .pending_attention_expiries(&store)
-        .unwrap()
-        .remove(0);
+    let stale_timeout = companion.pending_expiries(&store).unwrap().remove(0);
     handle(&permission, &store, 1_000);
 
     let mut adapter = FakeNuPhyIo::default();
     companion
-        .handle_attention_timeout_at(
+        .handle_timeout_at(
             &store,
             &mut adapter,
             stale_timeout,

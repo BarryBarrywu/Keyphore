@@ -31,7 +31,7 @@ impl Timestamp {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Signal {
     Attention,
@@ -182,9 +182,10 @@ impl DurableStatusStore {
         })
     }
 
-    pub fn expire_attention(
+    pub fn expire_signal(
         &self,
         id: &SignalOwnerId,
+        signal: Signal,
         generation: u64,
         expires_at: Timestamp,
         now: Timestamp,
@@ -193,26 +194,7 @@ impl DurableStatusStore {
         self.update(lock_timeout, |status| {
             status.owners.retain(|owner| {
                 owner.id != *id
-                    || owner.signal != Signal::Attention
-                    || owner.generation != generation
-                    || owner.expires_at != Some(expires_at)
-                    || expires_at > now
-            });
-        })
-    }
-
-    pub fn expire_completion(
-        &self,
-        id: &SignalOwnerId,
-        generation: u64,
-        expires_at: Timestamp,
-        now: Timestamp,
-        lock_timeout: Duration,
-    ) -> Result<()> {
-        self.update(lock_timeout, |status| {
-            status.owners.retain(|owner| {
-                owner.id != *id
-                    || owner.signal != Signal::Completion
+                    || owner.signal != signal
                     || owner.generation != generation
                     || owner.expires_at != Some(expires_at)
                     || expires_at > now
