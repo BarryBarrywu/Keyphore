@@ -1,6 +1,6 @@
 # Issue #9 acceptance record
 
-Date: 2026-08-29
+Date: 2026-08-29 to 2026-08-30
 
 Environment observed by the acceptance commands: macOS, NuPhy Air65 V3 USB `19f5:102b`, interface 3, wired USB. The operator confirmed that the keyboard uses stock firmware.
 
@@ -13,14 +13,16 @@ Environment observed by the acceptance commands: macOS, NuPhy Air65 V3 USB `19f5
 - Through the installed Hook, durable-status, companion, and real HID path, diagnostics observed `Execution`, `Attention`, `Completion`, then `SignalOff`, with `keyboard_discovery=air65-v3`, `verified_transport=wired-usb`, and `protocol_health=healthy` at every stage.
 - Two simultaneous sessions preserved attention over another session's completion. Automated contracts separately cover subagent owner isolation and aggregate priority.
 - A forced companion restart replayed `Execution` from durable status. `SessionEnd` returned the aggregate to `SignalOff`.
-- A fresh Codex CLI task using the automation-only trust bypass for the vetted local Hook definition drove the installed Plugin through `Execution` and cleanup. On Codex CLI 0.146.1, a real held-open Agent subagent completed successfully, but configured `SubagentStart` and `SubagentStop` events did not reach the Plugin; only the parent tool lifecycle was observed, so live subagent aggregation remains an open gate.
+- A fresh Codex CLI task using the automation-only trust bypass for the vetted local Hook definition drove the installed Plugin through `Execution` and cleanup. A later Codex Desktop `0.150.0-alpha.12.2` subagent run stayed at `SignalOff` and produced no `status.json`; app-server `hooks/list` then proved all eight NuPhy Hooks were enabled but untrusted, so that run is evidence of a missing trust gate rather than missing subagent event delivery. The lifecycle now requires a separate `trust-hooks` action, accepts only the fixed per-event hashes reviewed for this release, writes only those trusted hashes, reads them back as trusted, and reports `hook_trust=trusted`.
+- A privacy-safe, 256 KiB-bounded Hook audit records only event, session, agent, turn, and receipt-time fields. It proved that a fresh real Codex CLI subagent delivered `SubagentStart`, child `PostToolUse`, and `SubagentStop`, with the child sharing the parent session but using its own turn. The durable turn guard is now scoped by product, session, and agent; a 100 ms poll observed simultaneous main and child execution owners, and `SessionEnd` left no owners. Uninstall removes the audit file.
+- After a full Codex Desktop restart, a real 20-second subagent produced an independent child owner alongside the main owner, both with distinct turn IDs and `Execution`. `SubagentStop` removed only the child while the main owner remained. The operator visually confirmed blue throughout child execution and cleanup, followed by green main completion and signal-off.
 - Hook writes completed in 0.00-0.01 seconds. With the companion stopped, a Hook write still completed in 0.00 seconds and replayed after the companion restarted.
 - With the Air65 V3 physically unplugged, five Hook writes completed in 0.00-0.01 seconds while diagnostics reported the keyboard and protocol as unavailable. Reconnecting the keyboard in wired mode automatically replayed the persisted blue `Execution` state, after which session cleanup returned the aggregate to `SignalOff`.
 - After an operator-authorized factory reset, the installed companion automatically replayed the persisted blue `Execution` state; the operator then confirmed normal Air65 V3 input before session cleanup returned the aggregate to `SignalOff`.
-- `cargo fmt --check`, `cargo check --all-targets`, Clippy with warnings denied, all 58 tests, the marketplace parser, and strict bundled-binary signature validation passed.
+- `cargo fmt --check`, `cargo check --all-targets`, Clippy with warnings denied, all 65 tests, the marketplace parser, strict bundled-binary signature validation, and a fresh real Codex CLI subagent probe passed.
 
-## Required human gates still open
+## Required human gates completed
 
-- Run concurrent real Codex tasks with a live subagent and confirm the visible aggregate priority.
+- The reloaded Codex Desktop real-subagent and visible aggregate-priority gate passed on 2026-08-30.
 
-Until these gates are recorded, automated checks and HID readback do not constitute full real-device acceptance.
+Issue #9's recorded real-device acceptance gates are complete.

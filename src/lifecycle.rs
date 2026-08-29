@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -10,6 +11,8 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::app_server::{AppServerClient, HookMetadata};
+
 const PLUGIN_NAME: &str = "nuphy-codex";
 const LAUNCH_LABEL: &str = "com.barrybarrywu.nuphy-codex";
 const HOOK_EVENTS: [&str; 8] = [
@@ -21,6 +24,40 @@ const HOOK_EVENTS: [&str; 8] = [
     "SubagentStart",
     "SubagentStop",
     "UserPromptSubmit",
+];
+const REVIEWED_HOOKS: [(&str, &str); 8] = [
+    (
+        "permissionRequest",
+        "sha256:8267b9ad0d284e8d56108f205a0c3bab9137603059c18c49e023709537752487",
+    ),
+    (
+        "postToolUse",
+        "sha256:0eb1afe4c37b6d25b0636780c9c317088b0934be209c84d491c98888b534707c",
+    ),
+    (
+        "sessionEnd",
+        "sha256:12fe49da3056d8d0c0d59784ba786157058a52180a952f0b0eb4e77cc52d0119",
+    ),
+    (
+        "sessionStart",
+        "sha256:b304d1a02564ea26eb19beebcf10bf746416021bbf9d6472eaea736761df9aa4",
+    ),
+    (
+        "stop",
+        "sha256:9835248acdcd156a96185b9c5dfc837f2ea30766f9a31b84a92a2176ea14e649",
+    ),
+    (
+        "subagentStart",
+        "sha256:40388d6052f588e3a25f2a1b3b6c443092dded118f56c7f808ba3cc3d54f820d",
+    ),
+    (
+        "subagentStop",
+        "sha256:4473fc3298ab1008800b3650db4ffe0d7a50168863aefbb5cbf1f96144bb4e1f",
+    ),
+    (
+        "userPromptSubmit",
+        "sha256:34c72ab0961fdb2fd1469bdf09528d96aa4a3bbd86e4787e311e8207e5f8714e",
+    ),
 ];
 const HOOK_COMMAND: &str = "\"${PLUGIN_ROOT}/bin/nuphy-codex\" hook";
 
@@ -104,6 +141,7 @@ impl PluginLifecycle {
             .context("NuPhy plugin is not installed")?;
         validate_plugin_id(&state.plugin_id)?;
         self.stop_companion()?;
+        self.disable_plugin_hooks(&state.plugin_root, &state.plugin_id)?;
         run_checked_command(
             Command::new(&self.codex)
                 .args(["plugin", "remove"])
@@ -114,6 +152,7 @@ impl PluginLifecycle {
         for name in [
             "status.json",
             "status.lock",
+            "hook-events.jsonl",
             "companion.stdout.log",
             "companion.stderr.log",
             "hardware-health.json",
@@ -178,6 +217,20 @@ impl PluginLifecycle {
         }))
     }
 
+    pub fn plugin_hooks_are_trusted(&self, plugin_root: &Path, plugin_id: &str) -> Result<bool> {
+        let hooks = self.reviewed_hooks(plugin_root, plugin_id)?;
+        Ok(hooks
+            .iter()
+            .all(|hook| hook.enabled && hook.trust_status == "trusted"))
+    }
+
+    pub fn trust_hooks(&self) -> Result<()> {
+        let state = self
+            .read_state()?
+            .context("NuPhy plugin is not installed")?;
+        self.trust_plugin_hooks(&state.plugin_root, &state.plugin_id)
+    }
+
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
@@ -220,11 +273,43 @@ impl PluginLifecycle {
     }
 
     fn activate(&self, plugin_root: &Path, plugin_id: &str) -> Result<()> {
+        self.reviewed_hooks(plugin_root, plugin_id)?;
         self.start_companion(plugin_root)?;
         self.write_state(&LifecycleState {
             plugin_id: plugin_id.into(),
             plugin_root: plugin_root.to_owned(),
         })
+    }
+
+    fn trust_plugin_hooks(&self, plugin_root: &Path, plugin_id: &str) -> Result<()> {
+        let client = AppServerClient::new(&self.codex);
+        let hooks = self.reviewed_hooks(plugin_root, plugin_id)?;
+        client.trust_hooks(&hooks)?;
+        let configured = self.reviewed_hooks(plugin_root, plugin_id)?;
+        ensure!(
+            configured
+                .iter()
+                .all(|hook| hook.enabled && hook.trust_status == "trusted"),
+            "Codex did not trust the reviewed NuPhy Hooks"
+        );
+        Ok(())
+    }
+
+    fn disable_plugin_hooks(&self, plugin_root: &Path, plugin_id: &str) -> Result<()> {
+        let client = AppServerClient::new(&self.codex);
+        let hooks = self.reviewed_hooks(plugin_root, plugin_id)?;
+        client.disable_hooks(&hooks)?;
+        let configured = self.reviewed_hooks(plugin_root, plugin_id)?;
+        ensure!(
+            configured.iter().all(|hook| !hook.enabled),
+            "Codex did not disable the reviewed NuPhy Hooks"
+        );
+        Ok(())
+    }
+
+    fn reviewed_hooks(&self, plugin_root: &Path, plugin_id: &str) -> Result<Vec<HookMetadata>> {
+        let discovered = AppServerClient::new(&self.codex).list_hooks(plugin_root)?;
+        review_plugin_hooks(discovered, plugin_root, plugin_id)
     }
 
     fn state_path(&self) -> PathBuf {
@@ -259,6 +344,51 @@ impl PluginLifecycle {
         fs::write(&replacement, bytes).context("failed to write lifecycle replacement")?;
         fs::rename(replacement, self.state_path()).context("failed to replace lifecycle state")
     }
+}
+
+fn review_plugin_hooks(
+    discovered: Vec<HookMetadata>,
+    plugin_root: &Path,
+    plugin_id: &str,
+) -> Result<Vec<HookMetadata>> {
+    let mut selected = discovered
+        .into_iter()
+        .filter(|hook| hook.plugin_id.as_deref() == Some(plugin_id))
+        .collect::<Vec<_>>();
+    let events = selected
+        .iter()
+        .map(|hook| hook.event_name.as_str())
+        .collect::<BTreeSet<_>>();
+    ensure!(
+        events == REVIEWED_HOOKS.iter().map(|(event, _)| *event).collect()
+            && selected.len() == REVIEWED_HOOKS.len(),
+        "Codex discovered an unexpected NuPhy Hook set"
+    );
+    let expected_command = format!("\"{}\" hook", plugin_root.join("bin/nuphy-codex").display());
+    let expected_source = plugin_root.join("hooks/hooks.json");
+    ensure!(
+        selected.iter().all(|hook| {
+            !hook.is_managed
+                && hook.handler_type == "command"
+                && hook
+                    .execution_mode
+                    .as_deref()
+                    .is_none_or(|mode| mode == "sync")
+                && hook.matcher.is_none()
+                && hook.command.as_deref() == Some(expected_command.as_str())
+                && hook.timeout_sec == 1
+                && hook.status_message.is_none()
+                && hook.additional_context_limit.is_none()
+                && hook.source_path == expected_source
+                && REVIEWED_HOOKS
+                    .iter()
+                    .find(|(event, _)| *event == hook.event_name)
+                    .is_some_and(|(_, hash)| *hash == hook.current_hash)
+        }),
+        "Codex discovered a NuPhy Hook definition that was not reviewed"
+    );
+    selected.sort_by(|left, right| left.event_name.cmp(&right.event_name));
+    Ok(selected)
 }
 
 pub fn validate_plugin_bundle(plugin_root: &Path) -> Result<()> {

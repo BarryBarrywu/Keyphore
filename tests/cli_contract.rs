@@ -76,6 +76,55 @@ fn hook_persists_without_a_running_companion_or_keyboard() {
 }
 
 #[test]
+fn hook_audit_records_only_lifecycle_identity_fields() {
+    let directory = tempfile::tempdir().unwrap();
+    let status = directory.path().join("status.json");
+    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    command
+        .args(["hook", "--status"])
+        .arg(&status)
+        .write_stdin(
+            r#"{"hook_event_name":"UserPromptSubmit","session_id":"session-1","agent_id":"agent-1","turn_id":"turn-1","prompt":"secret prompt","tool_response":"secret output"}"#,
+        );
+
+    command.assert().success().stdout("");
+
+    let audit = fs::read_to_string(directory.path().join("hook-events.jsonl")).unwrap();
+    for expected in [
+        "UserPromptSubmit",
+        "session-1",
+        "agent-1",
+        "turn-1",
+        "received_at",
+    ] {
+        assert!(audit.contains(expected));
+    }
+    for private in ["secret prompt", "secret output", "prompt", "tool_response"] {
+        assert!(!audit.contains(private));
+    }
+}
+
+#[test]
+fn hook_audit_never_exceeds_its_size_limit() {
+    let directory = tempfile::tempdir().unwrap();
+    let status = directory.path().join("status.json");
+    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    command.args(["hook", "--status"]).arg(&status).write_stdin(
+        serde_json::json!({
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s".repeat(300 * 1024),
+            "turn_id": "turn-1"
+        })
+        .to_string(),
+    );
+
+    command.assert().success().stdout("");
+
+    let audit = fs::metadata(directory.path().join("hook-events.jsonl")).unwrap();
+    assert!(audit.len() <= 256 * 1024);
+}
+
+#[test]
 fn hook_accepts_permission_requests_without_a_running_companion_or_keyboard() {
     let directory = tempfile::tempdir().unwrap();
     let status = directory.path().join("status.json");

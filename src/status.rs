@@ -62,6 +62,8 @@ pub struct OwnerStatus {
 pub struct CurrentSessionTurn {
     pub product: String,
     pub session_id: String,
+    #[serde(default = "default_main_agent")]
+    pub agent_id: String,
     pub current_turn_id: String,
     #[serde(default)]
     pub previous_turn_ids: Vec<String>,
@@ -72,6 +74,7 @@ impl CurrentSessionTurn {
         Self {
             product: id.product.clone(),
             session_id: id.session_id.clone(),
+            agent_id: id.agent_id.clone(),
             current_turn_id: turn_id.into(),
             previous_turn_ids: Vec::new(),
         }
@@ -100,11 +103,11 @@ impl DurableStatus {
     }
 
     fn accepts_or_initializes_current_turn(&mut self, id: &SignalOwnerId, turn_id: &str) -> bool {
-        if let Some(session) = self
-            .current_session_turns
-            .iter()
-            .find(|session| session.product == id.product && session.session_id == id.session_id)
-        {
+        if let Some(session) = self.current_session_turns.iter().find(|session| {
+            session.product == id.product
+                && session.session_id == id.session_id
+                && session.agent_id == id.agent_id
+        }) {
             return session.current_turn_id == turn_id;
         }
         self.current_session_turns
@@ -113,11 +116,11 @@ impl DurableStatus {
     }
 
     fn advances_or_reenters_turn(&mut self, id: &SignalOwnerId, turn_id: &str) -> bool {
-        let Some(session) = self
-            .current_session_turns
-            .iter_mut()
-            .find(|session| session.product == id.product && session.session_id == id.session_id)
-        else {
+        let Some(session) = self.current_session_turns.iter_mut().find(|session| {
+            session.product == id.product
+                && session.session_id == id.session_id
+                && session.agent_id == id.agent_id
+        }) else {
             self.current_session_turns
                 .push(CurrentSessionTurn::new(id, turn_id));
             return true;
@@ -134,6 +137,10 @@ impl DurableStatus {
         ));
         true
     }
+}
+
+fn default_main_agent() -> String {
+    "main".into()
 }
 
 pub struct DurableStatusStore {

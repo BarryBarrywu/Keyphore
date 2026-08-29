@@ -1,3 +1,4 @@
+mod app_server;
 pub mod companion;
 pub mod device;
 pub mod hid;

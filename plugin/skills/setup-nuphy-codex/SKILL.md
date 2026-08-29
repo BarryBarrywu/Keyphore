@@ -9,9 +9,9 @@ Resolve the plugin root as the directory two levels above this file. Use only th
 
 The first release is verified only on macOS wired USB with stock Air65 V3 firmware. Bluetooth, 2.4 GHz, other NuPhy models, Claude Code, custom firmware, and automatic terminal failure signals are unsupported and must not be claimed.
 
-For a fresh installation, run `lifecycle install --plugin-root <plugin-root> --plugin-id nuphy-codex@<marketplace>`, review and trust the installed Hook definition with `/hooks`, then start a new Codex task before running `lifecycle validate` and `diagnostics`.
+For a fresh installation, run `lifecycle install --plugin-root <plugin-root> --plugin-id nuphy-codex@<marketplace>`. Review the eight owned Hook definitions in `/hooks`, then explicitly run `lifecycle trust-hooks`; it accepts only the fixed per-event hashes reviewed for this release. Then start a new Codex task before running `lifecycle validate` and `diagnostics`, and require `hook_trust=trusted`.
 
-For an update, run `lifecycle update --plugin-root <new-plugin-root> --plugin-id nuphy-codex@<marketplace>`, review and trust the changed Hook definition with `/hooks`, then start a new Codex task before running `lifecycle validate` and `diagnostics` using the new bundled executable.
+For an update, run `lifecycle update --plugin-root <new-plugin-root> --plugin-id nuphy-codex@<marketplace>`. Review the changed definitions in `/hooks`, then explicitly run `lifecycle trust-hooks`; it refuses any hash not fixed in the reviewed release. Then start a new Codex task before running `lifecycle validate` and `diagnostics` using the new bundled executable, and require `hook_trust=trusted`.
 
 For removal, run `lifecycle uninstall`. Report whether Codex needs to reload before the removed Hooks disappear from the current process.
 

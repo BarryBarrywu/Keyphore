@@ -82,7 +82,9 @@ fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
     assert!(setup.contains("lifecycle validate"));
     assert!(setup.contains("lifecycle update"));
     assert!(setup.contains("lifecycle uninstall"));
-    assert!(setup.contains("/hooks"));
+    assert!(setup.contains("lifecycle trust-hooks"));
+    assert!(setup.contains("fixed per-event hashes"));
+    assert!(setup.contains("hook_trust=trusted"));
     assert!(setup.contains("start a new Codex task"));
     assert!(setup.contains("macOS wired USB"));
     assert!(setup.contains("stock Air65 V3 firmware"));

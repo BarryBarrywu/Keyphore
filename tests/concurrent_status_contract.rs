@@ -49,12 +49,12 @@ fn subagent_lifecycle_keeps_the_main_owner_and_removes_only_the_child() {
     let directory = tempfile::tempdir().unwrap();
     let store = DurableStatusStore::new(directory.path().join("status.json"));
     handle(
-        &event("UserPromptSubmit", "session-1", None, "turn-1"),
+        &event("UserPromptSubmit", "session-1", None, "main-turn"),
         &store,
         0,
     );
     handle(
-        &event("SubagentStart", "session-1", Some("agent-1"), "turn-1"),
+        &event("SubagentStart", "session-1", Some("agent-1"), "child-turn"),
         &store,
         10,
     );
@@ -65,7 +65,7 @@ fn subagent_lifecycle_keeps_the_main_owner_and_removes_only_the_child() {
     assert!(owners.iter().any(|owner| owner.id.agent_id == "agent-1"));
 
     handle(
-        &event("SubagentStop", "session-1", Some("agent-1"), "turn-1"),
+        &event("SubagentStop", "session-1", Some("agent-1"), "child-turn"),
         &store,
         20,
     );
@@ -117,7 +117,12 @@ fn events_from_an_older_turn_cannot_overwrite_current_session_facts() {
 
     for stale_event in [
         event("PermissionRequest", "session-1", None, "turn-1"),
-        event("SubagentStart", "session-1", Some("stale-child"), "turn-1"),
+        event(
+            "SubagentStart",
+            "session-1",
+            Some("current-child"),
+            "turn-1",
+        ),
         event("SubagentStop", "session-1", Some("current-child"), "turn-1"),
         event("Stop", "session-1", None, "turn-1"),
         event("UserPromptSubmit", "session-1", None, "turn-1"),
@@ -239,16 +244,16 @@ fn main_completion_does_not_replace_child_execution() {
     let directory = tempfile::tempdir().unwrap();
     let store = DurableStatusStore::new(directory.path().join("status.json"));
     handle(
-        &event("UserPromptSubmit", "session-1", None, "turn-1"),
+        &event("UserPromptSubmit", "session-1", None, "main-turn"),
         &store,
         0,
     );
     handle(
-        &event("SubagentStart", "session-1", Some("agent-1"), "turn-1"),
+        &event("SubagentStart", "session-1", Some("agent-1"), "child-turn"),
         &store,
         10,
     );
-    handle(&event("Stop", "session-1", None, "turn-1"), &store, 20);
+    handle(&event("Stop", "session-1", None, "main-turn"), &store, 20);
 
     let status = store.load().unwrap();
     assert_eq!(status.owners.len(), 2);
@@ -305,12 +310,12 @@ fn session_cleanup_removes_only_the_matching_session_scope() {
     let store = DurableStatusStore::new(directory.path().join("status.json"));
     for session in ["session-1", "session-2"] {
         handle(
-            &event("UserPromptSubmit", session, None, "turn-1"),
+            &event("UserPromptSubmit", session, None, "main-turn"),
             &store,
             0,
         );
         handle(
-            &event("SubagentStart", session, Some("agent-1"), "turn-1"),
+            &event("SubagentStart", session, Some("agent-1"), "child-turn"),
             &store,
             10,
         );
@@ -329,8 +334,25 @@ fn session_cleanup_removes_only_the_matching_session_scope() {
             .iter()
             .all(|owner| owner.id.session_id == "session-2")
     );
-    assert_eq!(status.current_session_turns.len(), 1);
-    assert_eq!(status.current_session_turns[0].session_id, "session-2");
+    assert_eq!(status.current_session_turns.len(), 2);
+    assert!(
+        status
+            .current_session_turns
+            .iter()
+            .all(|turn| turn.session_id == "session-2")
+    );
+    assert!(
+        status
+            .current_session_turns
+            .iter()
+            .any(|turn| turn.agent_id == "main")
+    );
+    assert!(
+        status
+            .current_session_turns
+            .iter()
+            .any(|turn| turn.agent_id == "agent-1")
+    );
 }
 
 #[test]
@@ -354,6 +376,20 @@ fn owner_identity_includes_product_session_and_agent() {
     let owners = store.load().unwrap().owners;
     assert_eq!(owners.len(), 2);
     assert_ne!(owners[0].id, owners[1].id);
+}
+
+#[test]
+fn legacy_session_turns_default_to_the_main_agent() {
+    let directory = tempfile::tempdir().unwrap();
+    let status_path = directory.path().join("status.json");
+    std::fs::write(
+        &status_path,
+        r#"{"owners":[],"current_session_turns":[{"product":"codex","session_id":"session-1","current_turn_id":"turn-1","previous_turn_ids":[]}],"generation":0}"#,
+    )
+    .unwrap();
+
+    let status = DurableStatusStore::new(status_path).load().unwrap();
+    assert_eq!(status.current_session_turns[0].agent_id, "main");
 }
 
 #[test]

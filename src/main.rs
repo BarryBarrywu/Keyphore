@@ -6,13 +6,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
 use nuphy_codex::companion::{
     Companion, HealthAwareNuPhyIoAdapter, LightingCommand, VerifiedNuPhyIoAdapter,
 };
 use nuphy_codex::hid::discover_air65_v3;
-use nuphy_codex::hook::handle_codex_event_at;
+use nuphy_codex::hook::{append_hook_audit, handle_codex_event_at};
 use nuphy_codex::lifecycle::PluginLifecycle;
 use nuphy_codex::nuphyio::{AcceptanceSignal, exercise_main_backlight, generate_session_challenge};
 use nuphy_codex::status::{DurableStatusStore, Timestamp};
@@ -93,6 +93,8 @@ enum LifecycleCommand {
         #[arg(long)]
         plugin_id: String,
     },
+    /// Trust only the installed Hook definitions whose hashes match the reviewed release.
+    TrustHooks,
     /// Validate the installed lifecycle and its health surfaces.
     Validate,
     /// Stop the companion and remove only this Plugin and its managed state.
@@ -119,6 +121,7 @@ fn run_lifecycle(command: LifecycleCommand) -> Result<()> {
         } => {
             lifecycle.install(&plugin_root, &plugin_id)?;
             println!("lifecycle=installed");
+            println!("reviewed_hooks=8");
             println!("hook_trust_review_required=true");
             println!("codex_reload_required=true");
         }
@@ -128,7 +131,14 @@ fn run_lifecycle(command: LifecycleCommand) -> Result<()> {
         } => {
             lifecycle.update(&plugin_root, &plugin_id)?;
             println!("lifecycle=updated");
+            println!("reviewed_hooks=8");
             println!("hook_trust_review_required=true");
+            println!("codex_reload_required=true");
+        }
+        LifecycleCommand::TrustHooks => {
+            lifecycle.trust_hooks()?;
+            println!("reviewed_hooks=8");
+            println!("hook_trust=trusted");
             println!("codex_reload_required=true");
         }
         LifecycleCommand::Validate => {
@@ -146,6 +156,7 @@ fn run_lifecycle(command: LifecycleCommand) -> Result<()> {
 fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
     let Some((plugin_id, plugin_root)) = lifecycle.active_plugin()? else {
         println!("hook_ownership=not-installed");
+        println!("hook_trust=not-installed");
         println!("durable_status=not-installed");
         println!("companion=not-installed");
         println!("keyboard_discovery=unavailable");
@@ -163,6 +174,16 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
             "inactive"
         }
     );
+    let hooks_are_trusted = lifecycle.plugin_hooks_are_trusted(&plugin_root, &plugin_id)?;
+    println!(
+        "hook_trust={}",
+        if hooks_are_trusted {
+            "trusted"
+        } else {
+            "untrusted"
+        }
+    );
+    ensure!(hooks_are_trusted, "NuPhy Hooks are not trusted");
     println!("plugin_id={plugin_id}");
     let companion_status = lifecycle.companion_status()?;
     println!("companion={companion_status}");
@@ -207,11 +228,17 @@ fn run_hook(status: Option<PathBuf>) -> Result<()> {
     io::stdin()
         .read_to_string(&mut input)
         .context("failed to read Hook event from stdin")?;
+    let status_path = status.unwrap_or_else(default_status_path);
+    let now = Timestamp::now();
+    let audit_path = status_path.with_file_name("hook-events.jsonl");
+    if append_hook_audit(&input, &audit_path, Duration::from_millis(25), now).is_err() {
+        eprintln!("Hook audit unavailable");
+    }
     handle_codex_event_at(
         &input,
-        &DurableStatusStore::new(status.unwrap_or_else(default_status_path)),
+        &DurableStatusStore::new(status_path),
         Duration::from_millis(100),
-        Timestamp::now(),
+        now,
     )
 }
 
