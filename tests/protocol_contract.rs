@@ -23,7 +23,7 @@ fn main_backlight_write_matches_the_fixed_width_nuphyio_fixture() {
 }
 
 #[test]
-fn orange_attention_uses_the_verified_breath_effect_packet() {
+fn orange_attention_uses_the_verified_static_effect_packet() {
     let report = Request::write(0, &ORANGE_ATTENTION_MAIN)
         .unwrap()
         .encode(SessionKey::new(0x5a));
@@ -32,8 +32,8 @@ fn orange_attention_uses_the_verified_breath_effect_packet() {
     assert_eq!(
         &report[..17],
         &[
-            0x55, 0xd6, 0x00, 0x3e, 0x53, 0x5a, 0x5a, 0x5a, 0x5e, 0x3e, 0x59, 0x5a, 0x5b, 0x5a,
-            0xa5, 0xda, 0x5a,
+            0x55, 0xd6, 0x00, 0x3d, 0x53, 0x5a, 0x5a, 0x5a, 0x59, 0x3e, 0x59, 0x5a, 0x5b, 0x5a,
+            0xa5, 0xde, 0x5a,
         ]
     );
     assert!(report[17..].iter().all(|byte| *byte == 0));

@@ -71,7 +71,7 @@ fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
         let handler = &definitions[0]["hooks"][0];
         assert_eq!(handler["type"], "command");
         let command = handler["command"].as_str().unwrap();
-        assert_eq!(command, "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook");
+        assert_eq!(command, "\"${PLUGIN_ROOT}/bin/nuphy-codex\" hook");
         for forbidden in ["python", "node", "nuphyctl", "zectrix"] {
             assert!(!command.to_ascii_lowercase().contains(forbidden));
         }
@@ -82,6 +82,8 @@ fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
     assert!(setup.contains("lifecycle validate"));
     assert!(setup.contains("lifecycle update"));
     assert!(setup.contains("lifecycle uninstall"));
+    assert!(setup.contains("/hooks"));
+    assert!(setup.contains("start a new Codex task"));
     assert!(setup.contains("macOS wired USB"));
     assert!(setup.contains("stock Air65 V3 firmware"));
     for unsupported in ["Bluetooth", "2.4 GHz", "other NuPhy models", "Claude Code"] {

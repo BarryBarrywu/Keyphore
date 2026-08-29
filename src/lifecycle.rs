@@ -22,7 +22,7 @@ const HOOK_EVENTS: [&str; 8] = [
     "SubagentStop",
     "UserPromptSubmit",
 ];
-const HOOK_COMMAND: &str = "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook";
+const HOOK_COMMAND: &str = "\"${PLUGIN_ROOT}/bin/nuphy-codex\" hook";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct LifecycleState {

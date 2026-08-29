@@ -229,7 +229,7 @@ fn exercise_applies_every_shipping_signal_then_off_without_changing_the_rhythm_l
 }
 
 #[test]
-fn attention_applies_orange_breath_to_main_backlight_only() {
+fn attention_applies_static_orange_to_main_backlight_only() {
     let challenge = std::array::from_fn(|index| index as u8);
     let mut keyboard = FakeKeyboard::new(challenge);
 

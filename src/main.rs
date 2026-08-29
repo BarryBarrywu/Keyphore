@@ -119,6 +119,8 @@ fn run_lifecycle(command: LifecycleCommand) -> Result<()> {
         } => {
             lifecycle.install(&plugin_root, &plugin_id)?;
             println!("lifecycle=installed");
+            println!("hook_trust_review_required=true");
+            println!("codex_reload_required=true");
         }
         LifecycleCommand::Update {
             plugin_root,
@@ -126,6 +128,8 @@ fn run_lifecycle(command: LifecycleCommand) -> Result<()> {
         } => {
             lifecycle.update(&plugin_root, &plugin_id)?;
             println!("lifecycle=updated");
+            println!("hook_trust_review_required=true");
+            println!("codex_reload_required=true");
         }
         LifecycleCommand::Validate => {
             print_lifecycle_validation(&lifecycle)?;
@@ -320,7 +324,7 @@ fn diagnose(exercise: bool) -> Result<()> {
         |signal| {
             let (description, seconds) = match signal {
                 AcceptanceSignal::Execution => ("blue execution signal", 3),
-                AcceptanceSignal::Attention => ("orange attention pulse", 3),
+                AcceptanceSignal::Attention => ("orange attention signal", 3),
                 AcceptanceSignal::Completion => ("green completion", 5),
             };
             println!("{description} verified by readback; observing for {seconds} seconds");

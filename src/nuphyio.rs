@@ -13,7 +13,7 @@ const MAIN_LIGHT_LEN: usize = 9;
 const RHYTHM_LIGHT_LEN: usize = 8;
 
 pub const BLUE_EXECUTION_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 100, 3, 0, 1, 0, 0, 0, 0xff];
-pub const ORANGE_ATTENTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0xff, 0x80, 0];
+pub const ORANGE_ATTENTION_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 100, 3, 0, 1, 0, 0xff, 0x84, 0];
 pub const GREEN_COMPLETION_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 100, 3, 0, 1, 0, 0, 0xff, 0];
 pub const SIGNAL_OFF_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 0, 3, 0, 1, 0, 0, 0, 0];
 
