@@ -167,6 +167,13 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
     println!("durable_status=healthy");
     let aggregate = nuphy_codex::status_core::StatusCore::reduce_at(&status, Timestamp::now());
     println!("aggregate_state={aggregate:?}");
+    if companion_status == "running" {
+        let health =
+            read_recent_hardware_health(&lifecycle.data_dir().join("hardware-health.json"))
+                .unwrap_or(HardwareHealth::Unavailable);
+        print_hardware_health(health);
+        return Ok(());
+    }
     match discover_air65_v3() {
         Ok(mut keyboard) => {
             println!("keyboard_discovery=air65-v3");
@@ -178,22 +185,17 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
             println!("protocol_health={protocol_health}");
         }
         Err(_) => {
-            if companion_status == "running"
-                && let Some(health) =
-                    read_recent_hardware_health(&lifecycle.data_dir().join("hardware-health.json"))
-            {
-                let (keyboard, transport, protocol) = health.fields();
-                println!("keyboard_discovery={keyboard}");
-                println!("verified_transport={transport}");
-                println!("protocol_health={protocol}");
-            } else {
-                println!("keyboard_discovery=unavailable");
-                println!("verified_transport=unavailable");
-                println!("protocol_health=unavailable");
-            }
+            print_hardware_health(HardwareHealth::Unavailable);
         }
     }
     Ok(())
+}
+
+fn print_hardware_health(health: HardwareHealth) {
+    let (keyboard, transport, protocol) = health.fields();
+    println!("keyboard_discovery={keyboard}");
+    println!("verified_transport={transport}");
+    println!("protocol_health={protocol}");
 }
 
 fn run_hook(status: Option<PathBuf>) -> Result<()> {
