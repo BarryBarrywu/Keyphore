@@ -1,13 +1,19 @@
+use std::time::Duration;
+
 use anyhow::Result;
 
 use crate::nuphyio::{
-    ReportTransport, apply_execution_signal, apply_signal_off, generate_session_challenge,
+    ReportTransport, apply_attention_signal, apply_execution_signal, apply_signal_off,
+    generate_session_challenge,
 };
-use crate::status::DurableStatusStore;
-use crate::status_core::{AggregateState, StatusCore};
+use crate::status::{DurableStatusStore, Timestamp};
+use crate::status_core::{AggregateState, AttentionExpiry, StatusCore};
+
+const STATUS_LOCK_TIMEOUT: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LightingCommand {
+    OrangeAttention,
     BlueExecution,
     SignalOff,
 }
@@ -27,7 +33,21 @@ impl Companion {
         store: &DurableStatusStore,
         adapter: &mut impl NuPhyIoAdapter,
     ) -> Result<()> {
-        let aggregate = StatusCore::reduce(&store.load()?);
+        self.sync_at(store, adapter, Timestamp::now())
+    }
+
+    pub fn sync_at(
+        &mut self,
+        store: &DurableStatusStore,
+        adapter: &mut impl NuPhyIoAdapter,
+        now: Timestamp,
+    ) -> Result<()> {
+        for expiry in self.pending_attention_expiries(store)? {
+            if expiry.expires_at <= now {
+                expire_attention_callback(store, &expiry, now)?;
+            }
+        }
+        let aggregate = StatusCore::reduce_at(&store.load()?, now);
         if self.applied == Some(aggregate) {
             return Ok(());
         }
@@ -35,6 +55,38 @@ impl Companion {
         self.applied = Some(aggregate);
         Ok(())
     }
+
+    pub fn pending_attention_expiries(
+        &self,
+        store: &DurableStatusStore,
+    ) -> Result<Vec<AttentionExpiry>> {
+        Ok(StatusCore::attention_expiries(&store.load()?))
+    }
+
+    pub fn handle_attention_timeout_at(
+        &mut self,
+        store: &DurableStatusStore,
+        adapter: &mut impl NuPhyIoAdapter,
+        expiry: AttentionExpiry,
+        now: Timestamp,
+    ) -> Result<()> {
+        expire_attention_callback(store, &expiry, now)?;
+        self.sync_at(store, adapter, now)
+    }
+}
+
+fn expire_attention_callback(
+    store: &DurableStatusStore,
+    expiry: &AttentionExpiry,
+    now: Timestamp,
+) -> Result<()> {
+    store.expire_attention(
+        &expiry.owner_id,
+        expiry.generation,
+        expiry.expires_at,
+        now,
+        STATUS_LOCK_TIMEOUT,
+    )
 }
 
 pub struct VerifiedNuPhyIoAdapter<'a, T> {
@@ -50,6 +102,9 @@ impl<'a, T> VerifiedNuPhyIoAdapter<'a, T> {
 impl<T: ReportTransport> NuPhyIoAdapter for VerifiedNuPhyIoAdapter<'_, T> {
     fn apply(&mut self, command: LightingCommand) -> Result<()> {
         match command {
+            LightingCommand::OrangeAttention => {
+                apply_attention_signal(self.transport, generate_session_challenge())
+            }
             LightingCommand::BlueExecution => {
                 apply_execution_signal(self.transport, generate_session_challenge())
             }
@@ -66,6 +121,7 @@ pub fn sync_once(store: &DurableStatusStore, adapter: &mut impl NuPhyIoAdapter) 
 
 fn command_for(aggregate: AggregateState) -> LightingCommand {
     match aggregate {
+        AggregateState::Attention => LightingCommand::OrangeAttention,
         AggregateState::Execution => LightingCommand::BlueExecution,
         AggregateState::SignalOff => LightingCommand::SignalOff,
     }

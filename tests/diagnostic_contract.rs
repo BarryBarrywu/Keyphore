@@ -2,7 +2,9 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use anyhow::{Result, bail};
-use nuphy_codex::nuphyio::{ReportTransport, exercise_main_backlight};
+use nuphy_codex::nuphyio::{
+    ORANGE_ATTENTION_MAIN, ReportTransport, apply_attention_signal, exercise_main_backlight,
+};
 use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 
 const KEY: u8 = 0xa5;
@@ -177,4 +179,15 @@ fn exercise_applies_blue_then_off_without_changing_the_rhythm_light_bar() {
         let address = u16::from(report[5] ^ KEY) | (u16::from(report[6] ^ KEY) << 8);
         usize::from(address) + usize::from(length) <= 9
     }));
+}
+
+#[test]
+fn attention_applies_orange_breath_to_main_backlight_only() {
+    let challenge = std::array::from_fn(|index| index as u8);
+    let mut keyboard = FakeKeyboard::new(challenge);
+
+    apply_attention_signal(&mut keyboard, challenge).unwrap();
+
+    assert_eq!(keyboard.state[..9], ORANGE_ATTENTION_MAIN);
+    assert_eq!(keyboard.state[9..], INITIAL_RHYTHM);
 }

@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use nuphy_codex::companion::{Companion, VerifiedNuPhyIoAdapter};
 use nuphy_codex::hid::discover_air65_v3;
-use nuphy_codex::hook::handle_user_prompt_submit;
+use nuphy_codex::hook::handle_codex_event_at;
 use nuphy_codex::nuphyio::{exercise_main_backlight, generate_session_challenge};
-use nuphy_codex::status::DurableStatusStore;
+use nuphy_codex::status::{DurableStatusStore, Timestamp};
 
 #[derive(Parser)]
 #[command(name = "nuphy-codex", version)]
@@ -58,10 +58,11 @@ fn run_hook(status: Option<PathBuf>) -> Result<()> {
     io::stdin()
         .read_to_string(&mut input)
         .context("failed to read Hook event from stdin")?;
-    handle_user_prompt_submit(
+    handle_codex_event_at(
         &input,
         &DurableStatusStore::new(status.unwrap_or_else(default_status_path)),
         Duration::from_millis(100),
+        Timestamp::now(),
     )
 }
 

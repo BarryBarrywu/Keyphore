@@ -46,3 +46,22 @@ fn hook_persists_without_a_running_companion_or_keyboard() {
     assert!(persisted.contains("session-1"));
     assert!(!persisted.contains("secret"));
 }
+
+#[test]
+fn hook_accepts_permission_requests_without_a_running_companion_or_keyboard() {
+    let directory = tempfile::tempdir().unwrap();
+    let status = directory.path().join("status.json");
+    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    command
+        .args(["hook", "--status"])
+        .arg(&status)
+        .write_stdin(
+            r#"{"hook_event_name":"PermissionRequest","session_id":"session-1","agent_id":"agent-1","turn_id":"turn-1","tool_input":"secret"}"#,
+        );
+
+    command.assert().success().stdout("");
+
+    let persisted = std::fs::read_to_string(status).unwrap();
+    assert!(persisted.contains("attention"));
+    assert!(!persisted.contains("secret"));
+}

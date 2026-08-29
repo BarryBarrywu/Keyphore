@@ -13,6 +13,7 @@ const MAIN_LIGHT_LEN: usize = 9;
 const RHYTHM_LIGHT_LEN: usize = 8;
 
 pub const BLUE_EXECUTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0, 0, 0xff];
+pub const ORANGE_ATTENTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0xff, 0x80, 0];
 pub const SIGNAL_OFF_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 0, 3, 0, 1, 0, 0, 0, 0];
 
 pub fn generate_session_challenge() -> SessionChallenge {
@@ -105,31 +106,42 @@ pub fn apply_execution_signal<T: ReportTransport>(
     transport: &mut T,
     challenge: SessionChallenge,
 ) -> Result<()> {
-    let key = start_temporary_session(transport, challenge)?;
-    let initial = read_light_state(transport, key)?;
-    apply_and_verify_state(
+    apply_main_signal(
         transport,
-        key,
-        &initial,
+        challenge,
         &BLUE_EXECUTION_MAIN,
         "blue execution signal",
-    )?;
-    Ok(())
+    )
+}
+
+pub fn apply_attention_signal<T: ReportTransport>(
+    transport: &mut T,
+    challenge: SessionChallenge,
+) -> Result<()> {
+    apply_main_signal(
+        transport,
+        challenge,
+        &ORANGE_ATTENTION_MAIN,
+        "orange attention signal",
+    )
 }
 
 pub fn apply_signal_off<T: ReportTransport>(
     transport: &mut T,
     challenge: SessionChallenge,
 ) -> Result<()> {
+    apply_main_signal(transport, challenge, &SIGNAL_OFF_MAIN, "signal-off state")
+}
+
+fn apply_main_signal<T: ReportTransport>(
+    transport: &mut T,
+    challenge: SessionChallenge,
+    expected: &[u8; MAIN_LIGHT_LEN],
+    operation: &str,
+) -> Result<()> {
     let key = start_temporary_session(transport, challenge)?;
     let initial = read_light_state(transport, key)?;
-    apply_and_verify_state(
-        transport,
-        key,
-        &initial,
-        &SIGNAL_OFF_MAIN,
-        "signal-off state",
-    )?;
+    apply_and_verify_state(transport, key, &initial, expected, operation)?;
     Ok(())
 }
 

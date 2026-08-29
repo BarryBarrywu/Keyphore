@@ -8,9 +8,33 @@ use anyhow::{Context, Result, bail};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct Timestamp(u64);
+
+impl Timestamp {
+    pub fn from_millis(millis: u64) -> Self {
+        Self(millis)
+    }
+
+    pub fn now() -> Self {
+        let millis = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(u128::from(u64::MAX)) as u64;
+        Self(millis)
+    }
+
+    pub fn saturating_add(self, duration: Duration) -> Self {
+        let millis = duration.as_millis().min(u128::from(u64::MAX)) as u64;
+        Self(self.0.saturating_add(millis))
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Signal {
+    Attention,
     Execution,
 }
 
@@ -26,11 +50,30 @@ pub struct OwnerStatus {
     pub id: SignalOwnerId,
     pub turn_id: String,
     pub signal: Signal,
+    #[serde(default)]
+    pub generation: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<Timestamp>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DurableStatus {
     pub owners: Vec<OwnerStatus>,
+    #[serde(default)]
+    pub generation: u64,
+}
+
+impl DurableStatus {
+    fn next_generation(&mut self) -> u64 {
+        let owner_generation = self
+            .owners
+            .iter()
+            .map(|owner| owner.generation)
+            .max()
+            .unwrap_or_default();
+        self.generation = self.generation.max(owner_generation).saturating_add(1);
+        self.generation
+    }
 }
 
 pub struct DurableStatusStore {
@@ -55,6 +98,113 @@ impl DurableStatusStore {
     }
 
     pub fn record_execution(&self, owner: OwnerStatus, lock_timeout: Duration) -> Result<()> {
+        self.record_signal(
+            owner.id,
+            owner.turn_id,
+            owner.signal,
+            owner.expires_at,
+            lock_timeout,
+        )?;
+        Ok(())
+    }
+
+    pub fn record_signal(
+        &self,
+        id: SignalOwnerId,
+        turn_id: String,
+        signal: Signal,
+        expires_at: Option<Timestamp>,
+        lock_timeout: Duration,
+    ) -> Result<u64> {
+        let mut recorded_generation = 0;
+        self.update(lock_timeout, |status| {
+            recorded_generation = status.next_generation();
+            if let Some(existing) = status.owners.iter_mut().find(|owner| owner.id == id) {
+                *existing = OwnerStatus {
+                    id,
+                    turn_id,
+                    signal,
+                    generation: recorded_generation,
+                    expires_at,
+                };
+            } else {
+                status.owners.push(OwnerStatus {
+                    id,
+                    turn_id,
+                    signal,
+                    generation: recorded_generation,
+                    expires_at,
+                });
+            }
+        })?;
+        Ok(recorded_generation)
+    }
+
+    pub fn remove_owner(&self, id: &SignalOwnerId, lock_timeout: Duration) -> Result<()> {
+        self.update(lock_timeout, |status| {
+            status.owners.retain(|owner| &owner.id != id);
+        })
+    }
+
+    pub fn remove_session(
+        &self,
+        product: &str,
+        session_id: &str,
+        lock_timeout: Duration,
+    ) -> Result<()> {
+        self.update(lock_timeout, |status| {
+            status
+                .owners
+                .retain(|owner| owner.id.product != product || owner.id.session_id != session_id);
+        })
+    }
+
+    pub fn replace_session_with_signal(
+        &self,
+        id: SignalOwnerId,
+        turn_id: String,
+        signal: Signal,
+        lock_timeout: Duration,
+    ) -> Result<()> {
+        self.update(lock_timeout, |status| {
+            let generation = status.next_generation();
+            status.owners.retain(|owner| {
+                owner.id.product != id.product || owner.id.session_id != id.session_id
+            });
+            status.owners.push(OwnerStatus {
+                id,
+                turn_id,
+                signal,
+                generation,
+                expires_at: None,
+            });
+        })
+    }
+
+    pub fn expire_attention(
+        &self,
+        id: &SignalOwnerId,
+        generation: u64,
+        expires_at: Timestamp,
+        now: Timestamp,
+        lock_timeout: Duration,
+    ) -> Result<()> {
+        self.update(lock_timeout, |status| {
+            status.owners.retain(|owner| {
+                owner.id != *id
+                    || owner.signal != Signal::Attention
+                    || owner.generation != generation
+                    || owner.expires_at != Some(expires_at)
+                    || expires_at > now
+            });
+        })
+    }
+
+    fn update(
+        &self,
+        lock_timeout: Duration,
+        update: impl FnOnce(&mut DurableStatus),
+    ) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent).context("failed to create durable-status directory")?;
         }
@@ -70,15 +220,7 @@ impl DurableStatusStore {
         acquire_bounded(&lock, lock_timeout)?;
 
         let mut status = self.load()?;
-        if let Some(existing) = status
-            .owners
-            .iter_mut()
-            .find(|existing| existing.id == owner.id)
-        {
-            *existing = owner;
-        } else {
-            status.owners.push(owner);
-        }
+        update(&mut status);
         self.replace_atomically(&status)?;
         FileExt::unlock(&lock).context("failed to release durable-status lock")
     }
