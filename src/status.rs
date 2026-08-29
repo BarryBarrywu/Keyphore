@@ -67,6 +67,17 @@ pub struct CurrentSessionTurn {
     pub previous_turn_ids: Vec<String>,
 }
 
+impl CurrentSessionTurn {
+    fn new(id: &SignalOwnerId, turn_id: &str) -> Self {
+        Self {
+            product: id.product.clone(),
+            session_id: id.session_id.clone(),
+            current_turn_id: turn_id.into(),
+            previous_turn_ids: Vec::new(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DurableStatus {
     pub owners: Vec<OwnerStatus>,
@@ -96,12 +107,8 @@ impl DurableStatus {
         {
             return session.current_turn_id == turn_id;
         }
-        self.current_session_turns.push(CurrentSessionTurn {
-            product: id.product.clone(),
-            session_id: id.session_id.clone(),
-            current_turn_id: turn_id.into(),
-            previous_turn_ids: Vec::new(),
-        });
+        self.current_session_turns
+            .push(CurrentSessionTurn::new(id, turn_id));
         true
     }
 
@@ -111,12 +118,8 @@ impl DurableStatus {
             .iter_mut()
             .find(|session| session.product == id.product && session.session_id == id.session_id)
         else {
-            self.current_session_turns.push(CurrentSessionTurn {
-                product: id.product.clone(),
-                session_id: id.session_id.clone(),
-                current_turn_id: turn_id.into(),
-                previous_turn_ids: Vec::new(),
-            });
+            self.current_session_turns
+                .push(CurrentSessionTurn::new(id, turn_id));
             return true;
         };
         if session.current_turn_id == turn_id {
@@ -301,11 +304,14 @@ impl DurableStatusStore {
 
         let mut status = self.load()?;
         update(&mut status);
-        self.replace_atomically(&status)?;
-        FileExt::unlock(&lock).context("failed to release durable-status lock")
+        let replacement = self.replace_atomically(&status)?;
+        FileExt::unlock(&lock).context("failed to release durable-status lock")?;
+        replacement
+            .sync_data()
+            .context("failed to sync durable status")
     }
 
-    fn replace_atomically(&self, status: &DurableStatus) -> Result<()> {
+    fn replace_atomically(&self, status: &DurableStatus) -> Result<File> {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -318,7 +324,7 @@ impl DurableStatusStore {
         let temporary =
             self.path
                 .with_file_name(format!(".{file_name}.{}.{}.tmp", std::process::id(), nonce));
-        let result = (|| -> Result<()> {
+        let result = (|| -> Result<File> {
             let mut file = OpenOptions::new()
                 .write(true)
                 .create_new(true)
@@ -327,7 +333,7 @@ impl DurableStatusStore {
             serde_json::to_writer(&mut file, status)?;
             file.write_all(b"\n")?;
             fs::rename(&temporary, &self.path).context("failed to replace durable status")?;
-            Ok(())
+            Ok(file)
         })();
         if result.is_err() {
             let _ = fs::remove_file(&temporary);
