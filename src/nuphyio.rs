@@ -12,7 +12,7 @@ const LIGHT_STATE_LEN: usize = 17;
 const MAIN_LIGHT_LEN: usize = 9;
 const RHYTHM_LIGHT_LEN: usize = 8;
 
-pub const BLUE_EXECUTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0, 0, 0xff];
+pub const BLUE_EXECUTION_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 100, 3, 0, 1, 0, 0, 0, 0xff];
 pub const ORANGE_ATTENTION_MAIN: [u8; MAIN_LIGHT_LEN] = [4, 100, 3, 0, 1, 0, 0xff, 0x80, 0];
 pub const GREEN_COMPLETION_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 100, 3, 0, 1, 0, 0, 0xff, 0];
 pub const SIGNAL_OFF_MAIN: [u8; MAIN_LIGHT_LEN] = [3, 0, 3, 0, 1, 0, 0, 0, 0];
@@ -223,9 +223,6 @@ fn write_main_state<T: ReportTransport>(
 ) -> Result<()> {
     let state_request = Request::write(0, state)?;
     exchange_request(transport, &state_request, key)?;
-
-    let brightness_request = Request::write(1, &state[1..2])?;
-    exchange_request(transport, &brightness_request, key)?;
     Ok(())
 }
 

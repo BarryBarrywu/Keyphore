@@ -11,7 +11,7 @@ use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 const KEY: u8 = 0xa5;
 const INITIAL_MAIN: [u8; 9] = [3, 40, 2, 0, 1, 0, 0xaa, 0xbb, 0xcc];
 const INITIAL_RHYTHM: [u8; 8] = [4, 70, 2, 1, 0, 0x11, 0x22, 0x33];
-const BLUE_MAIN: [u8; 9] = [4, 100, 3, 0, 1, 0, 0, 0, 0xff];
+const BLUE_MAIN: [u8; 9] = [3, 100, 3, 0, 1, 0, 0, 0, 0xff];
 const SIGNAL_OFF: [u8; 9] = [3, 0, 3, 0, 1, 0, 0, 0, 0];
 
 struct FakeKeyboard {
@@ -198,7 +198,7 @@ fn exercise_applies_blue_then_off_without_changing_the_rhythm_light_bar() {
         .iter()
         .filter(|report| report[1] == 0xd6)
         .collect();
-    assert_eq!(lighting_writes.len(), 4);
+    assert_eq!(lighting_writes.len(), 2);
     assert!(lighting_writes.iter().all(|report| {
         let length = report[4] ^ KEY;
         let address = u16::from(report[5] ^ KEY) | (u16::from(report[6] ^ KEY) << 8);
