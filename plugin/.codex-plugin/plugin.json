@@ -1,0 +1,24 @@
+{
+  "name": "nuphy-codex",
+  "version": "0.1.0",
+  "description": "Show aggregate Codex task status on a NuPhy Air65 V3 keyboard",
+  "author": {
+    "name": "Barry Barry Wu",
+    "url": "https://github.com/BarryBarrywu"
+  },
+  "homepage": "https://github.com/BarryBarrywu/Nuphy",
+  "repository": "https://github.com/BarryBarrywu/Nuphy",
+  "license": "MIT",
+  "keywords": ["codex", "nuphy", "air65-v3", "keyboard", "status-light"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Status for NuPhy",
+    "shortDescription": "Show Codex task status on a NuPhy Air65 V3",
+    "longDescription": "Display privacy-constrained aggregate Codex task status on the main backlight of a wired NuPhy Air65 V3 through a bundled native companion.",
+    "developerName": "Barry Barry Wu",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/BarryBarrywu/Nuphy",
+    "defaultPrompt": ["Set up my Codex status lights for NuPhy Air65 V3"]
+  }
+}

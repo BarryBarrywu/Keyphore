@@ -298,6 +298,7 @@ dependencies = [
  "clap",
  "fs2",
  "hidapi",
+ "libc",
  "predicates",
  "serde",
  "serde_json",

@@ -2,6 +2,7 @@ pub mod companion;
 pub mod device;
 pub mod hid;
 pub mod hook;
+pub mod lifecycle;
 pub mod nuphyio;
 pub mod protocol;
 pub mod status;

@@ -1,0 +1,29 @@
+{
+  "description": "Record privacy-allowlisted Codex lifecycle events for the NuPhy status light.",
+  "hooks": {
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/nuphy-codex\" hook", "timeout": 1 }] }
+    ]
+  }
+}

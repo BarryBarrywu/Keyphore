@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 use nuphy_codex::companion::{Companion, VerifiedNuPhyIoAdapter};
 use nuphy_codex::hid::discover_air65_v3;
 use nuphy_codex::hook::handle_codex_event_at;
+use nuphy_codex::lifecycle::PluginLifecycle;
 use nuphy_codex::nuphyio::{exercise_main_backlight, generate_session_challenge};
 use nuphy_codex::status::{DurableStatusStore, Timestamp};
 
@@ -30,6 +31,8 @@ enum Command {
         #[arg(long)]
         exercise: bool,
     },
+    /// Report privacy-safe Plugin, companion, status, and hardware health.
+    Diagnostics,
     /// Persist a privacy-allowlisted Codex lifecycle event without opening the keyboard.
     Hook {
         /// Durable-status file shared with the companion.
@@ -45,15 +48,119 @@ enum Command {
         #[arg(long)]
         once: bool,
     },
+    /// Install, validate, update, or remove the Plugin lifecycle.
+    Lifecycle {
+        #[command(subcommand)]
+        command: LifecycleCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum LifecycleCommand {
+    /// Install or repair the companion and record this Plugin's ownership.
+    Install {
+        #[arg(long)]
+        plugin_root: PathBuf,
+        #[arg(long)]
+        plugin_id: String,
+    },
+    /// Replace this Plugin's release unit while preserving durable status.
+    Update {
+        #[arg(long)]
+        plugin_root: PathBuf,
+        #[arg(long)]
+        plugin_id: String,
+    },
+    /// Validate the installed lifecycle and its health surfaces.
+    Validate,
+    /// Stop the companion and remove only this Plugin and its managed state.
+    Uninstall,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Diagnose { exercise } => diagnose(exercise),
+        Command::Diagnostics => print_lifecycle_validation(&PluginLifecycle::from_environment()?),
         Command::Hook { status } => run_hook(status),
         Command::Companion { status, once } => run_companion(status, once),
+        Command::Lifecycle { command } => run_lifecycle(command),
     }
+}
+
+fn run_lifecycle(command: LifecycleCommand) -> Result<()> {
+    let lifecycle = PluginLifecycle::from_environment()?;
+    match command {
+        LifecycleCommand::Install {
+            plugin_root,
+            plugin_id,
+        } => {
+            lifecycle.install(&plugin_root, &plugin_id)?;
+            println!("lifecycle=installed");
+        }
+        LifecycleCommand::Update {
+            plugin_root,
+            plugin_id,
+        } => {
+            lifecycle.update(&plugin_root, &plugin_id)?;
+            println!("lifecycle=updated");
+        }
+        LifecycleCommand::Validate => {
+            print_lifecycle_validation(&lifecycle)?;
+        }
+        LifecycleCommand::Uninstall => {
+            lifecycle.uninstall()?;
+            println!("lifecycle=removed");
+            println!("codex_reload_required=true");
+        }
+    }
+    Ok(())
+}
+
+fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
+    let Some((plugin_id, plugin_root)) = lifecycle.active_plugin()? else {
+        println!("hook_ownership=not-installed");
+        println!("durable_status=not-installed");
+        println!("companion=not-installed");
+        return Ok(());
+    };
+    nuphy_codex::lifecycle::validate_plugin_bundle(&plugin_root)?;
+    println!(
+        "hook_ownership={}",
+        if lifecycle.plugin_is_enabled(&plugin_id)? {
+            "owned"
+        } else {
+            "inactive"
+        }
+    );
+    println!("plugin_id={plugin_id}");
+    println!(
+        "companion={}",
+        if lifecycle.companion_is_loaded() {
+            "running"
+        } else {
+            "stopped"
+        }
+    );
+    let store = DurableStatusStore::new(lifecycle.data_dir().join("status.json"));
+    let status = store.load()?;
+    println!("durable_status=healthy");
+    println!(
+        "aggregate_state={:?}",
+        nuphy_codex::status_core::StatusCore::reduce_at(&status, Timestamp::now())
+    );
+    println!("protocol_health=ready");
+    match discover_air65_v3() {
+        Ok(_) => {
+            println!("keyboard_discovery=air65-v3");
+            println!("verified_transport=wired-usb");
+        }
+        Err(_) => {
+            println!("keyboard_discovery=unavailable");
+            println!("verified_transport=unavailable");
+        }
+    }
+    Ok(())
 }
 
 fn run_hook(status: Option<PathBuf>) -> Result<()> {

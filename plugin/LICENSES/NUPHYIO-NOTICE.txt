@@ -1,0 +1,35 @@
+NuPhyIO protocol attribution
+============================
+
+The fixed-width report framing, temporary-session exchange, lighting-state
+addressing, checksum, and macOS HID transport behavior in this project were
+derived from and cross-checked against these MIT-licensed projects:
+
+- nuphyctl, revision 974ca698605ae7d5258dcf21777330a6df6867b1
+  https://github.com/fldc/nuphyctl
+  Copyright (c) 2026 Fredrik Storm
+
+- codex-kick75-status-lights, revision
+  e32648ee86a8a729734060ac09bd7f8a1213876f
+  https://github.com/Pixelmoss/codex-kick75-status-lights
+  Copyright (c) 2026 zzm
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
