@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{Result, bail};
 use nuphy_codex::nuphyio::{
     GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN, ReportTransport, apply_attention_signal,
-    apply_completion_signal, exercise_main_backlight,
+    apply_completion_signal, exercise_main_backlight, main_signal_matches,
 };
 use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 
@@ -21,6 +21,7 @@ struct FakeKeyboard {
     responses: VecDeque<Report>,
     corrupt_blue_readback: bool,
     inject_unrelated_reports: bool,
+    inject_malformed_reports: bool,
     reads: usize,
 }
 
@@ -36,6 +37,7 @@ impl FakeKeyboard {
             responses: VecDeque::new(),
             corrupt_blue_readback: false,
             inject_unrelated_reports: false,
+            inject_malformed_reports: false,
             reads: 0,
         }
     }
@@ -72,6 +74,11 @@ impl ReportTransport for FakeKeyboard {
                     unrelated[20] ^= 1;
                     unrelated[3] = checksum(&unrelated);
                     self.responses.push_back(unrelated);
+                }
+                if self.inject_malformed_reports {
+                    let mut malformed = response;
+                    malformed[3] ^= 1;
+                    self.responses.push_back(malformed);
                 }
                 self.responses.push_back(response);
             }
@@ -122,6 +129,11 @@ impl FakeKeyboard {
             unrelated[3] = checksum(&unrelated);
             self.responses.push_back(unrelated);
         }
+        if self.inject_malformed_reports {
+            let mut malformed = response;
+            malformed[3] ^= 1;
+            self.responses.push_back(malformed);
+        }
         self.responses.push_back(response);
     }
 }
@@ -142,6 +154,18 @@ fn unrelated_reports_are_skipped_until_the_correlated_response_arrives() {
     let challenge = std::array::from_fn(|index| index as u8);
     let mut keyboard = FakeKeyboard::new(challenge);
     keyboard.inject_unrelated_reports = true;
+
+    let evidence = exercise_main_backlight(&mut keyboard, challenge, || {}).unwrap();
+
+    assert_eq!(evidence.blue_main, BLUE_MAIN);
+    assert_eq!(evidence.signal_off_main, SIGNAL_OFF);
+}
+
+#[test]
+fn malformed_reports_cannot_satisfy_an_outstanding_request() {
+    let challenge = std::array::from_fn(|index| index as u8);
+    let mut keyboard = FakeKeyboard::new(challenge);
+    keyboard.inject_malformed_reports = true;
 
     let evidence = exercise_main_backlight(&mut keyboard, challenge, || {}).unwrap();
 
@@ -202,4 +226,14 @@ fn completion_applies_static_green_to_main_backlight_only() {
 
     assert_eq!(keyboard.state[..9], GREEN_COMPLETION_MAIN);
     assert_eq!(keyboard.state[9..], INITIAL_RHYTHM);
+}
+
+#[test]
+fn health_readback_recognizes_the_current_effect_without_rewriting_it() {
+    let challenge = std::array::from_fn(|index| index as u8);
+    let mut keyboard = FakeKeyboard::new(challenge);
+    keyboard.state[..9].copy_from_slice(&BLUE_MAIN);
+
+    assert!(main_signal_matches(&mut keyboard, challenge, &BLUE_MAIN).unwrap());
+    assert!(keyboard.writes.iter().all(|report| report[1] != 0xd6));
 }

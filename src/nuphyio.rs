@@ -146,7 +146,17 @@ pub fn apply_completion_signal<T: ReportTransport>(
     )
 }
 
-fn apply_main_signal<T: ReportTransport>(
+pub fn main_signal_matches<T: ReportTransport>(
+    transport: &mut T,
+    challenge: SessionChallenge,
+    expected: &[u8; MAIN_LIGHT_LEN],
+) -> Result<bool> {
+    let key = start_temporary_session(transport, challenge)?;
+    let state = read_light_state(transport, key)?;
+    Ok(&state[..MAIN_LIGHT_LEN] == expected)
+}
+
+pub(crate) fn apply_main_signal<T: ReportTransport>(
     transport: &mut T,
     challenge: SessionChallenge,
     expected: &[u8; MAIN_LIGHT_LEN],

@@ -1,6 +1,9 @@
 use std::io::{self, Read};
 use std::path::PathBuf;
-use std::{env, thread, time::Duration};
+use std::{
+    env, thread,
+    time::{Duration, Instant},
+};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -68,15 +71,45 @@ fn run_hook(status: Option<PathBuf>) -> Result<()> {
 
 fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
     let store = DurableStatusStore::new(status.unwrap_or_else(default_status_path));
-    let mut keyboard = discover_air65_v3()?;
-    let mut adapter = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport);
     let mut companion = Companion::default();
+    if once {
+        let mut keyboard = discover_air65_v3()?;
+        return companion.device_reconnected(
+            &store,
+            &mut VerifiedNuPhyIoAdapter::new(&mut keyboard.transport),
+        );
+    }
+
     loop {
-        companion.sync(&store, &mut adapter)?;
-        if once {
-            return Ok(());
+        let mut keyboard = match discover_air65_v3() {
+            Ok(keyboard) => keyboard,
+            Err(error) => {
+                eprintln!("waiting for verified Air65 V3: {error:#}");
+                thread::sleep(Duration::from_secs(1));
+                continue;
+            }
+        };
+        let mut adapter = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport);
+        if let Err(error) = companion.device_reconnected(&store, &mut adapter) {
+            eprintln!("Air65 V3 connection lost while replaying status: {error:#}");
+            thread::sleep(Duration::from_secs(1));
+            continue;
         }
-        thread::sleep(Duration::from_millis(100));
+        let mut last_health_check = Instant::now();
+        loop {
+            thread::sleep(Duration::from_millis(100));
+            if let Err(error) = companion.sync(&store, &mut adapter) {
+                eprintln!("Air65 V3 connection lost while applying status: {error:#}");
+                break;
+            }
+            if last_health_check.elapsed() >= Duration::from_secs(1) {
+                if let Err(error) = companion.health_check(&store, &mut adapter) {
+                    eprintln!("Air65 V3 health check failed: {error:#}");
+                    break;
+                }
+                last_health_check = Instant::now();
+            }
+        }
     }
 }
 

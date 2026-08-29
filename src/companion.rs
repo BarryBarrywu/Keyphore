@@ -3,8 +3,8 @@ use std::time::Duration;
 use anyhow::Result;
 
 use crate::nuphyio::{
-    ReportTransport, apply_attention_signal, apply_completion_signal, apply_execution_signal,
-    apply_signal_off, generate_session_challenge,
+    BLUE_EXECUTION_MAIN, GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN, ReportTransport,
+    SIGNAL_OFF_MAIN, apply_main_signal, generate_session_challenge, main_signal_matches,
 };
 use crate::status::{DurableStatusStore, Timestamp};
 use crate::status_core::{AggregateState, SignalExpiry, StatusCore};
@@ -20,8 +20,24 @@ pub enum LightingCommand {
     SignalOff,
 }
 
+impl LightingCommand {
+    fn main_signal(self) -> (&'static [u8; 9], &'static str) {
+        match self {
+            Self::OrangeAttention => (&ORANGE_ATTENTION_MAIN, "orange attention signal"),
+            Self::Failure => (&ORANGE_ATTENTION_MAIN, "failure signal"),
+            Self::BlueExecution => (&BLUE_EXECUTION_MAIN, "blue execution signal"),
+            Self::GreenCompletion => (&GREEN_COMPLETION_MAIN, "green completion signal"),
+            Self::SignalOff => (&SIGNAL_OFF_MAIN, "signal-off state"),
+        }
+    }
+}
+
 pub trait NuPhyIoAdapter {
     fn apply(&mut self, command: LightingCommand) -> Result<()>;
+}
+
+pub trait HealthAwareNuPhyIoAdapter: NuPhyIoAdapter {
+    fn displays(&mut self, command: LightingCommand) -> Result<bool>;
 }
 
 #[derive(Default)]
@@ -30,6 +46,31 @@ pub struct Companion {
 }
 
 impl Companion {
+    pub fn device_reconnected(
+        &mut self,
+        store: &DurableStatusStore,
+        adapter: &mut impl NuPhyIoAdapter,
+    ) -> Result<()> {
+        self.applied = None;
+        self.sync(store, adapter)
+    }
+
+    pub fn health_check(
+        &mut self,
+        store: &DurableStatusStore,
+        adapter: &mut impl HealthAwareNuPhyIoAdapter,
+    ) -> Result<()> {
+        let aggregate = StatusCore::reduce_at(&store.load()?, Timestamp::now());
+        let command = command_for(aggregate);
+        if adapter.displays(command)? {
+            self.applied = Some(aggregate);
+            return Ok(());
+        }
+        adapter.apply(command)?;
+        self.applied = Some(aggregate);
+        Ok(())
+    }
+
     pub fn sync(
         &mut self,
         store: &DurableStatusStore,
@@ -101,23 +142,20 @@ impl<'a, T> VerifiedNuPhyIoAdapter<'a, T> {
 
 impl<T: ReportTransport> NuPhyIoAdapter for VerifiedNuPhyIoAdapter<'_, T> {
     fn apply(&mut self, command: LightingCommand) -> Result<()> {
-        match command {
-            LightingCommand::OrangeAttention => {
-                apply_attention_signal(self.transport, generate_session_challenge())
-            }
-            LightingCommand::Failure => {
-                apply_attention_signal(self.transport, generate_session_challenge())
-            }
-            LightingCommand::BlueExecution => {
-                apply_execution_signal(self.transport, generate_session_challenge())
-            }
-            LightingCommand::GreenCompletion => {
-                apply_completion_signal(self.transport, generate_session_challenge())
-            }
-            LightingCommand::SignalOff => {
-                apply_signal_off(self.transport, generate_session_challenge())
-            }
-        }
+        let (expected, operation) = command.main_signal();
+        apply_main_signal(
+            self.transport,
+            generate_session_challenge(),
+            expected,
+            operation,
+        )
+    }
+}
+
+impl<T: ReportTransport> HealthAwareNuPhyIoAdapter for VerifiedNuPhyIoAdapter<'_, T> {
+    fn displays(&mut self, command: LightingCommand) -> Result<bool> {
+        let (expected, _) = command.main_signal();
+        main_signal_matches(self.transport, generate_session_challenge(), expected)
     }
 }
 
