@@ -1,0 +1,14 @@
+[package]
+name = "nuphy-codex"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0.102"
+clap = { version = "4.6.0", features = ["derive"] }
+hidapi = { version = "2.6.5", default-features = false, features = ["linux-static-hidraw"] }
+
+[dev-dependencies]
+assert_cmd = "2.1.1"
+predicates = "3.1.4"
