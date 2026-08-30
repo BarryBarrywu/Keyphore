@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">NuPhy Codex status-light bridge</title>
+  <desc id="desc">Codex lifecycle events flow through durable local state to blue, orange, green, and off signals on a NuPhy Air65 V3 keyboard.</desc>
+
+  <rect width="1200" height="400" rx="28" fill="#0b0d0f"/>
+  <path d="M0 320H1200" stroke="#252a2f"/>
+  <path d="M742 0V400" stroke="#252a2f"/>
+
+  <g transform="translate(58 48)">
+    <text fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="2">MACOS · CODEX PLUGIN · WIRED USB</text>
+    <text y="92" fill="#f4f1e8" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="70" font-weight="750" letter-spacing="-2">NuPhy Codex</text>
+    <text y="140" fill="#c6c9cc" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28">See what Codex needs without leaving the keyboard.</text>
+
+    <g transform="translate(0 202)">
+      <rect width="612" height="70" rx="18" fill="#12161a" stroke="#30363d"/>
+      <g transform="translate(22 18)">
+        <circle cx="17" cy="17" r="10" fill="#4f8cff"/>
+        <text x="38" y="23" fill="#f4f1e8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">WORKING</text>
+        <circle cx="186" cy="17" r="10" fill="#ff9d3b"/>
+        <text x="207" y="23" fill="#f4f1e8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">ATTENTION</text>
+        <circle cx="386" cy="17" r="10" fill="#59c77a"/>
+        <text x="407" y="23" fill="#f4f1e8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="20">COMPLETE</text>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(790 45)">
+    <text fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="1">LOCAL STATUS PATH</text>
+
+    <g transform="translate(0 36)">
+      <rect width="350" height="62" rx="14" fill="#12161a" stroke="#30363d"/>
+      <text x="20" y="25" fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">01</text>
+      <text x="58" y="26" fill="#f4f1e8" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="650">Codex Hooks</text>
+      <text x="58" y="49" fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">lifecycle events</text>
+    </g>
+
+    <path d="M175 99V121" stroke="#4f8cff" stroke-width="2"/>
+    <path d="M169 115L175 121L181 115" fill="none" stroke="#4f8cff" stroke-width="2"/>
+
+    <g transform="translate(0 122)">
+      <rect width="350" height="62" rx="14" fill="#12161a" stroke="#30363d"/>
+      <text x="20" y="25" fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">02</text>
+      <text x="58" y="26" fill="#f4f1e8" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="650">Durable status</text>
+      <text x="58" y="49" fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">session + agent owners</text>
+    </g>
+
+    <path d="M175 185V207" stroke="#ff9d3b" stroke-width="2"/>
+    <path d="M169 201L175 207L181 201" fill="none" stroke="#ff9d3b" stroke-width="2"/>
+
+    <g transform="translate(0 208)">
+      <rect width="350" height="92" rx="18" fill="#171b1f" stroke="#444b52"/>
+      <text x="20" y="29" fill="#8c929a" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">03</text>
+      <text x="58" y="30" fill="#f4f1e8" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="650">Air65 V3</text>
+      <g transform="translate(58 48)">
+        <rect width="48" height="26" rx="6" fill="#4f8cff"/>
+        <rect x="56" width="48" height="26" rx="6" fill="#ff9d3b"/>
+        <rect x="112" width="48" height="26" rx="6" fill="#59c77a"/>
+        <rect x="168" width="48" height="26" rx="6" fill="#2b3035"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(58 346)">
+    <circle cx="7" cy="7" r="7" fill="#59c77a"/>
+    <text x="25" y="13" fill="#c6c9cc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18">REAL-DEVICE VERIFIED · STOCK FIRMWARE · AIR65 V3</text>
+  </g>
+</svg>
