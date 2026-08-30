@@ -248,12 +248,19 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
     let health_path = status_path.with_file_name("hardware-health.json");
     let store = DurableStatusStore::new(status_path);
     let mut companion = Companion::default();
+    let power = SystemPowerMonitor::register()?;
     if once {
-        let mut keyboard = discover_air65_v3()?;
-        let result = companion.device_reconnected(
-            &store,
-            &mut VerifiedNuPhyIoAdapter::new(&mut keyboard.transport),
-        );
+        let result = loop {
+            let Some(_access) = power.gate().begin_hid_access() else {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            };
+            let mut keyboard = discover_air65_v3()?;
+            break companion.device_reconnected(
+                &store,
+                &mut VerifiedNuPhyIoAdapter::new(&mut keyboard.transport),
+            );
+        };
         write_hardware_health(
             &health_path,
             if result.is_ok() {
@@ -265,7 +272,6 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         return result;
     }
 
-    let power = SystemPowerMonitor::register()?;
     'discover: loop {
         let (discovery, connection_generation) = match power.gate().begin_hid_access() {
             Some(access) => {
@@ -289,10 +295,8 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
             }
         };
         let mut adapter = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport);
-        let reconnect_result = match power.gate().begin_hid_access() {
-            Some(_access) if power.gate().generation() == connection_generation => {
-                companion.device_reconnected(&store, &mut adapter)
-            }
+        let reconnect_result = match power.gate().begin_hid_access_for(connection_generation) {
+            Some(_access) => companion.device_reconnected(&store, &mut adapter),
             _ => continue 'discover,
         };
         if let Err(error) = reconnect_result {
@@ -306,12 +310,9 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         loop {
             thread::sleep(Duration::from_millis(100));
             let sync_result = {
-                let Some(_access) = power.gate().begin_hid_access() else {
+                let Some(_access) = power.gate().begin_hid_access_for(connection_generation) else {
                     break;
                 };
-                if power.gate().generation() != connection_generation {
-                    break;
-                }
                 companion.sync(&store, &mut adapter)
             };
             if let Err(error) = sync_result {
@@ -321,12 +322,10 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
             }
             if last_health_check.elapsed() >= Duration::from_secs(1) {
                 let health_result = {
-                    let Some(_access) = power.gate().begin_hid_access() else {
+                    let Some(_access) = power.gate().begin_hid_access_for(connection_generation)
+                    else {
                         break;
                     };
-                    if power.gate().generation() != connection_generation {
-                        break;
-                    }
                     companion.health_check(&store, &mut adapter)
                 };
                 if let Err(error) = health_result {

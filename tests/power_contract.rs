@@ -50,6 +50,7 @@ fn a_sleep_wake_cycle_invalidates_the_existing_keyboard_connection() {
     gate.handle(PowerEvent::DidWake);
 
     assert_ne!(gate.generation(), connected_generation);
+    assert!(gate.begin_hid_access_for(connected_generation).is_none());
 }
 
 #[cfg(target_os = "macos")]

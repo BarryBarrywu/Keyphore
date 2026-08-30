@@ -20,8 +20,18 @@ pub struct PowerGate {
 
 impl PowerGate {
     pub fn begin_hid_access(&self) -> Option<HidAccess<'_>> {
+        self.begin_hid_access_at(None)
+    }
+
+    pub fn begin_hid_access_for(&self, generation: u64) -> Option<HidAccess<'_>> {
+        self.begin_hid_access_at(Some(generation))
+    }
+
+    fn begin_hid_access_at(&self, generation: Option<u64>) -> Option<HidAccess<'_>> {
         let guard = self.hid_access.lock().expect("HID access lock poisoned");
-        if self.suspended.load(Ordering::Acquire) {
+        if self.suspended.load(Ordering::Acquire)
+            || generation.is_some_and(|expected| self.generation() != expected)
+        {
             return None;
         }
         Some(HidAccess { _guard: guard })
