@@ -2,10 +2,10 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use nuphy_codex::companion::{Companion, LightingCommand, NuPhyIoAdapter};
-use nuphy_codex::hook::handle_codex_event_at;
-use nuphy_codex::status::{DurableStatusStore, Signal, SignalOwnerId, Timestamp};
-use nuphy_codex::status_core::{AggregateState, StatusCore};
+use keyphore::companion::{Companion, LightingCommand, NuPhyIoAdapter};
+use keyphore::hook::handle_codex_event_at;
+use keyphore::status::{DurableStatusStore, Signal, SignalOwnerId, Timestamp};
+use keyphore::status_core::{AggregateState, StatusCore};
 
 #[derive(Default)]
 struct FakeNuPhyIo {

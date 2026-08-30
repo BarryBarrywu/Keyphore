@@ -1,6 +1,6 @@
 #[cfg(target_os = "macos")]
-use nuphy_codex::power::SystemPowerMonitor;
-use nuphy_codex::power::{PowerEvent, PowerGate};
+use keyphore::power::SystemPowerMonitor;
+use keyphore::power::{PowerEvent, PowerGate};
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::thread;

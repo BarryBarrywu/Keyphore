@@ -1,9 +1,9 @@
 use std::time::Duration;
 use std::{fs, vec};
 
-use nuphy_codex::companion::{Companion, LightingCommand, NuPhyIoAdapter};
-use nuphy_codex::hook::handle_codex_event_at;
-use nuphy_codex::status::{DurableStatusStore, Timestamp};
+use keyphore::companion::{Companion, LightingCommand, NuPhyIoAdapter};
+use keyphore::hook::handle_codex_event_at;
+use keyphore::status::{DurableStatusStore, Timestamp};
 
 #[derive(Default)]
 struct FakeNuPhyIo {

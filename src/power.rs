@@ -78,7 +78,7 @@ fn register_system_power_notifications(gate: Arc<PowerGate>) -> Result<()> {
 
     let (registered_tx, registered_rx) = mpsc::sync_channel(1);
     thread::Builder::new()
-        .name("nuphy-system-power".into())
+        .name("keyphore-system-power".into())
         .spawn(move || macos::run_power_notification_loop(gate, registered_tx))
         .context("failed to start system power monitor")?;
     registered_rx

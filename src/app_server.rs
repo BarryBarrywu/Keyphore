@@ -133,7 +133,7 @@ impl AppServerSession {
             "method": "initialize",
             "params": {
                 "clientInfo": {
-                    "name": "nuphy-codex",
+                    "name": "keyphore",
                     "version": env!("CARGO_PKG_VERSION")
                 }
             }

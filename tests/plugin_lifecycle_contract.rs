@@ -28,41 +28,41 @@ impl Fixture {
         let hook_disabled = temp.path().join("hook-disabled");
         fs::write(
             &plugin_state,
-            "nuphy-codex@local\ncodex-zectrix-dashboard@codex-zectrix-dashboard\n",
+            "keyphore@local\ncodex-zectrix-dashboard@codex-zectrix-dashboard\n",
         )
         .unwrap();
         let launchctl = executable(
             temp.path().join("launchctl"),
-            "#!/bin/sh\nprintf 'launchctl' >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf ' %s' \"$@\" >> \"$NUPHY_TEST_COMMAND_LOG\"\nprintf '\\n' >> \"$NUPHY_TEST_COMMAND_LOG\"\nif [ \"${1:-}\" = print ]; then printf 'state = running\\n'; fi\nexit 0\n",
+            "#!/bin/sh\nprintf 'launchctl' >> \"$KEYPHORE_TEST_COMMAND_LOG\"\nprintf ' %s' \"$@\" >> \"$KEYPHORE_TEST_COMMAND_LOG\"\nprintf '\\n' >> \"$KEYPHORE_TEST_COMMAND_LOG\"\nif [ \"${1:-}\" = print ]; then printf 'state = running\\n'; fi\nexit 0\n",
         );
         let codex = executable(
             temp.path().join("codex"),
             r#"#!/bin/sh
-printf 'codex' >> "$NUPHY_TEST_COMMAND_LOG"
-printf ' %s' "$@" >> "$NUPHY_TEST_COMMAND_LOG"
-printf '\n' >> "$NUPHY_TEST_COMMAND_LOG"
+printf 'codex' >> "$KEYPHORE_TEST_COMMAND_LOG"
+printf ' %s' "$@" >> "$KEYPHORE_TEST_COMMAND_LOG"
+printf '\n' >> "$KEYPHORE_TEST_COMMAND_LOG"
 if [ "${1:-}" = app-server ]; then
-  [ "${NUPHY_TEST_APP_SERVER_DESCENDANT:-}" = 1 ] && /bin/sleep 30 &
+  [ "${KEYPHORE_TEST_APP_SERVER_DESCENDANT:-}" = 1 ] && /bin/sleep 30 &
   read -r initialize
-  printf '%s\n' '{"id":1,"result":{"userAgent":"nuphy-test/0.146.1"}}'
+  printf '%s\n' '{"id":1,"result":{"userAgent":"keyphore-test/0.146.1"}}'
   read -r initialized
   while read -r request; do
-    printf '%s\n' "$request" >> "$NUPHY_TEST_COMMAND_LOG"
+    printf '%s\n' "$request" >> "$KEYPHORE_TEST_COMMAND_LOG"
     request_id=$(printf '%s\n' "$request" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
     if printf '%s' "$request" | grep -q 'config/batchWrite'; then
-      touch "$NUPHY_TEST_HOOK_TRUST"
+      touch "$KEYPHORE_TEST_HOOK_TRUST"
       if printf '%s' "$request" | grep -q '"enabled":false'; then
-        touch "$NUPHY_TEST_HOOK_DISABLED"
+        touch "$KEYPHORE_TEST_HOOK_DISABLED"
       else
-        rm -f "$NUPHY_TEST_HOOK_DISABLED"
+        rm -f "$KEYPHORE_TEST_HOOK_DISABLED"
       fi
       printf '{"id":%s,"result":{}}\n' "$request_id"
       continue
     fi
     trust=untrusted
-    [ -f "$NUPHY_TEST_HOOK_TRUST" ] && trust=trusted
+    [ -f "$KEYPHORE_TEST_HOOK_TRUST" ] && trust=trusted
     enabled=true
-    [ -f "$NUPHY_TEST_HOOK_DISABLED" ] && enabled=false
+    [ -f "$KEYPHORE_TEST_HOOK_DISABLED" ] && enabled=false
     root=$(printf '%s\n' "$request" | sed -n 's/.*"cwds":\["\([^"]*\)"\].*/\1/p')
     printf '{"id":%s,"result":{"data":[{"cwd":"fixture","hooks":[' "$request_id"
     first=true
@@ -70,31 +70,31 @@ if [ "${1:-}" = app-server ]; then
       [ "$first" = true ] || printf ','
       first=false
       case "$event" in
-        permissionRequest) hash=8267b9ad0d284e8d56108f205a0c3bab9137603059c18c49e023709537752487 ;;
-        postToolUse) hash=0eb1afe4c37b6d25b0636780c9c317088b0934be209c84d491c98888b534707c ;;
-        sessionEnd) hash=12fe49da3056d8d0c0d59784ba786157058a52180a952f0b0eb4e77cc52d0119 ;;
-        sessionStart) hash=b304d1a02564ea26eb19beebcf10bf746416021bbf9d6472eaea736761df9aa4 ;;
-        stop) hash=9835248acdcd156a96185b9c5dfc837f2ea30766f9a31b84a92a2176ea14e649 ;;
-        subagentStart) hash=40388d6052f588e3a25f2a1b3b6c443092dded118f56c7f808ba3cc3d54f820d ;;
-        subagentStop) hash=4473fc3298ab1008800b3650db4ffe0d7a50168863aefbb5cbf1f96144bb4e1f ;;
-        userPromptSubmit) hash=34c72ab0961fdb2fd1469bdf09528d96aa4a3bbd86e4787e311e8207e5f8714e ;;
+        permissionRequest) hash=5f25dca9d0ce796a5c7169e57b0fd97b90af4a3fe4329fba791a35aff00fd321 ;;
+        postToolUse) hash=7cc58a7a6b7d62914e65120af0b388a61824fa237d8bcdff2d0e8f2f86dcd49f ;;
+        sessionEnd) hash=45290ede59950ec464758a3b5f3aca05bc0184a0f456a2dee6f2ca87a65334c9 ;;
+        sessionStart) hash=8d0997952af595e40966d18a4b970ddfde9b1082c99d154374e209c4723d9b75 ;;
+        stop) hash=e20bbf3639086f8545a28998eac049fba54d63f8fb0b5876e0b43d6f1f0cd34d ;;
+        subagentStart) hash=01946b08cd49609fe0cc4a8e43959cd3ebf29ab011278f51d9f77abdbd032a98 ;;
+        subagentStop) hash=36375c4c50d15317921135227d6c423f134853c725df334433a38f47fe918c40 ;;
+        userPromptSubmit) hash=af395f0d95e15ee1a97f0437eedb1859cdea89b94225d88ba706619e661b9a20 ;;
       esac
-      if [ "${NUPHY_TEST_BAD_HOOK_HASH:-}" = 1 ] && [ "$event" = stop ]; then
+      if [ "${KEYPHORE_TEST_BAD_HOOK_HASH:-}" = 1 ] && [ "$event" = stop ]; then
         hash=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       fi
-      printf '{"key":"nuphy-codex@local:hooks/hooks.json:%s:0:0","eventName":"%s","handlerType":"command","executionMode":"sync","matcher":null,"command":"\\\"%s/bin/nuphy-codex\\\" hook","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"%s/hooks/hooks.json","pluginId":"nuphy-codex@local","enabled":%s,"isManaged":false,"currentHash":"sha256:%s","trustStatus":"%s"}' "$event" "$event" "$root" "$root" "$enabled" "$hash" "$trust"
+      printf '{"key":"keyphore@local:hooks/hooks.json:%s:0:0","eventName":"%s","handlerType":"command","executionMode":"sync","matcher":null,"command":"\\\"%s/bin/keyphore\\\" hook","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"%s/hooks/hooks.json","pluginId":"keyphore@local","enabled":%s,"isManaged":false,"currentHash":"sha256:%s","trustStatus":"%s"}' "$event" "$event" "$root" "$root" "$enabled" "$hash" "$trust"
     done
     printf '],"warnings":[],"errors":[]} ]}}\n'
   done
   exit 0
 fi
 if [ "${1:-}" = plugin ] && [ "${2:-}" = list ]; then
-  printf '%s\n' '{"installed":[{"pluginId":"nuphy-codex@local","enabled":true},{"pluginId":"codex-zectrix-dashboard@codex-zectrix-dashboard","enabled":true}]}'
+  printf '%s\n' '{"installed":[{"pluginId":"keyphore@local","enabled":true},{"pluginId":"codex-zectrix-dashboard@codex-zectrix-dashboard","enabled":true}]}'
 elif [ "${1:-}" = plugin ] && [ "${2:-}" = add ]; then
-  /usr/bin/grep -Fqx "$3" "$NUPHY_TEST_PLUGIN_STATE" || printf '%s\n' "$3" >> "$NUPHY_TEST_PLUGIN_STATE"
+  /usr/bin/grep -Fqx "$3" "$KEYPHORE_TEST_PLUGIN_STATE" || printf '%s\n' "$3" >> "$KEYPHORE_TEST_PLUGIN_STATE"
 elif [ "${1:-}" = plugin ] && [ "${2:-}" = remove ]; then
-  /usr/bin/grep -Fvx "$3" "$NUPHY_TEST_PLUGIN_STATE" > "$NUPHY_TEST_PLUGIN_STATE.tmp"
-  /bin/mv "$NUPHY_TEST_PLUGIN_STATE.tmp" "$NUPHY_TEST_PLUGIN_STATE"
+  /usr/bin/grep -Fvx "$3" "$KEYPHORE_TEST_PLUGIN_STATE" > "$KEYPHORE_TEST_PLUGIN_STATE.tmp"
+  /bin/mv "$KEYPHORE_TEST_PLUGIN_STATE.tmp" "$KEYPHORE_TEST_PLUGIN_STATE"
 fi
 exit 0
 "#,
@@ -102,7 +102,7 @@ exit 0
         let other_product_state = temp.path().join("zectrix-state.json");
         fs::write(&other_product_state, "leave-me-alone").unwrap();
         Self {
-            data_dir: temp.path().join("nuphy-data"),
+            data_dir: temp.path().join("keyphore-data"),
             launch_agents_dir: temp.path().join("LaunchAgents"),
             launchctl,
             codex,
@@ -117,18 +117,18 @@ exit 0
     }
 
     fn command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_nuphy-codex"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_keyphore"));
         command
-            .env("NUPHY_CODEX_DATA_DIR", &self.data_dir)
-            .env("NUPHY_CODEX_LAUNCH_AGENTS_DIR", &self.launch_agents_dir)
-            .env("NUPHY_CODEX_LAUNCHCTL_BIN", &self.launchctl)
-            .env("NUPHY_CODEX_CODEX_BIN", &self.codex)
-            .env("NUPHY_CODEX_LAUNCH_DOMAIN", "gui/501")
-            .env("NUPHY_TEST_COMMAND_LOG", &self.command_log);
+            .env("KEYPHORE_DATA_DIR", &self.data_dir)
+            .env("KEYPHORE_LAUNCH_AGENTS_DIR", &self.launch_agents_dir)
+            .env("KEYPHORE_LAUNCHCTL_BIN", &self.launchctl)
+            .env("KEYPHORE_CODEX_BIN", &self.codex)
+            .env("KEYPHORE_LAUNCH_DOMAIN", "gui/501")
+            .env("KEYPHORE_TEST_COMMAND_LOG", &self.command_log);
         command
-            .env("NUPHY_TEST_PLUGIN_STATE", &self.plugin_state)
-            .env("NUPHY_TEST_HOOK_TRUST", &self.hook_trust)
-            .env("NUPHY_TEST_HOOK_DISABLED", &self.hook_disabled);
+            .env("KEYPHORE_TEST_PLUGIN_STATE", &self.plugin_state)
+            .env("KEYPHORE_TEST_HOOK_TRUST", &self.hook_trust)
+            .env("KEYPHORE_TEST_HOOK_DISABLED", &self.hook_disabled);
         command
     }
 
@@ -141,7 +141,7 @@ exit 0
                 "--plugin-root",
                 self.plugin_root.to_str().unwrap(),
                 "--plugin-id",
-                "nuphy-codex@local",
+                "keyphore@local",
             ])
             .output()
             .unwrap();
@@ -183,17 +183,17 @@ fn setup_is_idempotent_and_preserves_unrelated_product_state() {
             .contains("codex-zectrix-dashboard@codex-zectrix-dashboard")
     );
     let state = fs::read_to_string(fixture.data_dir.join("lifecycle.json")).unwrap();
-    assert!(state.contains("nuphy-codex@local"));
+    assert!(state.contains("keyphore@local"));
     assert!(!state.to_ascii_lowercase().contains("zectrix"));
     let plist = fs::read_to_string(
         fixture
             .launch_agents_dir
-            .join("com.barrybarrywu.nuphy-codex.plist"),
+            .join("com.barrybarrywu.keyphore.plist"),
     )
     .unwrap();
-    assert!(plist.contains("plugin-v1/bin/nuphy-codex"));
+    assert!(plist.contains("plugin-v1/bin/keyphore"));
     let calls = fs::read_to_string(&fixture.command_log).unwrap();
-    assert!(calls.contains("codex plugin add nuphy-codex@local"));
+    assert!(calls.contains("codex plugin add keyphore@local"));
 }
 
 #[test]
@@ -208,7 +208,7 @@ fn explicit_trust_reviews_and_trusts_only_the_owned_hooks() {
             "--plugin-root",
             fixture.plugin_root.to_str().unwrap(),
             "--plugin-id",
-            "nuphy-codex@local",
+            "keyphore@local",
         ])
         .output()
         .unwrap();
@@ -242,7 +242,7 @@ fn explicit_trust_rejects_a_modified_reviewed_hash() {
 
     let output = fixture
         .command()
-        .env("NUPHY_TEST_BAD_HOOK_HASH", "1")
+        .env("KEYPHORE_TEST_BAD_HOOK_HASH", "1")
         .args(["lifecycle", "trust-hooks"])
         .output()
         .unwrap();
@@ -269,14 +269,14 @@ fn app_server_descendants_cannot_hold_lifecycle_cleanup_open() {
 
     let output = fixture
         .command()
-        .env("NUPHY_TEST_APP_SERVER_DESCENDANT", "1")
+        .env("KEYPHORE_TEST_APP_SERVER_DESCENDANT", "1")
         .args([
             "lifecycle",
             "install",
             "--plugin-root",
             fixture.plugin_root.to_str().unwrap(),
             "--plugin-id",
-            "nuphy-codex@local",
+            "keyphore@local",
         ])
         .output()
         .unwrap();
@@ -286,7 +286,7 @@ fn app_server_descendants_cannot_hold_lifecycle_cleanup_open() {
 }
 
 #[test]
-fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
+fn update_and_removal_are_scoped_to_the_keyphore_plugin() {
     let fixture = Fixture::new();
     fixture.install();
     let plugin_v2 = fixture._temp.path().join("plugin-v2");
@@ -300,7 +300,7 @@ fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
             "--plugin-root",
             plugin_v2.to_str().unwrap(),
             "--plugin-id",
-            "nuphy-codex@local",
+            "keyphore@local",
         ])
         .output()
         .unwrap();
@@ -323,8 +323,8 @@ fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
     );
 
     let calls = fs::read_to_string(&fixture.command_log).unwrap();
-    assert!(calls.contains("codex plugin add nuphy-codex@local"));
-    assert!(calls.contains("codex plugin remove nuphy-codex@local"));
+    assert!(calls.contains("codex plugin add keyphore@local"));
+    assert!(calls.contains("codex plugin remove keyphore@local"));
     assert!(!calls.to_ascii_lowercase().contains("zectrix"));
     assert_eq!(
         fs::read_to_string(&fixture.other_product_state).unwrap(),
@@ -341,7 +341,7 @@ fn update_and_removal_are_scoped_to_the_nuphy_plugin() {
     assert!(
         !fixture
             .launch_agents_dir
-            .join("com.barrybarrywu.nuphy-codex.plist")
+            .join("com.barrybarrywu.keyphore.plist")
             .exists()
     );
 }
@@ -433,13 +433,13 @@ fn removal_refuses_to_forget_a_companion_that_did_not_stop() {
     assert!(
         fixture
             .launch_agents_dir
-            .join("com.barrybarrywu.nuphy-codex.plist")
+            .join("com.barrybarrywu.keyphore.plist")
             .exists()
     );
     assert!(
         fs::read_to_string(&fixture.plugin_state)
             .unwrap()
-            .contains("nuphy-codex@local")
+            .contains("keyphore@local")
     );
 }
 
@@ -482,8 +482,8 @@ fn copy_plugin_fixture(destination: &Path) {
     )
     .unwrap();
     fs::copy(
-        env!("CARGO_BIN_EXE_nuphy-codex"),
-        destination.join("bin/nuphy-codex"),
+        env!("CARGO_BIN_EXE_keyphore"),
+        destination.join("bin/keyphore"),
     )
     .unwrap();
 }

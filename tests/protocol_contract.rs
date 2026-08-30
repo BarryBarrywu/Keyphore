@@ -1,5 +1,5 @@
-use nuphy_codex::nuphyio::{GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN};
-use nuphy_codex::protocol::{
+use keyphore::nuphyio::{GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN};
+use keyphore::protocol::{
     REPORT_LEN, Request, SessionKey, build_session_request, validate_response,
     validate_session_response,
 };
@@ -100,7 +100,7 @@ fn response_requires_matching_direction_command_address_length_and_checksum() {
 
     let mut wrong_handle = response;
     wrong_handle[7] ^= 1;
-    wrong_handle[3] = nuphy_codex::protocol::checksum(&wrong_handle);
+    wrong_handle[3] = keyphore::protocol::checksum(&wrong_handle);
     assert!(validate_response(&wrong_handle, &request, key).is_err());
 }
 
@@ -115,5 +115,5 @@ fn malformed_or_oversized_reports_are_rejected() {
     assert!(validate_response(&response, &request, key).is_ok());
 
     let truncated = &response[..63];
-    assert!(nuphy_codex::protocol::parse_report(truncated).is_err());
+    assert!(keyphore::protocol::parse_report(truncated).is_err());
 }

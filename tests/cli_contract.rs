@@ -5,7 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 
 #[test]
 fn diagnostic_is_directly_executable_and_requires_an_explicit_lighting_flag() {
-    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    let mut command = Command::cargo_bin("keyphore").unwrap();
     command.args(["diagnose", "--help"]);
 
     command.assert().success().stdout(
@@ -31,11 +31,11 @@ fn diagnostics_refuse_to_race_the_installed_companion() {
     .unwrap();
     fs::set_permissions(&launchctl, fs::Permissions::from_mode(0o755)).unwrap();
     for arguments in [vec!["diagnose"], vec!["diagnose", "--exercise"]] {
-        let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+        let mut command = Command::cargo_bin("keyphore").unwrap();
         command
             .args(arguments)
-            .env("NUPHY_CODEX_LAUNCHCTL_BIN", &launchctl)
-            .env("NUPHY_CODEX_LAUNCH_DOMAIN", "gui/501");
+            .env("KEYPHORE_LAUNCHCTL_BIN", &launchctl)
+            .env("KEYPHORE_LAUNCH_DOMAIN", "gui/501");
 
         command.assert().failure().stderr(predicate::str::contains(
             "stop the installed companion before diagnosing the keyboard",
@@ -46,7 +46,7 @@ fn diagnostics_refuse_to_race_the_installed_companion() {
 #[test]
 fn hook_and_companion_are_directly_executable() {
     for subcommand in ["hook", "companion"] {
-        let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+        let mut command = Command::cargo_bin("keyphore").unwrap();
         command.args([subcommand, "--help"]);
 
         command
@@ -60,7 +60,7 @@ fn hook_and_companion_are_directly_executable() {
 fn hook_persists_without_a_running_companion_or_keyboard() {
     let directory = tempfile::tempdir().unwrap();
     let status = directory.path().join("status.json");
-    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    let mut command = Command::cargo_bin("keyphore").unwrap();
     command
         .args(["hook", "--status"])
         .arg(&status)
@@ -79,7 +79,7 @@ fn hook_persists_without_a_running_companion_or_keyboard() {
 fn hook_audit_records_only_lifecycle_identity_fields() {
     let directory = tempfile::tempdir().unwrap();
     let status = directory.path().join("status.json");
-    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    let mut command = Command::cargo_bin("keyphore").unwrap();
     command
         .args(["hook", "--status"])
         .arg(&status)
@@ -108,7 +108,7 @@ fn hook_audit_records_only_lifecycle_identity_fields() {
 fn hook_audit_never_exceeds_its_size_limit() {
     let directory = tempfile::tempdir().unwrap();
     let status = directory.path().join("status.json");
-    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    let mut command = Command::cargo_bin("keyphore").unwrap();
     command.args(["hook", "--status"]).arg(&status).write_stdin(
         serde_json::json!({
             "hook_event_name": "UserPromptSubmit",
@@ -128,7 +128,7 @@ fn hook_audit_never_exceeds_its_size_limit() {
 fn hook_accepts_permission_requests_without_a_running_companion_or_keyboard() {
     let directory = tempfile::tempdir().unwrap();
     let status = directory.path().join("status.json");
-    let mut command = Command::cargo_bin("nuphy-codex").unwrap();
+    let mut command = Command::cargo_bin("keyphore").unwrap();
     command
         .args(["hook", "--status"])
         .arg(&status)

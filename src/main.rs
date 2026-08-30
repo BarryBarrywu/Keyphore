@@ -8,15 +8,15 @@ use std::{
 
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
-use nuphy_codex::companion::{
+use keyphore::companion::{
     Companion, HealthAwareNuPhyIoAdapter, LightingCommand, VerifiedNuPhyIoAdapter,
 };
-use nuphy_codex::hid::discover_air65_v3;
-use nuphy_codex::hook::{append_hook_audit, handle_codex_event_at};
-use nuphy_codex::lifecycle::PluginLifecycle;
-use nuphy_codex::nuphyio::{AcceptanceSignal, exercise_main_backlight, generate_session_challenge};
-use nuphy_codex::power::SystemPowerMonitor;
-use nuphy_codex::status::{DurableStatusStore, Timestamp};
+use keyphore::hid::discover_air65_v3;
+use keyphore::hook::{append_hook_audit, handle_codex_event_at};
+use keyphore::lifecycle::PluginLifecycle;
+use keyphore::nuphyio::{AcceptanceSignal, exercise_main_backlight, generate_session_challenge};
+use keyphore::power::SystemPowerMonitor;
+use keyphore::status::{DurableStatusStore, Timestamp};
 use serde::{Deserialize, Serialize};
 
 const HARDWARE_HEALTH_MAX_AGE: Duration = Duration::from_secs(3);
@@ -38,7 +38,7 @@ impl HardwareHealth {
 }
 
 #[derive(Parser)]
-#[command(name = "nuphy-codex", version)]
+#[command(name = "keyphore", version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -59,13 +59,13 @@ enum Command {
     /// Persist a privacy-allowlisted Codex lifecycle event without opening the keyboard.
     Hook {
         /// Durable-status file shared with the companion.
-        #[arg(long, env = "NUPHY_CODEX_STATUS_PATH")]
+        #[arg(long, env = "KEYPHORE_STATUS_PATH")]
         status: Option<PathBuf>,
     },
     /// Read durable status and apply it through the verified Air65 V3 adapter.
     Companion {
         /// Durable-status file shared with the Hook owner.
-        #[arg(long, env = "NUPHY_CODEX_STATUS_PATH")]
+        #[arg(long, env = "KEYPHORE_STATUS_PATH")]
         status: Option<PathBuf>,
         /// Apply the current durable state once and exit.
         #[arg(long)]
@@ -166,7 +166,7 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
         println!("aggregate_state=unavailable");
         return Ok(());
     };
-    nuphy_codex::lifecycle::validate_plugin_bundle(&plugin_root)?;
+    keyphore::lifecycle::validate_plugin_bundle(&plugin_root)?;
     println!(
         "hook_ownership={}",
         if lifecycle.plugin_is_enabled(&plugin_id)? {
@@ -184,14 +184,14 @@ fn print_lifecycle_validation(lifecycle: &PluginLifecycle) -> Result<()> {
             "untrusted"
         }
     );
-    ensure!(hooks_are_trusted, "NuPhy Hooks are not trusted");
+    ensure!(hooks_are_trusted, "Keyphore Hooks are not trusted");
     println!("plugin_id={plugin_id}");
     let companion_status = lifecycle.companion_status()?;
     println!("companion={companion_status}");
     let store = DurableStatusStore::new(lifecycle.data_dir().join("status.json"));
     let status = store.load()?;
     println!("durable_status=healthy");
-    let aggregate = nuphy_codex::status_core::StatusCore::reduce_at(&status, Timestamp::now());
+    let aggregate = keyphore::status_core::StatusCore::reduce_at(&status, Timestamp::now());
     println!("aggregate_state={aggregate:?}");
     if companion_status == "running" {
         let health =
@@ -359,7 +359,7 @@ fn default_status_path() -> PathBuf {
     env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("Library/Application Support/NuPhy Codex/status.json")
+        .join("Library/Application Support/Keyphore/status.json")
 }
 
 fn diagnose(exercise: bool) -> Result<()> {

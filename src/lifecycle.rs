@@ -13,8 +13,8 @@ use serde_json::Value;
 
 use crate::app_server::{AppServerClient, HookMetadata};
 
-const PLUGIN_NAME: &str = "nuphy-codex";
-const LAUNCH_LABEL: &str = "com.barrybarrywu.nuphy-codex";
+const PLUGIN_NAME: &str = "keyphore";
+const LAUNCH_LABEL: &str = "com.barrybarrywu.keyphore";
 const HOOK_EVENTS: [&str; 8] = [
     "PermissionRequest",
     "PostToolUse",
@@ -28,38 +28,38 @@ const HOOK_EVENTS: [&str; 8] = [
 const REVIEWED_HOOKS: [(&str, &str); 8] = [
     (
         "permissionRequest",
-        "sha256:8267b9ad0d284e8d56108f205a0c3bab9137603059c18c49e023709537752487",
+        "sha256:5f25dca9d0ce796a5c7169e57b0fd97b90af4a3fe4329fba791a35aff00fd321",
     ),
     (
         "postToolUse",
-        "sha256:0eb1afe4c37b6d25b0636780c9c317088b0934be209c84d491c98888b534707c",
+        "sha256:7cc58a7a6b7d62914e65120af0b388a61824fa237d8bcdff2d0e8f2f86dcd49f",
     ),
     (
         "sessionEnd",
-        "sha256:12fe49da3056d8d0c0d59784ba786157058a52180a952f0b0eb4e77cc52d0119",
+        "sha256:45290ede59950ec464758a3b5f3aca05bc0184a0f456a2dee6f2ca87a65334c9",
     ),
     (
         "sessionStart",
-        "sha256:b304d1a02564ea26eb19beebcf10bf746416021bbf9d6472eaea736761df9aa4",
+        "sha256:8d0997952af595e40966d18a4b970ddfde9b1082c99d154374e209c4723d9b75",
     ),
     (
         "stop",
-        "sha256:9835248acdcd156a96185b9c5dfc837f2ea30766f9a31b84a92a2176ea14e649",
+        "sha256:e20bbf3639086f8545a28998eac049fba54d63f8fb0b5876e0b43d6f1f0cd34d",
     ),
     (
         "subagentStart",
-        "sha256:40388d6052f588e3a25f2a1b3b6c443092dded118f56c7f808ba3cc3d54f820d",
+        "sha256:01946b08cd49609fe0cc4a8e43959cd3ebf29ab011278f51d9f77abdbd032a98",
     ),
     (
         "subagentStop",
-        "sha256:4473fc3298ab1008800b3650db4ffe0d7a50168863aefbb5cbf1f96144bb4e1f",
+        "sha256:36375c4c50d15317921135227d6c423f134853c725df334433a38f47fe918c40",
     ),
     (
         "userPromptSubmit",
-        "sha256:34c72ab0961fdb2fd1469bdf09528d96aa4a3bbd86e4787e311e8207e5f8714e",
+        "sha256:af395f0d95e15ee1a97f0437eedb1859cdea89b94225d88ba706619e661b9a20",
     ),
 ];
-const HOOK_COMMAND: &str = "\"${PLUGIN_ROOT}/bin/nuphy-codex\" hook";
+const HOOK_COMMAND: &str = "\"${PLUGIN_ROOT}/bin/keyphore\" hook";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct LifecycleState {
@@ -81,19 +81,19 @@ impl PluginLifecycle {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("."));
         Ok(Self {
-            data_dir: env::var_os("NUPHY_CODEX_DATA_DIR")
+            data_dir: env::var_os("KEYPHORE_DATA_DIR")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| home.join("Library/Application Support/NuPhy Codex")),
-            launch_agents_dir: env::var_os("NUPHY_CODEX_LAUNCH_AGENTS_DIR")
+                .unwrap_or_else(|| home.join("Library/Application Support/Keyphore")),
+            launch_agents_dir: env::var_os("KEYPHORE_LAUNCH_AGENTS_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| home.join("Library/LaunchAgents")),
-            launchctl: env::var_os("NUPHY_CODEX_LAUNCHCTL_BIN")
+            launchctl: env::var_os("KEYPHORE_LAUNCHCTL_BIN")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("/bin/launchctl")),
-            codex: env::var_os("NUPHY_CODEX_CODEX_BIN")
+            codex: env::var_os("KEYPHORE_CODEX_BIN")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("codex")),
-            launch_domain: env::var("NUPHY_CODEX_LAUNCH_DOMAIN")
+            launch_domain: env::var("KEYPHORE_LAUNCH_DOMAIN")
                 .unwrap_or_else(|_| format!("gui/{}", unsafe { libc::geteuid() })),
         })
     }
@@ -104,14 +104,14 @@ impl PluginLifecycle {
         if let Some(existing) = self.read_state()? {
             ensure!(
                 existing.plugin_id == plugin_id,
-                "another NuPhy plugin installation is already managed"
+                "another Keyphore plugin installation is already managed"
             );
         }
         run_checked_command(
             Command::new(&self.codex)
                 .args(["plugin", "add"])
                 .arg(plugin_id),
-            "failed to install the NuPhy plugin",
+            "failed to install the Keyphore plugin",
         )?;
         self.activate(plugin_root, plugin_id)
     }
@@ -121,7 +121,7 @@ impl PluginLifecycle {
         validate_plugin_bundle(plugin_root)?;
         let existing = self
             .read_state()?
-            .context("NuPhy plugin is not installed")?;
+            .context("Keyphore plugin is not installed")?;
         ensure!(
             existing.plugin_id == plugin_id,
             "update cannot change plugin ownership"
@@ -130,7 +130,7 @@ impl PluginLifecycle {
             Command::new(&self.codex)
                 .args(["plugin", "add"])
                 .arg(plugin_id),
-            "failed to update the NuPhy plugin",
+            "failed to update the Keyphore plugin",
         )?;
         self.activate(plugin_root, plugin_id)
     }
@@ -138,7 +138,7 @@ impl PluginLifecycle {
     pub fn uninstall(&self) -> Result<()> {
         let state = self
             .read_state()?
-            .context("NuPhy plugin is not installed")?;
+            .context("Keyphore plugin is not installed")?;
         validate_plugin_id(&state.plugin_id)?;
         self.stop_companion()?;
         self.disable_plugin_hooks(&state.plugin_root, &state.plugin_id)?;
@@ -146,7 +146,7 @@ impl PluginLifecycle {
             Command::new(&self.codex)
                 .args(["plugin", "remove"])
                 .arg(&state.plugin_id),
-            "failed to remove the NuPhy plugin",
+            "failed to remove the Keyphore plugin",
         )?;
         remove_file_if_present(&self.plist_path())?;
         for name in [
@@ -184,7 +184,7 @@ impl PluginLifecycle {
         let output = Command::new(&self.launchctl)
             .args(["print", &self.launch_target()])
             .output()
-            .context("failed to inspect NuPhy companion")?;
+            .context("failed to inspect Keyphore companion")?;
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             return Ok(if stdout.contains("state = running") {
@@ -200,7 +200,7 @@ impl PluginLifecycle {
         {
             return Ok("stopped");
         }
-        bail!("failed to determine NuPhy companion state")
+        bail!("failed to determine Keyphore companion state")
     }
 
     pub fn plugin_is_enabled(&self, plugin_id: &str) -> Result<bool> {
@@ -227,7 +227,7 @@ impl PluginLifecycle {
     pub fn trust_hooks(&self) -> Result<()> {
         let state = self
             .read_state()?
-            .context("NuPhy plugin is not installed")?;
+            .context("Keyphore plugin is not installed")?;
         self.trust_plugin_hooks(&state.plugin_root, &state.plugin_id)
     }
 
@@ -240,23 +240,23 @@ impl PluginLifecycle {
         fs::create_dir_all(&self.launch_agents_dir)
             .context("failed to create LaunchAgents directory")?;
         let plist = launch_agent_plist(
-            &plugin_root.join("bin/nuphy-codex"),
+            &plugin_root.join("bin/keyphore"),
             &self.data_dir.join("status.json"),
             &self.data_dir.join("companion.stdout.log"),
             &self.data_dir.join("companion.stderr.log"),
         );
-        fs::write(self.plist_path(), plist).context("failed to write NuPhy LaunchAgent")?;
+        fs::write(self.plist_path(), plist).context("failed to write Keyphore LaunchAgent")?;
         self.stop_companion()?;
         run_checked_command(
             Command::new(&self.launchctl)
                 .arg("bootstrap")
                 .arg(&self.launch_domain)
                 .arg(self.plist_path()),
-            "failed to load NuPhy companion",
+            "failed to load Keyphore companion",
         )?;
         run_checked_command(
             Command::new(&self.launchctl).args(["kickstart", "-k", &self.launch_target()]),
-            "failed to start NuPhy companion",
+            "failed to start Keyphore companion",
         )?;
         Ok(())
     }
@@ -265,11 +265,11 @@ impl PluginLifecycle {
         let output = Command::new(&self.launchctl)
             .args(["bootout", &self.launch_target()])
             .output()
-            .context("failed to stop NuPhy companion")?;
+            .context("failed to stop Keyphore companion")?;
         if output.status.success() || self.companion_status()? == "stopped" {
             return Ok(());
         }
-        bail!("NuPhy companion is still loaded")
+        bail!("Keyphore companion is still loaded")
     }
 
     fn activate(&self, plugin_root: &Path, plugin_id: &str) -> Result<()> {
@@ -290,7 +290,7 @@ impl PluginLifecycle {
             configured
                 .iter()
                 .all(|hook| hook.enabled && hook.trust_status == "trusted"),
-            "Codex did not trust the reviewed NuPhy Hooks"
+            "Codex did not trust the reviewed Keyphore Hooks"
         );
         Ok(())
     }
@@ -302,7 +302,7 @@ impl PluginLifecycle {
         let configured = self.reviewed_hooks(plugin_root, plugin_id)?;
         ensure!(
             configured.iter().all(|hook| !hook.enabled),
-            "Codex did not disable the reviewed NuPhy Hooks"
+            "Codex did not disable the reviewed Keyphore Hooks"
         );
         Ok(())
     }
@@ -362,9 +362,9 @@ fn review_plugin_hooks(
     ensure!(
         events == REVIEWED_HOOKS.iter().map(|(event, _)| *event).collect()
             && selected.len() == REVIEWED_HOOKS.len(),
-        "Codex discovered an unexpected NuPhy Hook set"
+        "Codex discovered an unexpected Keyphore Hook set"
     );
-    let expected_command = format!("\"{}\" hook", plugin_root.join("bin/nuphy-codex").display());
+    let expected_command = format!("\"{}\" hook", plugin_root.join("bin/keyphore").display());
     let expected_source = plugin_root.join("hooks/hooks.json");
     ensure!(
         selected.iter().all(|hook| {
@@ -385,7 +385,7 @@ fn review_plugin_hooks(
                     .find(|(event, _)| *event == hook.event_name)
                     .is_some_and(|(_, hash)| *hash == hook.current_hash)
         }),
-        "Codex discovered a NuPhy Hook definition that was not reviewed"
+        "Codex discovered a Keyphore Hook definition that was not reviewed"
     );
     selected.sort_by(|left, right| left.event_name.cmp(&right.event_name));
     Ok(selected)
@@ -437,7 +437,7 @@ pub fn validate_plugin_bundle(plugin_root: &Path) -> Result<()> {
         );
     }
 
-    let binary = plugin_root.join("bin/nuphy-codex");
+    let binary = plugin_root.join("bin/keyphore");
     let metadata = fs::metadata(&binary).context("bundled companion is missing")?;
     ensure!(metadata.is_file(), "bundled companion is not a file");
     ensure!(

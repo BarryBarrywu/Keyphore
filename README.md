@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="NuPhy Codex turns Codex lifecycle events into status lights on a NuPhy Air65 V3 keyboard">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Keyphore turns Codex lifecycle events into status lights on a NuPhy Air65 V3 keyboard">
 </p>
 
-NuPhy Codex is a macOS Codex Plugin that shows aggregate task state on the main backlight of a stock NuPhy Air65 V3. It keeps Hook handling fast, persists state locally, and gives the keyboard to one long-lived companion process instead of opening HID from every event.
+**Keyphore** (pronounced “key-for”) is a macOS Codex Plugin that shows aggregate task state on the main backlight of a stock NuPhy Air65 V3. It keeps Hook handling fast, persists state locally, and gives the keyboard to one long-lived companion process instead of opening HID from every event.
 
 ## Status at a glance
 
@@ -54,24 +54,26 @@ Bluetooth, 2.4 GHz, other NuPhy models, custom firmware, Claude Code, and automa
 Add this repository as a Codex marketplace and install the Plugin:
 
 ```bash
-codex plugin marketplace add BarryBarrywu/Nuphy
-codex plugin add nuphy-codex@nuphy-codex
+codex plugin marketplace add BarryBarrywu/Keyphore
+codex plugin add keyphore@keyphore
 ```
 
 Start a new Codex task and ask it to use the bundled setup Skill:
 
 ```text
-Use $setup-nuphy-codex to install and validate my NuPhy Air65 V3 status lights.
+Use $setup-keyphore to install and validate my NuPhy Air65 V3 status lights.
 ```
 
 The setup flow installs the companion, asks you to review the eight bundled Hook definitions, and requires a separate trust step before those Hooks can run. Start another new Codex task after trusting the Hooks so the current process reloads them.
+
+> Migrating from the private pre-release `nuphy-codex` build? Uninstall that Plugin with its bundled setup Skill before installing Keyphore. The two Plugin IDs and application-support directories are intentionally separate.
 
 ## Verify
 
 Start a new Codex task and ask the installed setup Skill to run diagnostics:
 
 ```text
-Use $setup-nuphy-codex to run diagnostics for my NuPhy Air65 V3 status lights.
+Use $setup-keyphore to run diagnostics for my NuPhy Air65 V3 status lights.
 ```
 
 A ready installation reports these surfaces independently:
@@ -86,7 +88,7 @@ verified_transport=wired-usb
 protocol_health=healthy
 ```
 
-From a repository checkout, the same read-only report is available as `./plugin/bin/nuphy-codex diagnostics`. For an isolated physical lighting exercise, stop the companion first, then run `diagnose --exercise`. Do not run the exercise while the companion owns HID.
+From a repository checkout, the same read-only report is available as `./plugin/bin/keyphore diagnostics`. For an isolated physical lighting exercise, stop the companion first, then run `diagnose --exercise`. Do not run the exercise while the companion owns HID.
 
 ## Develop
 
@@ -103,4 +105,4 @@ The main boundaries are documented in the [Hook lifecycle ADR](./docs/adr/0001-o
 
 ## License
 
-NuPhy Codex is available under the [MIT License](./LICENSE). The minimal NuPhyIO protocol implementation retains its required notice in [LICENSES/NUPHYIO-NOTICE.txt](./LICENSES/NUPHYIO-NOTICE.txt).
+Keyphore is available under the [MIT License](./LICENSE). The minimal NuPhyIO protocol implementation retains its required notice in [LICENSES/NUPHYIO-NOTICE.txt](./LICENSES/NUPHYIO-NOTICE.txt).

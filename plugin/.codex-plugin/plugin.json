@@ -1,24 +1,24 @@
 {
-  "name": "nuphy-codex",
+  "name": "keyphore",
   "version": "0.1.0",
-  "description": "Show Codex status on a stock NuPhy Air65 V3 over macOS wired USB",
+  "description": "Keyphore shows Codex task status on a stock NuPhy Air65 V3 over macOS wired USB",
   "author": {
     "name": "Barry Barry Wu",
     "url": "https://github.com/BarryBarrywu"
   },
-  "homepage": "https://github.com/BarryBarrywu/Nuphy",
-  "repository": "https://github.com/BarryBarrywu/Nuphy",
+  "homepage": "https://github.com/BarryBarrywu/Keyphore",
+  "repository": "https://github.com/BarryBarrywu/Keyphore",
   "license": "MIT",
   "keywords": ["codex", "nuphy", "air65-v3", "keyboard", "status-light"],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Codex Status for NuPhy",
-    "shortDescription": "Show Codex task status on a NuPhy Air65 V3",
+    "displayName": "Keyphore",
+    "shortDescription": "See Codex task status on a NuPhy Air65 V3",
     "longDescription": "Display aggregate Codex task status on stock Air65 V3 firmware over macOS wired USB. Bluetooth, 2.4 GHz, other NuPhy models, Claude Code, custom firmware, and automatic terminal failure signals are not supported.",
     "developerName": "Barry Barry Wu",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],
-    "websiteURL": "https://github.com/BarryBarrywu/Nuphy",
-    "defaultPrompt": ["Set up my Codex status lights for NuPhy Air65 V3"]
+    "websiteURL": "https://github.com/BarryBarrywu/Keyphore",
+    "defaultPrompt": ["Set up Keyphore for my NuPhy Air65 V3"]
   }
 }

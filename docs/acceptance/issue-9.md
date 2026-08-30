@@ -1,5 +1,7 @@
 # Issue #9 acceptance record
 
+> Historical naming note: this acceptance was recorded before the product was named Keyphore. References to `nuphy-codex` and “NuPhy Hooks” below describe the verified pre-release identity and are intentionally preserved.
+
 Date: 2026-08-29 to 2026-08-30
 
 Environment observed by the acceptance commands: macOS, NuPhy Air65 V3 USB `19f5:102b`, interface 3, wired USB. The operator confirmed that the keyboard uses stock firmware.

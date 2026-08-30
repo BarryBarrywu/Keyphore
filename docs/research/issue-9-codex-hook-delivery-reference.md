@@ -1,5 +1,7 @@
 # Issue #9 Codex Hook 投递与参考实现复核
 
+> 历史命名说明：本文形成于产品定名为 Keyphore 之前。下文的 `nuphy-codex` 与“NuPhy Hook”均指当时实际接受检查的预发布身份，因此保留原文。
+
 调研日期：2026-08-29。本机 PATH 中的 CLI 是 0.146.1；本次 Desktop 真实子代理测试 rollout 的 `cli_version` 和 App bundled binary 则是 `0.150.0-alpha.12.2`。本文只使用官方 Codex 文档、OpenAI `codex` 官方仓库源码，以及具体开源项目源码。
 
 ## 结论

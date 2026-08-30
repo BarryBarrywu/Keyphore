@@ -1,8 +1,6 @@
-use nuphy_codex::companion::{
-    Companion, HealthAwareNuPhyIoAdapter, LightingCommand, NuPhyIoAdapter,
-};
-use nuphy_codex::hook::handle_user_prompt_submit;
-use nuphy_codex::status::DurableStatusStore;
+use keyphore::companion::{Companion, HealthAwareNuPhyIoAdapter, LightingCommand, NuPhyIoAdapter};
+use keyphore::hook::handle_user_prompt_submit;
+use keyphore::status::DurableStatusStore;
 use std::time::Duration;
 
 #[derive(Default)]

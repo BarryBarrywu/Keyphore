@@ -1,4 +1,4 @@
-use nuphy_codex::device::{Bus, DeviceDescriptor, select_supported_device};
+use keyphore::device::{Bus, DeviceDescriptor, select_supported_device};
 
 fn air65() -> DeviceDescriptor {
     DeviceDescriptor {

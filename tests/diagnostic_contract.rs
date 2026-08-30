@@ -2,11 +2,11 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use anyhow::{Result, bail};
-use nuphy_codex::nuphyio::{
+use keyphore::nuphyio::{
     AcceptanceSignal, GREEN_COMPLETION_MAIN, ORANGE_ATTENTION_MAIN, ReportTransport,
     apply_attention_signal, apply_completion_signal, exercise_main_backlight, main_signal_matches,
 };
-use nuphy_codex::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
+use keyphore::protocol::{REPORT_LEN, Report, SessionChallenge, checksum};
 
 const KEY: u8 = 0xa5;
 const INITIAL_MAIN: [u8; 9] = [3, 40, 2, 0, 1, 0, 0xaa, 0xbb, 0xcc];

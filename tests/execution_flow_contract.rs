@@ -4,9 +4,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
-use nuphy_codex::companion::{Companion, LightingCommand, NuPhyIoAdapter, sync_once};
-use nuphy_codex::hook::handle_user_prompt_submit;
-use nuphy_codex::status::DurableStatusStore;
+use keyphore::companion::{Companion, LightingCommand, NuPhyIoAdapter, sync_once};
+use keyphore::hook::handle_user_prompt_submit;
+use keyphore::status::DurableStatusStore;
 
 #[derive(Default)]
 struct FakeNuPhyIo {

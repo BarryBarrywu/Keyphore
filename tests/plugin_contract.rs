@@ -5,15 +5,15 @@ use std::process::Command;
 use serde_json::Value;
 
 #[test]
-fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
+fn plugin_bundles_only_the_keyphore_companion_and_owned_hooks() {
     let marketplace: Value =
         serde_json::from_slice(&fs::read(".agents/plugins/marketplace.json").unwrap()).unwrap();
-    assert_eq!(marketplace["name"], "nuphy-codex");
+    assert_eq!(marketplace["name"], "keyphore");
     assert_eq!(marketplace["plugins"][0]["source"]["path"], "./plugin");
 
     let manifest: Value =
         serde_json::from_slice(&fs::read("plugin/.codex-plugin/plugin.json").unwrap()).unwrap();
-    assert_eq!(manifest["name"], "nuphy-codex");
+    assert_eq!(manifest["name"], "keyphore");
     assert_eq!(manifest["version"], env!("CARGO_PKG_VERSION"));
     let release_claim = manifest["interface"]["longDescription"].as_str().unwrap();
     for boundary in [
@@ -29,16 +29,16 @@ fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
         assert!(release_claim.contains(boundary));
     }
 
-    let companion = fs::metadata("plugin/bin/nuphy-codex").unwrap();
+    let companion = fs::metadata("plugin/bin/keyphore").unwrap();
     assert!(companion.is_file());
     assert_ne!(companion.permissions().mode() & 0o111, 0);
     let signature = Command::new("/usr/bin/codesign")
-        .args(["-dv", "--verbose=4", "plugin/bin/nuphy-codex"])
+        .args(["-dv", "--verbose=4", "plugin/bin/keyphore"])
         .output()
         .unwrap();
     assert!(signature.status.success());
     assert!(
-        String::from_utf8_lossy(&signature.stderr).contains("Identifier=nuphy-codex"),
+        String::from_utf8_lossy(&signature.stderr).contains("Identifier=keyphore"),
         "{}",
         String::from_utf8_lossy(&signature.stderr)
     );
@@ -71,13 +71,13 @@ fn plugin_bundles_only_the_nuphy_companion_and_owned_hooks() {
         let handler = &definitions[0]["hooks"][0];
         assert_eq!(handler["type"], "command");
         let command = handler["command"].as_str().unwrap();
-        assert_eq!(command, "\"${PLUGIN_ROOT}/bin/nuphy-codex\" hook");
+        assert_eq!(command, "\"${PLUGIN_ROOT}/bin/keyphore\" hook");
         for forbidden in ["python", "node", "nuphyctl", "zectrix"] {
             assert!(!command.to_ascii_lowercase().contains(forbidden));
         }
     }
 
-    let setup = fs::read_to_string("plugin/skills/setup-nuphy-codex/SKILL.md").unwrap();
+    let setup = fs::read_to_string("plugin/skills/setup-keyphore/SKILL.md").unwrap();
     assert!(setup.contains("lifecycle install"));
     assert!(setup.contains("lifecycle validate"));
     assert!(setup.contains("lifecycle update"));

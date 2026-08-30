@@ -1,11 +1,11 @@
 {
-  "name": "nuphy-codex",
+  "name": "keyphore",
   "interface": {
-    "displayName": "Codex Status for NuPhy"
+    "displayName": "Keyphore"
   },
   "plugins": [
     {
-      "name": "nuphy-codex",
+      "name": "keyphore",
       "source": {
         "source": "local",
         "path": "./plugin"
