@@ -5,6 +5,7 @@ pub mod hid;
 pub mod hook;
 pub mod lifecycle;
 pub mod nuphyio;
+pub mod power;
 pub mod protocol;
 pub mod status;
 pub mod status_core;

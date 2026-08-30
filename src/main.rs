@@ -15,6 +15,7 @@ use nuphy_codex::hid::discover_air65_v3;
 use nuphy_codex::hook::{append_hook_audit, handle_codex_event_at};
 use nuphy_codex::lifecycle::PluginLifecycle;
 use nuphy_codex::nuphyio::{AcceptanceSignal, exercise_main_backlight, generate_session_challenge};
+use nuphy_codex::power::SystemPowerMonitor;
 use nuphy_codex::status::{DurableStatusStore, Timestamp};
 use serde::{Deserialize, Serialize};
 
@@ -264,8 +265,21 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         return result;
     }
 
-    loop {
-        let mut keyboard = match discover_air65_v3() {
+    let power = SystemPowerMonitor::register()?;
+    'discover: loop {
+        let (discovery, connection_generation) = match power.gate().begin_hid_access() {
+            Some(access) => {
+                let generation = power.gate().generation();
+                let result = discover_air65_v3();
+                drop(access);
+                (result, generation)
+            }
+            None => {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+        };
+        let mut keyboard = match discovery {
             Ok(keyboard) => keyboard,
             Err(error) => {
                 write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
@@ -275,7 +289,13 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
             }
         };
         let mut adapter = VerifiedNuPhyIoAdapter::new(&mut keyboard.transport);
-        if let Err(error) = companion.device_reconnected(&store, &mut adapter) {
+        let reconnect_result = match power.gate().begin_hid_access() {
+            Some(_access) if power.gate().generation() == connection_generation => {
+                companion.device_reconnected(&store, &mut adapter)
+            }
+            _ => continue 'discover,
+        };
+        if let Err(error) = reconnect_result {
             write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
             eprintln!("Air65 V3 connection lost while replaying status: {error:#}");
             thread::sleep(Duration::from_secs(1));
@@ -285,13 +305,31 @@ fn run_companion(status: Option<PathBuf>, once: bool) -> Result<()> {
         let mut last_health_check = Instant::now();
         loop {
             thread::sleep(Duration::from_millis(100));
-            if let Err(error) = companion.sync(&store, &mut adapter) {
+            let sync_result = {
+                let Some(_access) = power.gate().begin_hid_access() else {
+                    break;
+                };
+                if power.gate().generation() != connection_generation {
+                    break;
+                }
+                companion.sync(&store, &mut adapter)
+            };
+            if let Err(error) = sync_result {
                 write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
                 eprintln!("Air65 V3 connection lost while applying status: {error:#}");
                 break;
             }
             if last_health_check.elapsed() >= Duration::from_secs(1) {
-                if let Err(error) = companion.health_check(&store, &mut adapter) {
+                let health_result = {
+                    let Some(_access) = power.gate().begin_hid_access() else {
+                        break;
+                    };
+                    if power.gate().generation() != connection_generation {
+                        break;
+                    }
+                    companion.health_check(&store, &mut adapter)
+                };
+                if let Err(error) = health_result {
                     write_hardware_health(&health_path, HardwareHealth::Unavailable)?;
                     eprintln!("Air65 V3 health check failed: {error:#}");
                     break;
