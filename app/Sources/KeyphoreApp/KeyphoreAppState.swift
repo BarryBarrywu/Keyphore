@@ -11,18 +11,25 @@ final class KeyphoreAppState: ObservableObject {
 
     private let lifecycle: KeyphoreLifecycle
     private let guidedSetup: GuidedSetup?
+    private let systemHealth: SystemKeyphoreHealthAdapter?
     private var durableStatusTimer: Timer?
 
-    init(lifecycle: KeyphoreLifecycle, guidedSetup: GuidedSetup? = nil) {
+    private init(
+        lifecycle: KeyphoreLifecycle,
+        guidedSetup: GuidedSetup? = nil,
+        systemHealth: SystemKeyphoreHealthAdapter? = nil
+    ) {
         self.lifecycle = lifecycle
+        self.systemHealth = systemHealth
         let initialSnapshot = lifecycle.refresh()
         snapshot = initialSnapshot
         self.guidedSetup = guidedSetup
         setupSnapshot = Self.initialSetupSnapshot(for: initialSnapshot)
         if let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
+            systemHealth?.isConfigured = inspected.phase.isConfigured
         }
-        durableStatusTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) {
+        durableStatusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
                 self?.refreshDurableStatus()
@@ -34,12 +41,20 @@ final class KeyphoreAppState: ObservableObject {
         let fixture = AcceptanceFixture(environment["KEYPHORE_ACCEPTANCE_FIXTURE"])
         let durableStatus: any DurableStatusProviding
         let health: any KeyphoreHealthProviding
+        let guidedSetup: GuidedSetup?
+        let systemHealth: SystemKeyphoreHealthAdapter?
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             durableStatus = SystemDurableStatusAdapter()
-            health = SystemKeyphoreHealthAdapter()
+            guidedSetup = .system()
+            let configured = guidedSetup.flatMap { try? $0.inspect() }?.phase.isConfigured ?? false
+            let adapter = SystemKeyphoreHealthAdapter(isConfigured: configured)
+            systemHealth = adapter
+            health = adapter
         } else {
             durableStatus = FixtureDurableStatusAdapter(outcome: fixture.outcome)
             health = FixtureHealthAdapter(health: fixture.health)
+            guidedSetup = nil
+            systemHealth = nil
         }
         let lifecycle = KeyphoreLifecycle(
             health: health,
@@ -50,15 +65,17 @@ final class KeyphoreAppState: ObservableObject {
         )
         self.init(
             lifecycle: lifecycle,
-            guidedSetup: environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil ? .system() : nil
+            guidedSetup: guidedSetup,
+            systemHealth: systemHealth
         )
     }
 
     func refresh() {
-        refreshDurableStatus()
         if let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
+            systemHealth?.isConfigured = inspected.phase.isConfigured
         }
+        refreshDurableStatus()
     }
 
     func configureAfterReview() {
@@ -71,6 +88,8 @@ final class KeyphoreAppState: ObservableObject {
                 setupSnapshot = try await Task.detached {
                     try guidedSetup.configureAfterReview()
                 }.value
+                systemHealth?.isConfigured = setupSnapshot.phase.isConfigured
+                snapshot = lifecycle.refresh()
             } catch {
                 setupFailed = true
                 setupHooksChanged = (error as? GuidedSetupError) == .reviewedHooksChanged
@@ -100,6 +119,13 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     private func refreshDurableStatus() {
+        if setupSnapshot.phase == .configured,
+            let guidedSetup,
+            let inspected = try? guidedSetup.inspect()
+        {
+            setupSnapshot = inspected
+            systemHealth?.isConfigured = inspected.phase.isConfigured
+        }
         snapshot = lifecycle.refresh()
     }
 
@@ -165,16 +191,25 @@ private struct SystemDurableStatusAdapter: DurableStatusProviding {
     }
 }
 
-private struct SystemKeyphoreHealthAdapter: KeyphoreHealthProviding {
-    private let fileManager = FileManager.default
-    private let setupURL = KeyphoreRuntimePaths.supportDirectory().appending(path: "setup.json")
+private final class SystemKeyphoreHealthAdapter: KeyphoreHealthProviding {
+    var isConfigured: Bool
     private let keyboardHealth = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
+
+    init(isConfigured: Bool) {
+        self.isConfigured = isConfigured
+    }
 
     func currentHealth() -> KeyphoreHealth {
         KeyphoreHealth(
-            isConfigured: fileManager.fileExists(atPath: setupURL.path),
+            isConfigured: isConfigured,
             keyboard: keyboardHealth.load()
         )
+    }
+}
+
+private extension GuidedSetupPhase {
+    var isConfigured: Bool {
+        self == .configured || self == .ready
     }
 }
 

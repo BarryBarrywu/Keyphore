@@ -14,6 +14,8 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
                 response(command: 0xd6, length: 9, address: 0, key: key),
                 response(command: 0xd6, length: 1, address: 1, key: key),
                 response(command: 0xd5, length: 17, address: 0, key: key, payload: expectedMain + rhythm),
+                sessionResponse(challenge: challenge, key: key),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: expectedMain + rhythm),
             ]
         )
         let discovery = FakeDiscovery(devices: [air65()], transport: transport)
@@ -39,6 +41,8 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
             transport.sent[3],
             try NuPhyRequest.write(address: 1, payload: [42]).encoded(using: key)
         )
+        XCTAssertTrue(try adapter.displays(.signal(appearance)))
+        XCTAssertEqual(discovery.openCount, 1)
     }
 
     func testSignalOffUsesZeroBrightnessAndPreservesRhythmBytes() throws {

@@ -37,6 +37,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     private let discovery: any Air65TransportDiscovering
     private let makeChallenge: () -> [UInt8]
+    private var ownedTransport: (any Air65ReportTransport)?
 
     public convenience init(discovery: any Air65TransportDiscovering) {
         self.init(discovery: discovery, challenge: Self.randomChallenge)
@@ -51,12 +52,23 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
     }
 
     public func applyAndVerify(_ behavior: LightingBehavior) throws -> NuPhyIOEvidence {
-        let selected = try Air65DeviceSelector.select(from: discovery.discover())
-        let transport = try discovery.open(selected)
+        let expected = try mainState(for: behavior)
+        let transport = try acquireTransport()
+        do {
+            return try applyAndVerify(expected, using: transport)
+        } catch {
+            ownedTransport = nil
+            throw error
+        }
+    }
+
+    private func applyAndVerify(
+        _ expected: [UInt8],
+        using transport: any Air65ReportTransport
+    ) throws -> NuPhyIOEvidence {
         let challenge = makeChallenge()
         let key = try startTemporarySession(transport, challenge: challenge)
         let initial = try readLightState(transport, key: key)
-        let expected = try mainState(for: behavior)
 
         if Array(initial.prefix(9)) != expected {
             try exchange(
@@ -94,12 +106,27 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
     }
 
     public func displays(_ behavior: LightingBehavior) throws -> Bool {
+        let expected = try mainState(for: behavior)
+        let transport = try acquireTransport()
+        do {
+            let challenge = makeChallenge()
+            let key = try startTemporarySession(transport, challenge: challenge)
+            let current = try readLightState(transport, key: key)
+            return Array(current.prefix(9)) == expected
+        } catch {
+            ownedTransport = nil
+            throw error
+        }
+    }
+
+    private func acquireTransport() throws -> any Air65ReportTransport {
+        if let ownedTransport {
+            return ownedTransport
+        }
         let selected = try Air65DeviceSelector.select(from: discovery.discover())
         let transport = try discovery.open(selected)
-        let challenge = makeChallenge()
-        let key = try startTemporarySession(transport, challenge: challenge)
-        let current = try readLightState(transport, key: key)
-        return Array(current.prefix(9)) == (try mainState(for: behavior))
+        ownedTransport = transport
+        return transport
     }
 
     private func startTemporarySession(

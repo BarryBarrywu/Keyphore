@@ -481,7 +481,9 @@ private final class AppServerSession {
 }
 
 private struct SetupKeyboardAdapter: SetupKeyboardHealthProviding {
-    func currentKeyboardHealth() -> KeyboardHealth { .disconnected }
+    private let store = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
+
+    func currentKeyboardHealth() -> KeyboardHealth { store.load() }
 }
 
 extension GuidedSetup {
