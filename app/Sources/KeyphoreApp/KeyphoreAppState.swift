@@ -11,6 +11,7 @@ final class KeyphoreAppState: ObservableObject {
 
     private let lifecycle: KeyphoreLifecycle
     private let guidedSetup: GuidedSetup?
+    private var durableStatusTimer: Timer?
 
     init(lifecycle: KeyphoreLifecycle, guidedSetup: GuidedSetup? = nil) {
         self.lifecycle = lifecycle
@@ -21,14 +22,26 @@ final class KeyphoreAppState: ObservableObject {
         if let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
         }
+        durableStatusTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) {
+            [weak self] _ in
+            Task { @MainActor in
+                self?.refreshDurableStatus()
+            }
+        }
     }
 
     convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let fixture = AcceptanceFixture(environment["KEYPHORE_ACCEPTANCE_FIXTURE"])
+        let durableStatus: any DurableStatusProviding
+        if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
+            durableStatus = SystemDurableStatusAdapter()
+        } else {
+            durableStatus = FixtureDurableStatusAdapter(outcome: fixture.outcome)
+        }
         let lifecycle = KeyphoreLifecycle(
             health: FixtureHealthAdapter(health: fixture.health),
             profiles: FixtureProfileAdapter(),
-            durableStatus: FixtureDurableStatusAdapter(outcome: fixture.outcome),
+            durableStatus: durableStatus,
             lighting: FixtureLightingAdapter(),
             runtime: FixtureRuntimeAdapter()
         )
@@ -39,7 +52,7 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func refresh() {
-        snapshot = lifecycle.refresh()
+        refreshDurableStatus()
         if let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
         }
@@ -77,6 +90,10 @@ final class KeyphoreAppState: ObservableObject {
         case .configured: .configured
         case .ready: .ready
         }
+    }
+
+    private func refreshDurableStatus() {
+        snapshot = lifecycle.refresh()
     }
 
     private static func initialSetupSnapshot(for snapshot: LifecycleSnapshot) -> GuidedSetupSnapshot {
@@ -131,6 +148,14 @@ private struct FixtureProfileAdapter: LocalProfileProviding {
 private struct FixtureDurableStatusAdapter: DurableStatusProviding {
     let outcome: DurableStatusOutcome
     func currentOutcome() -> DurableStatusOutcome { outcome }
+}
+
+private struct SystemDurableStatusAdapter: DurableStatusProviding {
+    private let store = DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL())
+
+    func currentOutcome() -> DurableStatusOutcome {
+        (try? store.outcome(at: .now)) ?? .signalOff
+    }
 }
 
 private final class FixtureLightingAdapter: LightingEmitting {

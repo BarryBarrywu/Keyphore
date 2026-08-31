@@ -1,8 +1,8 @@
-import Dispatch
 import Foundation
 import KeyphoreCore
 
 private let arguments = CommandLine.arguments.dropFirst()
+private let store = DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL())
 
 switch arguments.first {
 case "hook":
@@ -10,14 +10,24 @@ case "hook":
     guard input.count <= 1_048_576 else {
         exit(1)
     }
-    guard (try? PrivacyAllowedHookRecord(
-        jsonData: input,
-        receivedAt: ISO8601DateFormatter().string(from: Date())
-    )) != nil else {
+    guard (try? ProductionHookHandler(store: store).handle(input)) != nil else {
         exit(1)
     }
 case "companion":
-    dispatchMain()
+    let lighting = RuntimeLightingBoundary()
+    let companion = KeyphoreCompanion(store: store, profile: .default, lighting: lighting)
+    while true {
+        try? companion.sync()
+        Thread.sleep(forTimeInterval: 0.1)
+    }
 default:
     exit(64)
+}
+
+private final class RuntimeLightingBoundary: CompanionLightingApplying {
+    private var currentBehavior: LightingBehavior = .off
+
+    func apply(_ behavior: LightingBehavior) throws {
+        currentBehavior = behavior
+    }
 }
