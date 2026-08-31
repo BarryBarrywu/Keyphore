@@ -4,6 +4,7 @@ import IOKit.hid
 public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
     private let manager: IOHIDManager
     private var devicesByID: [String: IOHIDDevice] = [:]
+    private var reportStatesByID: [String: SystemAir65ReportState] = [:]
 
     public init() {
         manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -25,7 +26,10 @@ public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
             guard
                 let vendorID = numberProperty(device, kIOHIDVendorIDKey),
                 let productID = numberProperty(device, kIOHIDProductIDKey),
-                let interfaceNumber = numberProperty(device, kIOHIDInterfaceIDKey),
+                let interfaceNumber = Self.resolvedInterfaceNumber(
+                    hidInterfaceID: numberProperty(device, kIOHIDInterfaceIDKey),
+                    usbInterfaceNumber: usbInterfaceNumber(device)
+                ),
                 let usagePage = numberProperty(device, kIOHIDPrimaryUsagePageKey),
                 let usage = numberProperty(device, kIOHIDPrimaryUsageKey)
             else {
@@ -46,15 +50,43 @@ public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
         }
     }
 
+    static func resolvedInterfaceNumber(
+        hidInterfaceID: Int?,
+        usbInterfaceNumber: Int?
+    ) -> Int? {
+        usbInterfaceNumber ?? hidInterfaceID
+    }
+
     public func open(_ descriptor: HIDDeviceDescriptor) throws -> any Air65ReportTransport {
         guard let device = devicesByID[descriptor.id] else {
             throw SystemAir65HIDError.deviceDisappeared
         }
-        return try SystemAir65ReportTransport(device: device)
+        let state = reportStatesByID[descriptor.id] ?? SystemAir65ReportState()
+        reportStatesByID[descriptor.id] = state
+        return try SystemAir65ReportTransport(device: device, state: state)
     }
 
     private func numberProperty(_ device: IOHIDDevice, _ key: String) -> Int? {
         (IOHIDDeviceGetProperty(device, key as CFString) as? NSNumber)?.intValue
+    }
+
+    private func usbInterfaceNumber(_ device: IOHIDDevice) -> Int? {
+        var parent: io_registry_entry_t = 0
+        let result = IORegistryEntryGetParentEntry(
+            IOHIDDeviceGetService(device),
+            kIOServicePlane,
+            &parent
+        )
+        guard result == KERN_SUCCESS else { return nil }
+        defer { IOObjectRelease(parent) }
+        return (
+            IORegistryEntryCreateCFProperty(
+                parent,
+                "bInterfaceNumber" as CFString,
+                kCFAllocatorDefault,
+                0
+            )?.takeRetainedValue() as? NSNumber
+        )?.intValue
     }
 
     private func stringProperty(_ device: IOHIDDevice, _ key: String) -> String? {
@@ -87,43 +119,45 @@ public enum SystemAir65HIDError: Error, Sendable {
 
 private final class SystemAir65ReportTransport: Air65ReportTransport {
     private let device: IOHIDDevice
-    private let inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 65)
-    private var reports: [Result<[UInt8], Error>] = []
-    private let lock = NSLock()
+    private let state: SystemAir65ReportState
 
-    init(device: IOHIDDevice) throws {
+    init(device: IOHIDDevice, state: SystemAir65ReportState) throws {
         self.device = device
+        self.state = state
         let result = IOHIDDeviceOpen(device, IOOptionBits(kIOHIDOptionsTypeNone))
         guard result == kIOReturnSuccess else {
-            inputBuffer.deallocate()
             throw SystemAir65HIDError.deviceOpenFailed(result)
         }
-        inputBuffer.initialize(repeating: 0, count: 65)
         IOHIDDeviceRegisterInputReportCallback(
             device,
-            inputBuffer,
+            state.inputBuffer,
             65,
             { context, result, _, _, _, report, reportLength in
                 guard let context else { return }
-                let owner = Unmanaged<SystemAir65ReportTransport>
+                let state = Unmanaged<SystemAir65ReportState>
                     .fromOpaque(context).takeUnretainedValue()
-                owner.accept(result: result, report: report, length: reportLength)
+                state.accept(result: result, report: report, length: reportLength)
             },
-            Unmanaged.passUnretained(self).toOpaque()
+            Unmanaged.passUnretained(state).toOpaque()
         )
         IOHIDDeviceScheduleWithRunLoop(device, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
-        drainQueuedReports()
+        state.drainQueuedReports()
     }
 
     deinit {
+        IOHIDDeviceRegisterInputReportCallback(
+            device,
+            state.inputBuffer,
+            65,
+            nil,
+            nil
+        )
         IOHIDDeviceUnscheduleFromRunLoop(
             device,
             CFRunLoopGetCurrent(),
             CFRunLoopMode.defaultMode.rawValue
         )
         IOHIDDeviceClose(device, IOOptionBits(kIOHIDOptionsTypeNone))
-        inputBuffer.deinitialize(count: 65)
-        inputBuffer.deallocate()
     }
 
     func send(_ report: [UInt8]) throws {
@@ -145,7 +179,7 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
     func receive(timeout: TimeInterval) throws -> [UInt8]? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if let report = nextReport() {
+            if let report = state.nextReport() {
                 return try report.get()
             }
             RunLoop.current.run(
@@ -155,8 +189,23 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
         }
         return nil
     }
+}
 
-    private func accept(result: IOReturn, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
+private final class SystemAir65ReportState {
+    let inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 65)
+    private var reports: [Result<[UInt8], Error>] = []
+    private let lock = NSLock()
+
+    init() {
+        inputBuffer.initialize(repeating: 0, count: 65)
+    }
+
+    deinit {
+        inputBuffer.deinitialize(count: 65)
+        inputBuffer.deallocate()
+    }
+
+    func accept(result: IOReturn, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
         let received: Result<[UInt8], Error>
         if result != kIOReturnSuccess {
             received = .failure(SystemAir65HIDError.reportReadFailed(result))
@@ -172,13 +221,13 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
         lock.unlock()
     }
 
-    private func nextReport() -> Result<[UInt8], Error>? {
+    func nextReport() -> Result<[UInt8], Error>? {
         lock.lock()
         defer { lock.unlock() }
         return reports.isEmpty ? nil : reports.removeFirst()
     }
 
-    private func drainQueuedReports() {
+    func drainQueuedReports() {
         lock.lock()
         reports.removeAll(keepingCapacity: true)
         lock.unlock()
