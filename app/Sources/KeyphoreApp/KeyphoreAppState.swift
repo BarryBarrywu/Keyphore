@@ -71,11 +71,8 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func refresh() {
-        if let guidedSetup, let inspected = try? guidedSetup.inspect() {
-            setupSnapshot = inspected
-            systemHealth?.isConfigured = inspected.phase.isConfigured
-        }
-        refreshDurableStatus()
+        refreshSetupSnapshot()
+        snapshot = lifecycle.refresh()
     }
 
     func configureAfterReview() {
@@ -85,10 +82,10 @@ final class KeyphoreAppState: ObservableObject {
         setupHooksChanged = false
         Task {
             do {
-                setupSnapshot = try await Task.detached {
+                let configured = try await Task.detached {
                     try guidedSetup.configureAfterReview()
                 }.value
-                systemHealth?.isConfigured = setupSnapshot.phase.isConfigured
+                apply(configured)
                 snapshot = lifecycle.refresh()
             } catch {
                 setupFailed = true
@@ -113,20 +110,25 @@ final class KeyphoreAppState: ObservableObject {
     var menuState: MenuState {
         switch setupSnapshot.phase {
         case .codexHostMissing, .hookReview: .configurationRequired
-        case .configured: .configured
-        case .ready: .ready
+        case .configured, .ready: snapshot.menuState
         }
     }
 
     private func refreshDurableStatus() {
-        if setupSnapshot.phase == .configured,
-            let guidedSetup,
-            let inspected = try? guidedSetup.inspect()
-        {
-            setupSnapshot = inspected
-            systemHealth?.isConfigured = inspected.phase.isConfigured
+        if setupSnapshot.phase.isConfigured {
+            refreshSetupSnapshot()
         }
         snapshot = lifecycle.refresh()
+    }
+
+    private func refreshSetupSnapshot() {
+        guard let guidedSetup, let inspected = try? guidedSetup.inspect() else { return }
+        apply(inspected)
+    }
+
+    private func apply(_ inspected: GuidedSetupSnapshot) {
+        setupSnapshot = inspected
+        systemHealth?.isConfigured = inspected.phase.isConfigured
     }
 
     private static func initialSetupSnapshot(for snapshot: LifecycleSnapshot) -> GuidedSetupSnapshot {
