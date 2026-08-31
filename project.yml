@@ -1,0 +1,48 @@
+name: Keyphore
+options:
+  minimumXcodeGenVersion: 2.45.0
+packages:
+  KeyphoreAppModules:
+    path: app
+targets:
+  Keyphore:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    info:
+      path: app/Resources/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: Keyphore
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleLocalizations:
+          - en
+          - zh-Hans
+        LSApplicationCategoryType: public.app-category.utilities
+        LSUIElement: true
+    sources:
+      - path: app/Sources/KeyphoreApp
+      - path: app/Resources/Assets.xcassets
+    dependencies:
+      - package: KeyphoreAppModules
+        product: KeyphoreCore
+    settings:
+      base:
+        ARCHS: arm64
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_HARDENED_RUNTIME: true
+        MARKETING_VERSION: 0.1.0
+        PRODUCT_BUNDLE_IDENTIFIER: com.barrywu.keyphore
+        PRODUCT_NAME: Keyphore
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_VERSION: 6.0
+schemes:
+  Keyphore:
+    build:
+      targets:
+        Keyphore: all
+    run:
+      config: Debug
