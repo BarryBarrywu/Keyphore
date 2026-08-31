@@ -250,6 +250,7 @@ impl DurableStatusStore {
         id: SignalOwnerId,
         turn_id: String,
         signal: Signal,
+        expires_at: Option<Timestamp>,
         lock_timeout: Duration,
     ) -> Result<()> {
         self.update(lock_timeout, |status| {
@@ -265,7 +266,7 @@ impl DurableStatusStore {
                 turn_id,
                 signal,
                 generation,
-                expires_at: None,
+                expires_at,
             });
         })
     }

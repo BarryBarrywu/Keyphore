@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use keyphore::companion::{Companion, LightingCommand, NuPhyIoAdapter, sync_once};
-use keyphore::hook::handle_user_prompt_submit;
-use keyphore::status::DurableStatusStore;
+use keyphore::hook::{handle_codex_event_at, handle_user_prompt_submit};
+use keyphore::status::{DurableStatusStore, Timestamp};
 
 #[derive(Default)]
 struct FakeNuPhyIo {
@@ -61,6 +61,79 @@ fn empty_durable_status_applies_signal_off() {
     sync_once(&store, &mut adapter).unwrap();
 
     assert_eq!(adapter.commands, [LightingCommand::SignalOff]);
+}
+
+#[test]
+fn orphaned_execution_expires_after_one_hour_without_lifecycle_activity() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = DurableStatusStore::new(directory.path().join("status.json"));
+    handle_codex_event_at(
+        r#"{"hook_event_name":"UserPromptSubmit","session_id":"orphaned-session","turn_id":"turn-1"}"#,
+        &store,
+        Duration::from_millis(100),
+        Timestamp::from_millis(0),
+    )
+    .unwrap();
+    let mut adapter = FakeNuPhyIo::default();
+    let mut companion = Companion::default();
+
+    companion
+        .sync_at(&store, &mut adapter, Timestamp::from_millis(0))
+        .unwrap();
+    companion
+        .sync_at(&store, &mut adapter, Timestamp::from_millis(3_600_000))
+        .unwrap();
+
+    assert_eq!(
+        adapter.commands,
+        [LightingCommand::BlueExecution, LightingCommand::SignalOff]
+    );
+    assert!(store.load().unwrap().owners.is_empty());
+}
+
+#[test]
+fn lifecycle_activity_renews_execution_without_stale_timeout_clobbering_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = DurableStatusStore::new(directory.path().join("status.json"));
+    handle_codex_event_at(
+        r#"{"hook_event_name":"UserPromptSubmit","session_id":"session-1","turn_id":"turn-1"}"#,
+        &store,
+        Duration::from_millis(100),
+        Timestamp::from_millis(0),
+    )
+    .unwrap();
+    let mut companion = Companion::default();
+    let mut adapter = FakeNuPhyIo::default();
+    companion
+        .sync_at(&store, &mut adapter, Timestamp::from_millis(0))
+        .unwrap();
+    let stale_expiry = companion.pending_expiries(&store).unwrap().remove(0);
+
+    handle_codex_event_at(
+        r#"{"hook_event_name":"PostToolUse","session_id":"session-1","turn_id":"turn-1"}"#,
+        &store,
+        Duration::from_millis(100),
+        Timestamp::from_millis(3_599_000),
+    )
+    .unwrap();
+    companion
+        .handle_timeout_at(
+            &store,
+            &mut adapter,
+            stale_expiry,
+            Timestamp::from_millis(3_600_000),
+        )
+        .unwrap();
+    assert_eq!(adapter.commands, [LightingCommand::BlueExecution]);
+    assert_eq!(store.load().unwrap().owners.len(), 1);
+
+    companion
+        .sync_at(&store, &mut adapter, Timestamp::from_millis(7_199_000))
+        .unwrap();
+    assert_eq!(
+        adapter.commands,
+        [LightingCommand::BlueExecution, LightingCommand::SignalOff]
+    );
 }
 
 #[test]

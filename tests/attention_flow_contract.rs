@@ -150,6 +150,11 @@ fn stale_attention_expires_after_one_hour_and_reveals_execution() {
     companion
         .sync_at(&store, &mut adapter, Timestamp::from_millis(0))
         .unwrap();
+    handle(
+        &event("PostToolUse", "session-executing", None, "turn-1"),
+        &store,
+        1_800_000,
+    );
     companion
         .sync_at(&store, &mut adapter, Timestamp::from_millis(3_600_000))
         .unwrap();

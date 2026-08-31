@@ -13,6 +13,7 @@ use crate::status::{DurableStatusStore, Signal, SignalOwnerId, Timestamp};
 
 const ATTENTION_LIFETIME: Duration = Duration::from_secs(60 * 60);
 const COMPLETION_LIFETIME: Duration = Duration::from_secs(5);
+const EXECUTION_LIFETIME: Duration = Duration::from_secs(60 * 60);
 const MAX_AUDIT_BYTES: u64 = 256 * 1024;
 const MAX_AUDIT_FIELD_CHARS: usize = 128;
 
@@ -128,11 +129,15 @@ pub fn handle_codex_event_at(
             owner_id,
             field(&input, "turn_id")?.into(),
             Signal::Execution,
+            Some(now.saturating_add(EXECUTION_LIFETIME)),
             lock_timeout,
         );
     }
     let (signal, expires_at) = match event_name {
-        "PostToolUse" | "SubagentStart" => (Signal::Execution, None),
+        "PostToolUse" | "SubagentStart" => (
+            Signal::Execution,
+            Some(now.saturating_add(EXECUTION_LIFETIME)),
+        ),
         "PermissionRequest" => (
             Signal::Attention,
             Some(now.saturating_add(ATTENTION_LIFETIME)),
