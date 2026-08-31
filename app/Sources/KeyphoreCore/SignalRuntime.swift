@@ -318,6 +318,7 @@ extension DurableStatus {
 public final class ProductionHookHandler: @unchecked Sendable {
     public static let executionLifetime = Duration.seconds(60 * 60)
     public static let attentionLifetime = Duration.seconds(60 * 60)
+    public static let completionLifetime = Duration.seconds(5)
 
     private let store: DurableStatusStore
     private let lockBudget: Duration
@@ -352,11 +353,23 @@ public final class ProductionHookHandler: @unchecked Sendable {
         switch record.event {
         case .sessionStart, .sessionEnd:
             try store.removeSession(product: "codex", sessionID: sessionID, lockBudget: lockBudget)
-        case .subagentStop, .stop:
+        case .subagentStop:
             guard let turnID = record.turnID, !turnID.isEmpty else {
                 throw GuidedSetupError.invalidHookInput
             }
             try store.removeOwner(ownerID, turnID: turnID, lockBudget: lockBudget)
+        case .stop:
+            guard let turnID = record.turnID, !turnID.isEmpty else {
+                throw GuidedSetupError.invalidHookInput
+            }
+            try store.recordSignal(
+                ownerID: ownerID,
+                turnID: turnID,
+                signal: .completion,
+                expiresAt: receivedAt.adding(Self.completionLifetime),
+                replacingSession: false,
+                lockBudget: lockBudget
+            )
         case .userPromptSubmit, .postToolUse, .subagentStart:
             guard let turnID = record.turnID, !turnID.isEmpty else {
                 throw GuidedSetupError.invalidHookInput

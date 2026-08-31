@@ -4,6 +4,163 @@ import KeyphoreCore
 import XCTest
 
 final class SignalFlowAcceptanceTests: XCTestCase {
+    func testMainStopShowsCompletionForFiveSecondsThenTurnsSignalOff() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
+
+        try fixture.companion.sync(at: .milliseconds(100))
+        try fixture.companion.sync(at: .milliseconds(5_099))
+        try fixture.companion.sync(at: .milliseconds(5_100))
+
+        XCTAssertEqual(
+            fixture.lighting.behaviors,
+            [
+                .signal(LocalProfile.default.completion),
+                .off,
+            ]
+        )
+    }
+
+    func testExecutionOutranksAnotherSessionsCompletionAfterItsWindowExpires() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle(
+            "UserPromptSubmit",
+            session: "session-complete",
+            turn: "turn-1",
+            at: 0
+        )
+        try fixture.handle("Stop", session: "session-complete", turn: "turn-1", at: 100)
+        try fixture.handle(
+            "UserPromptSubmit",
+            session: "session-executing",
+            turn: "turn-1",
+            at: 200
+        )
+
+        try fixture.companion.sync(at: .milliseconds(200))
+        try fixture.companion.sync(at: .milliseconds(5_100))
+
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        let remaining = try fixture.store.load().owners
+        XCTAssertEqual(remaining.map(\.id.sessionID), ["session-executing"])
+    }
+
+    func testRenewedExecutionSurvivesAStaleCompletionTimer() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
+        let staleExpiry = try XCTUnwrap(fixture.store.load().expiries.first)
+
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-2", at: 1_000)
+        try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(5_100))
+
+        XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.execution])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+    }
+
+    func testRenewedAttentionSurvivesAStaleCompletionTimer() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
+        let staleExpiry = try XCTUnwrap(fixture.store.load().expiries.first)
+
+        try fixture.handle("PermissionRequest", session: "session-1", turn: "turn-1", at: 1_000)
+        try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(5_100))
+
+        XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.attention])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+    }
+
+    func testFailureContentNeverCreatesATaskFailureSignal() throws {
+        let fixture = try SignalFixture()
+        try fixture.hook.handle(
+            Data(
+                """
+                {"hook_event_name":"PostToolUse","session_id":"session-1","turn_id":"turn-1","tool_response":{"success":false,"output":"private failed tool output"},"terminal_output":"private terminal failure"}
+                """.utf8
+            ),
+            receivedAt: .milliseconds(0)
+        )
+        try fixture.companion.sync(at: .milliseconds(0))
+
+        try fixture.hook.handle(
+            Data(
+                """
+                {"hook_event_name":"Stop","session_id":"session-1","turn_id":"turn-1","last_assistant_message":"the task failed"}
+                """.utf8
+            ),
+            receivedAt: .milliseconds(100)
+        )
+        try fixture.companion.sync(at: .milliseconds(100))
+
+        XCTAssertEqual(
+            fixture.lighting.behaviors,
+            [
+                .signal(LocalProfile.default.execution),
+                .signal(LocalProfile.default.completion),
+            ]
+        )
+        let persisted = try String(contentsOf: fixture.statusURL, encoding: .utf8)
+        XCTAssertFalse(persisted.contains("private failed tool output"))
+        XCTAssertFalse(persisted.contains("private terminal failure"))
+        XCTAssertFalse(persisted.contains("the task failed"))
+    }
+
+    func testAttentionOutranksCompletionRegardlessOfArrivalOrder() throws {
+        for completionFirst in [true, false] {
+            let fixture = try SignalFixture()
+            if completionFirst {
+                try fixture.handle("UserPromptSubmit", session: "completed", turn: "turn-1", at: 0)
+                try fixture.handle("Stop", session: "completed", turn: "turn-1", at: 100)
+                try fixture.handle("PermissionRequest", session: "attention", turn: "turn-1", at: 200)
+            } else {
+                try fixture.handle("PermissionRequest", session: "attention", turn: "turn-1", at: 0)
+                try fixture.handle("UserPromptSubmit", session: "completed", turn: "turn-1", at: 100)
+                try fixture.handle("Stop", session: "completed", turn: "turn-1", at: 200)
+            }
+
+            try fixture.companion.sync(at: .milliseconds(200))
+
+            XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+        }
+    }
+
+    @MainActor
+    func testMenuDurableStatusAndLightingAgreeThroughCompletionExpiry() throws {
+        let fixture = try SignalFixture()
+        let menuLighting = RecordingMenuLightingAdapter()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
+
+        try fixture.companion.sync(at: .milliseconds(100))
+        let completion = lifecycleSnapshot(
+            outcome: try fixture.store.outcome(at: .milliseconds(100)),
+            lighting: menuLighting
+        )
+
+        try fixture.companion.sync(at: .milliseconds(5_100))
+        let signalOff = lifecycleSnapshot(
+            outcome: try fixture.store.outcome(at: .milliseconds(5_100)),
+            lighting: menuLighting
+        )
+
+        XCTAssertEqual(completion.menuState, .ready)
+        XCTAssertEqual(completion.durableStatus, .completion)
+        XCTAssertEqual(completion.currentSignal, .completion)
+        XCTAssertEqual(signalOff.menuState, .ready)
+        XCTAssertEqual(signalOff.durableStatus, .signalOff)
+        XCTAssertEqual(signalOff.currentSignal, .signalOff)
+        XCTAssertEqual(
+            fixture.lighting.behaviors,
+            [.signal(LocalProfile.default.completion), .off]
+        )
+        XCTAssertEqual(
+            menuLighting.behaviors,
+            [.signal(LocalProfile.default.completion), .off]
+        )
+    }
+
     func testPermissionRequestOutranksExecutionThenReleasesBackToExecution() throws {
         let fixture = try SignalFixture()
         try fixture.handle("UserPromptSubmit", session: "executing", turn: "turn-1", at: 0)
@@ -223,7 +380,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(fixture.lighting.behaviors, [.off])
     }
 
-    func testStopCannotClearAnotherSessionsAttention() throws {
+    func testStopCompletionCannotClearAnotherSessionsAttention() throws {
         let fixture = try SignalFixture()
         for session in ["session-1", "session-2"] {
             try fixture.handle("PermissionRequest", session: session, turn: "turn-1", at: 0)
@@ -233,7 +390,14 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.companion.sync(at: .milliseconds(100))
 
         XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
-        XCTAssertEqual(try fixture.store.load().owners.map(\.id.sessionID), ["session-2"])
+        XCTAssertEqual(
+            Dictionary(
+                uniqueKeysWithValues: try fixture.store.load().owners.map {
+                    ($0.id.sessionID, $0.signal)
+                }
+            ),
+            ["session-1": .completion, "session-2": .attention]
+        )
     }
 
     func testProductionHookPersistsPrivateSafeExecutionAndCompanionAppliesDefaultBlue() throws {
@@ -299,17 +463,23 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
     }
 
-    func testMainOwnerEndingCannotClearAnotherActiveSession() throws {
+    func testMainOwnerCompletionCannotClearAnotherActiveSession() throws {
         let fixture = try SignalFixture()
         try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
         try fixture.handle("UserPromptSubmit", session: "session-2", turn: "turn-1", at: 10)
         try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 20)
 
-        let status = try fixture.store.load()
-        XCTAssertEqual(status.owners.map(\.id.sessionID), ["session-2"])
+        XCTAssertEqual(
+            Dictionary(
+                uniqueKeysWithValues: try fixture.store.load().owners.map {
+                    ($0.id.sessionID, $0.signal)
+                }
+            ),
+            ["session-1": .completion, "session-2": .execution]
+        )
     }
 
-    func testMainOwnerEndingLeavesChildExecutionInTheSameSession() throws {
+    func testMainOwnerCompletionLeavesChildExecutionInTheSameSession() throws {
         let fixture = try SignalFixture()
         try fixture.handle("UserPromptSubmit", session: "session-1", turn: "main-turn", at: 0)
         try fixture.handle(
@@ -322,8 +492,14 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
         try fixture.handle("Stop", session: "session-1", turn: "main-turn", at: 20)
 
-        let status = try fixture.store.load()
-        XCTAssertEqual(status.owners.map(\.id.agentID), ["agent-1"])
+        XCTAssertEqual(
+            Dictionary(
+                uniqueKeysWithValues: try fixture.store.load().owners.map {
+                    ($0.id.agentID, $0.signal)
+                }
+            ),
+            ["agent-1": .execution, "main": .completion]
+        )
         try fixture.companion.sync(at: .milliseconds(20))
         XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
     }
@@ -407,6 +583,50 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         )
         XCTAssertTrue(try fixture.store.load().owners.isEmpty)
     }
+}
+
+@MainActor
+private func lifecycleSnapshot(
+    outcome: DurableStatusOutcome,
+    lighting: RecordingMenuLightingAdapter
+) -> LifecycleSnapshot {
+    KeyphoreLifecycle(
+        health: SignalFlowHealthAdapter(),
+        profiles: SignalFlowProfileAdapter(),
+        durableStatus: SignalFlowDurableStatusAdapter(outcome: outcome),
+        lighting: lighting,
+        runtime: SignalFlowRuntimeAdapter()
+    ).refresh()
+}
+
+private struct SignalFlowHealthAdapter: KeyphoreHealthProviding {
+    func currentHealth() -> KeyphoreHealth {
+        .configured(keyboard: .connected(protocolHealthy: true))
+    }
+}
+
+private struct SignalFlowProfileAdapter: LocalProfileProviding {
+    func currentProfile() -> LocalProfile { .default }
+}
+
+private struct SignalFlowDurableStatusAdapter: DurableStatusProviding {
+    let outcome: DurableStatusOutcome
+
+    func currentOutcome() -> DurableStatusOutcome { outcome }
+}
+
+private final class RecordingMenuLightingAdapter: LightingEmitting {
+    private(set) var behaviors: [LightingBehavior] = []
+
+    func emit(_ behavior: LightingBehavior) {
+        behaviors.append(behavior)
+    }
+}
+
+private final class SignalFlowRuntimeAdapter: KeyphoreRuntimeManaging {
+    func disableOwnedHooks() {}
+    func stopCompanion() {}
+    func clearManagedRuntimeState() {}
 }
 
 private final class SignalFixture {
