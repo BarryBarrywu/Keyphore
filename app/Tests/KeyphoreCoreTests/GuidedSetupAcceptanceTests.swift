@@ -65,9 +65,45 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         }
         XCTAssertTrue(persisted.contains("UserPromptSubmit"))
         XCTAssertTrue(persisted.contains("session-1"))
-        XCTAssertTrue(persisted.contains("agent-1"))
+        XCTAssertFalse(persisted.contains("agent-1"))
         XCTAssertTrue(persisted.contains("turn-1"))
         XCTAssertTrue(persisted.contains("2026-08-31T12:00:00Z"))
+    }
+
+    func testEachHookInputUsesItsOwnReviewedFieldSet() throws {
+        let input: [String: Any] = [
+            "hook_event_name": "SessionEnd",
+            "session_id": "session-1",
+            "agent_id": "must-not-persist",
+            "turn_id": "must-not-persist",
+        ]
+
+        let record = try PrivacyAllowedHookRecord(
+            jsonData: JSONSerialization.data(withJSONObject: input),
+            receivedAt: "2026-08-31T12:00:00Z"
+        )
+        let persisted = String(decoding: try record.encoded(), as: UTF8.self)
+
+        XCTAssertTrue(persisted.contains("SessionEnd"))
+        XCTAssertTrue(persisted.contains("session-1"))
+        XCTAssertFalse(persisted.contains("must-not-persist"))
+    }
+
+    func testConsentDigestChangesWhenTheReviewedPrivacyBoundaryChanges() {
+        var changed = HookDefinition.reviewedRelease
+        let original = changed[7]
+        changed[7] = HookDefinition(
+            event: original.event,
+            allowedFields: original.allowedFields.union([.agent]),
+            reviewedHash: original.reviewedHash,
+            command: original.command,
+            timeoutSeconds: original.timeoutSeconds
+        )
+
+        XCTAssertNotEqual(
+            HookDefinition.digest(for: changed),
+            HookDefinition.reviewedReleaseDigest
+        )
     }
 
     func testEitherCodexHostReachesHookReviewWithoutChangingIntegration() throws {

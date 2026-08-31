@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 public enum CodexHost: String, Hashable, Sendable {
     case desktopApp
@@ -59,6 +60,24 @@ public struct HookDefinition: Equatable, Sendable {
     public static let reviewedHashes = Dictionary(
         uniqueKeysWithValues: reviewedRelease.map { ($0.event, $0.reviewedHash) }
     )
+
+    public static let reviewedReleaseDigest = digest(for: reviewedRelease)
+
+    public static func digest(for definitions: [HookDefinition]) -> String {
+        let canonical = definitions.map { definition in
+            let fields = definition.allowedFields.map(\.rawValue).sorted().joined(separator: ",")
+            return [
+                definition.event.rawValue,
+                fields,
+                definition.command,
+                String(definition.timeoutSeconds),
+                definition.reviewedHash,
+            ].joined(separator: "|")
+        }.joined(separator: "\n")
+        return SHA256.hash(data: Data(canonical.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
 }
 
 public struct PrivacyAllowedHookRecord: Equatable, Sendable {
@@ -72,14 +91,21 @@ public struct PrivacyAllowedHookRecord: Equatable, Sendable {
         guard
             let input = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
             let eventName = input[HookField.event.rawValue] as? String,
-            let event = HookEvent(rawValue: eventName)
+            let event = HookEvent(rawValue: eventName),
+            let definition = HookDefinition.reviewedRelease.first(where: { $0.event == event })
         else {
             throw GuidedSetupError.invalidHookInput
         }
         self.event = event
-        sessionID = input[HookField.session.rawValue] as? String
-        agentID = input[HookField.agent.rawValue] as? String
-        turnID = input[HookField.turn.rawValue] as? String
+        sessionID = definition.allowedFields.contains(.session)
+            ? input[HookField.session.rawValue] as? String
+            : nil
+        agentID = definition.allowedFields.contains(.agent)
+            ? input[HookField.agent.rawValue] as? String
+            : nil
+        turnID = definition.allowedFields.contains(.turn)
+            ? input[HookField.turn.rawValue] as? String
+            : nil
         self.receivedAt = receivedAt
     }
 

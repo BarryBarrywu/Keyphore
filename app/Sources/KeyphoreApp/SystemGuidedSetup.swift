@@ -110,7 +110,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             pluginInstalled: pluginInstalled,
             hooksTrusted: hooksTrusted,
             companionRegistered: companionIsRegistered(),
-            managedStatePresent: fileManager.fileExists(atPath: stateURL.path)
+            managedStatePresent: managedStateIsCurrent()
         )
     }
 
@@ -158,6 +158,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         let state: [String: Any] = [
             "version": 1,
             "plugin_id": Self.pluginID,
+            "reviewed_release_digest": HookDefinition.reviewedReleaseDigest,
             "reviewed_hook_hashes": Dictionary(
                 uniqueKeysWithValues: HookDefinition.reviewedHashes.map {
                     ($0.key.rawValue, $0.value)
@@ -232,6 +233,18 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         return (try? run(launchctlURL, ["print", launchTarget])) != nil
     }
 
+    private func managedStateIsCurrent() -> Bool {
+        guard
+            let data = try? Data(contentsOf: stateURL),
+            let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return false
+        }
+        return state["plugin_id"] as? String == Self.pluginID
+            && state["reviewed_release_digest"] as? String
+                == HookDefinition.reviewedReleaseDigest
+    }
+
     private func materializeMarketplace() throws {
         let manifestDirectory = marketplaceRoot.appending(path: ".agents/plugins")
         let pluginManifestDirectory = pluginRoot.appending(path: ".codex-plugin")
@@ -250,11 +263,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             atomically: true,
             encoding: .utf8
         )
-        try hooksJSON.write(
-            to: hooksDirectory.appending(path: "hooks.json"),
-            atomically: true,
-            encoding: .utf8
-        )
+        try hooksData().write(to: hooksDirectory.appending(path: "hooks.json"), options: .atomic)
         let installedHelper = binaryDirectory.appending(path: "keyphore")
         if fileManager.fileExists(atPath: installedHelper.path) {
             try fileManager.removeItem(at: installedHelper)
@@ -306,11 +315,21 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         """
     }
 
-    private var hooksJSON: String {
-        let definitions = HookEvent.allCases.map { event in
-            "\"\(event.rawValue)\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"\\\"${PLUGIN_ROOT}/bin/keyphore\\\" hook\",\"timeout\":1}]}]"
-        }.joined(separator: ",")
-        return "{\"description\":\"Record privacy-allowlisted Codex lifecycle events for Keyphore status lighting.\",\"hooks\":{\(definitions)}}"
+    private func hooksData() throws -> Data {
+        let hooks = Dictionary(uniqueKeysWithValues: HookDefinition.reviewedRelease.map { definition in
+            (
+                definition.event.rawValue,
+                [["hooks": [[
+                    "type": "command",
+                    "command": definition.command,
+                    "timeout": definition.timeoutSeconds,
+                ]]]]
+            )
+        })
+        return try JSONSerialization.data(withJSONObject: [
+            "description": "Record privacy-allowlisted Codex lifecycle events for Keyphore status lighting.",
+            "hooks": hooks,
+        ], options: [.sortedKeys])
     }
 
     private func xml(_ value: String) -> String {
