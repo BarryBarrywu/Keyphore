@@ -66,10 +66,30 @@ targets:
         PRODUCT_NAME: Keyphore
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_VERSION: 6.0
+  KeyphoreAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: app/Tests/KeyphoreAppTests
+      - path: app/Sources/KeyphoreApp/AggregateSignal+Presentation.swift
+      - path: app/Sources/KeyphoreApp/SignalColor+SwiftUI.swift
+    dependencies:
+      - package: KeyphoreAppModules
+        product: KeyphoreCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_VERSION: 6.0
 schemes:
   Keyphore:
     build:
       targets:
         Keyphore: all
+        KeyphoreAppTests: [test]
+    test:
+      targets:
+        - KeyphoreAppTests
     run:
       config: Debug

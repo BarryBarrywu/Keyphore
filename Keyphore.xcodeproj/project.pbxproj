@@ -9,15 +9,19 @@
 /* Begin PBXBuildFile section */
 		13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = C1DDCFEE9542DF769377C699 /* KeyphoreCore */; };
 		30114C1BEC1957CFB834EE9B /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = 89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */; };
+		393429007627070B268A8E7E /* MenuBarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7472A4A1E98B2F5861E50E3 /* MenuBarImageTests.swift */; };
 		45948C3A8E769B19E7D2AECD /* SignalSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BDDF4944884C170A0CF8D2 /* SignalSettingsView.swift */; };
 		5E3950DB0CB43C0F1A32062E /* KeyphorePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */; };
+		672CD80BBD2103D410D38E84 /* SignalColor+SwiftUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B04CCBFF0D5602D2A465F9 /* SignalColor+SwiftUI.swift */; };
 		6B340F207A25F5B70C2E9787 /* SignalColor+SwiftUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B04CCBFF0D5602D2A465F9 /* SignalColor+SwiftUI.swift */; };
 		84C46362F80748D11B9C239B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6704F8D3192EF419FC41D0AC /* main.swift */; };
+		880AE71730E18EB2EE0E8473 /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = E17A454D967C3A36343DE747 /* KeyphoreCore */; };
 		8919C57F7CBEC571AF0094DB /* KeyphoreApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0D791B9B3AA891061AE321D /* KeyphoreApp.swift */; };
 		90B49C9C3949DA10AFAB0E12 /* AggregateSignal+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */; };
 		9AFF24B6ADDF7EBD8AC27925 /* Air65KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA21CB3661C6A998618B32AE /* Air65KeyboardView.swift */; };
 		A6B2EBABAD831A50042306D1 /* KeyphoreRuntime in Resources */ = {isa = PBXBuildFile; fileRef = 6C75AE08BA2C7A7C7D8B7F68 /* KeyphoreRuntime */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B2B19524EC3A91A415B33966 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C2BBC9EAC1806FEA00D8F8 /* DiagnosticsView.swift */; };
+		C29B97853A7370436BABD7EE /* AggregateSignal+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */; };
 		D3C0814D593D1C40C25513E2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */; };
 		DE9A2FAED40577FF13629D3A /* KeyphoreAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5007C934BB3F0A9607548DC0 /* KeyphoreAppState.swift */; };
 		F19A71F9BA23D9ED02CC3DD5 /* SystemGuidedSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EA601A7391D49F787A9328 /* SystemGuidedSetup.swift */; };
@@ -34,6 +38,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		30D76DBB7A493C660BA9BAB5 /* KeyphoreAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyphoreAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AggregateSignal+Presentation.swift"; sourceTree = "<group>"; };
 		5007C934BB3F0A9607548DC0 /* KeyphoreAppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyphoreAppState.swift; sourceTree = "<group>"; };
 		6704F8D3192EF419FC41D0AC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -46,6 +51,7 @@
 		C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyphorePopover.swift; sourceTree = "<group>"; };
 		CA21CB3661C6A998618B32AE /* Air65KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Air65KeyboardView.swift; sourceTree = "<group>"; };
+		D7472A4A1E98B2F5861E50E3 /* MenuBarImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarImageTests.swift; sourceTree = "<group>"; };
 		E7B04CCBFF0D5602D2A465F9 /* SignalColor+SwiftUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SignalColor+SwiftUI.swift"; sourceTree = "<group>"; };
 		F5C2BBC9EAC1806FEA00D8F8 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -56,6 +62,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5CC895E5C0BB104DE36CCB97 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				880AE71730E18EB2EE0E8473 /* KeyphoreCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,10 +84,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2009D738C055B4E9D1E83EDB /* KeyphoreAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				D7472A4A1E98B2F5861E50E3 /* MenuBarImageTests.swift */,
+			);
+			name = KeyphoreAppTests;
+			path = app/Tests/KeyphoreAppTests;
+			sourceTree = "<group>";
+		};
 		2550DF27A203572856B112CE /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				7515AD190EACC41BCB8D903F /* Keyphore.app */,
+				30D76DBB7A493C660BA9BAB5 /* KeyphoreAppTests.xctest */,
 				6C75AE08BA2C7A7C7D8B7F68 /* KeyphoreRuntime */,
 			);
 			name = Products;
@@ -100,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				CECF92B69D02393CEA0972E0 /* KeyphoreApp */,
+				2009D738C055B4E9D1E83EDB /* KeyphoreAppTests */,
 				46C8B9C011EF3CD3B1CE0581 /* Packages */,
 				E971104BD489BF9AE4F2794D /* Resources */,
 				7C7C19D62936DFD915050BF3 /* Sources */,
@@ -177,6 +202,25 @@
 			productReference = 7515AD190EACC41BCB8D903F /* Keyphore.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BBB692CAC9866B60526D8FFC /* KeyphoreAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE50B53AEAD3A64DBE17BFFD /* Build configuration list for PBXNativeTarget "KeyphoreAppTests" */;
+			buildPhases = (
+				7833D2FE11D10C3F0777FE07 /* Sources */,
+				5CC895E5C0BB104DE36CCB97 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KeyphoreAppTests;
+			packageProductDependencies = (
+				E17A454D967C3A36343DE747 /* KeyphoreCore */,
+			);
+			productName = KeyphoreAppTests;
+			productReference = 30D76DBB7A493C660BA9BAB5 /* KeyphoreAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -209,6 +253,7 @@
 			projectRoot = "";
 			targets = (
 				7FD7A90DE8185DEE1FCFC017 /* Keyphore */,
+				BBB692CAC9866B60526D8FFC /* KeyphoreAppTests */,
 				2F214FD9CB8557B86522FA99 /* KeyphoreRuntime */,
 			);
 		};
@@ -266,6 +311,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7833D2FE11D10C3F0777FE07 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C29B97853A7370436BABD7EE /* AggregateSignal+Presentation.swift in Sources */,
+				393429007627070B268A8E7E /* MenuBarImageTests.swift in Sources */,
+				672CD80BBD2103D410D38E84 /* SignalColor+SwiftUI.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BC983BE089CF90ADA61AB5AC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -303,6 +358,42 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.barrywu.keyphore;
 				PRODUCT_NAME = Keyphore;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		0DA56609CE2A8D744DCA31B0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		7A02263911F762C3846A8DF8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -514,6 +605,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		CE50B53AEAD3A64DBE17BFFD /* Build configuration list for PBXNativeTarget "KeyphoreAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0DA56609CE2A8D744DCA31B0 /* Debug */,
+				7A02263911F762C3846A8DF8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -529,6 +629,10 @@
 			productName = KeyphoreCore;
 		};
 		C1DDCFEE9542DF769377C699 /* KeyphoreCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeyphoreCore;
+		};
+		E17A454D967C3A36343DE747 /* KeyphoreCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeyphoreCore;
 		};

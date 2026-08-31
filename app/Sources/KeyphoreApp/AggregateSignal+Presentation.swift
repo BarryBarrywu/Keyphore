@@ -38,14 +38,11 @@ struct AggregateSignalPresentation {
     let color: Color
 
     var menuBarImage: NSImage {
-        let symbol = NSImage(
+        let image = NSImage(
             systemSymbolName: systemImage,
             accessibilityDescription: AppCopy.value(copyKey)
         )!
-        let image = symbol.withSymbolConfiguration(
-            NSImage.SymbolConfiguration(paletteColors: [NSColor(color)])
-        )!
-        image.isTemplate = false
+        image.isTemplate = true
         return image
     }
 }
