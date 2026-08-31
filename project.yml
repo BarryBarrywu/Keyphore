@@ -5,6 +5,18 @@ packages:
   KeyphoreAppModules:
     path: app
 targets:
+  KeyphoreRuntime:
+    type: tool
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: runtime/Sources
+    settings:
+      base:
+        ARCHS: arm64
+        PRODUCT_NAME: keyphore
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_VERSION: 6.0
   Keyphore:
     type: application
     platform: macOS
@@ -25,8 +37,20 @@ targets:
       - path: app/Sources/KeyphoreApp
       - path: app/Resources/Assets.xcassets
     dependencies:
+      - target: KeyphoreRuntime
       - package: KeyphoreAppModules
         product: KeyphoreCore
+    postBuildScripts:
+      - name: Embed Keyphore Runtime
+        script: |
+          set -eu
+          helper_dir="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
+          /bin/mkdir -p "$helper_dir"
+          /usr/bin/install -m 755 "$BUILT_PRODUCTS_DIR/keyphore" "$helper_dir/keyphore"
+        inputFiles:
+          - $(BUILT_PRODUCTS_DIR)/keyphore
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/keyphore
     settings:
       base:
         ARCHS: arm64

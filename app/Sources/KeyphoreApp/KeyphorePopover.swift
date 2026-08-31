@@ -9,8 +9,12 @@ struct KeyphorePopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
-            Air65KeyboardView(signal: state.snapshot.currentSignal, profile: state.snapshot.profile)
-            statusGrid
+            if state.menuState == .configurationRequired {
+                GuidedSetupView(state: state)
+            } else {
+                Air65KeyboardView(signal: state.snapshot.currentSignal, profile: state.snapshot.profile)
+                statusGrid
+            }
             Divider()
             actions
         }
@@ -36,12 +40,12 @@ struct KeyphorePopover: View {
 
             Spacer()
 
-            Text(AppCopy.value(state.snapshot.menuState.copyKey))
+            Text(AppCopy.value(state.menuState.copyKey))
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .background(state.snapshot.menuState.tint.opacity(0.14))
-                .foregroundStyle(state.snapshot.menuState.tint)
+                .background(state.menuState.tint.opacity(0.14))
+                .foregroundStyle(state.menuState.tint)
                 .clipShape(Capsule())
         }
     }
@@ -69,8 +73,10 @@ struct KeyphorePopover: View {
 
     private var actions: some View {
         HStack {
-            Button(AppCopy.value(.settings)) {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            if state.menuState != .configurationRequired {
+                Button(AppCopy.value(.settings)) {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
             }
             Button(AppCopy.value(.diagnostics)) {
                 openWindow(id: "diagnostics")
@@ -82,6 +88,72 @@ struct KeyphorePopover: View {
             }
         }
         .controlSize(.small)
+    }
+}
+
+private struct GuidedSetupView: View {
+    @ObservedObject var state: KeyphoreAppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(AppCopy.value(.setupTitle))
+                .font(.headline)
+
+            if state.setupSnapshot.phase == .codexHostMissing {
+                Label(AppCopy.value(.setupHostMissing), systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+                Button(AppCopy.value(.setupRepair), action: state.refresh)
+            } else {
+                Label(AppCopy.value(.setupHostFound), systemImage: "checkmark.circle")
+                Text(hosts)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(AppCopy.value(.setupHookReview))
+                    .font(.subheadline.weight(.semibold))
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(state.setupSnapshot.hooks, id: \.event.rawValue) { hook in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(hook.event.rawValue).font(.system(.caption, design: .monospaced))
+                                Text("\(AppCopy.value(.setupFields)): \(fields(hook))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 190)
+                Text(AppCopy.value(.setupPrivacy))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if state.setupFailed {
+                    Text(AppCopy.value(.setupError))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Button(
+                    state.setupIsWorking
+                        ? AppCopy.value(.setupWorking)
+                        : AppCopy.value(state.setupFailed ? .setupRepair : .setupConsent),
+                    action: state.configureAfterReview
+                )
+                .disabled(state.setupIsWorking)
+            }
+        }
+    }
+
+    private func fields(_ hook: HookDefinition) -> String {
+        hook.allowedFields.map(\.rawValue).sorted().joined(separator: ", ")
+    }
+
+    private var hosts: String {
+        state.setupSnapshot.detectedHosts
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { host in
+                AppCopy.value(host == .desktopApp ? .setupDesktopHost : .setupCommandLineHost)
+            }
+            .joined(separator: ", ")
     }
 }
 

@@ -16,3 +16,17 @@
 "action.diagnostics" = "诊断";
 "action.quit" = "退出 Keyphore";
 "keyboard.rhythm_light_unchanged" = "节奏灯保持不变";
+"setup.title" = "引导设置";
+"setup.host_found" = "已检测到 Codex 主机";
+"setup.host.desktop" = "Codex 桌面 App";
+"setup.host.command_line" = "Codex CLI";
+"setup.host_missing" = "请安装 Codex 桌面 App 或 Codex CLI，然后重试。";
+"setup.hook_review" = "审查 Keyphore 的八个 Hook";
+"setup.privacy" = "Keyphore 只保留下列生命周期标识与接收时间，绝不持久化提示词、回复、正文、转录或工具内容。";
+"setup.fields" = "允许字段";
+"setup.consent" = "允许这些 Hook 并配置 Keyphore";
+"setup.working" = "正在配置…";
+"setup.repair" = "修复设置";
+"setup.error" = "设置未能完成，Keyphore 以外的内容未被修改。请尝试修复。";
+"setup.configured" = "Keyphore 已为当前 Mac 用户配置完成。";
+"setup.waiting_for_keyboard" = "通过有线 USB 连接一把 Air65 V3 后即可进入已就绪状态。";

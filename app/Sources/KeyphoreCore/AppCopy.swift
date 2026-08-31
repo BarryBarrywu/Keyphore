@@ -24,6 +24,20 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
     case diagnostics = "action.diagnostics"
     case quit = "action.quit"
     case rhythmLightUnchanged = "keyboard.rhythm_light_unchanged"
+    case setupTitle = "setup.title"
+    case setupHostFound = "setup.host_found"
+    case setupDesktopHost = "setup.host.desktop"
+    case setupCommandLineHost = "setup.host.command_line"
+    case setupHostMissing = "setup.host_missing"
+    case setupHookReview = "setup.hook_review"
+    case setupPrivacy = "setup.privacy"
+    case setupFields = "setup.fields"
+    case setupConsent = "setup.consent"
+    case setupWorking = "setup.working"
+    case setupRepair = "setup.repair"
+    case setupError = "setup.error"
+    case setupConfigured = "setup.configured"
+    case setupWaitingForKeyboard = "setup.waiting_for_keyboard"
 }
 
 public enum AppCopy {

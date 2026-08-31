@@ -4,12 +4,22 @@ import KeyphoreCore
 @MainActor
 final class KeyphoreAppState: ObservableObject {
     @Published private(set) var snapshot: LifecycleSnapshot
+    @Published private(set) var setupSnapshot: GuidedSetupSnapshot
+    @Published private(set) var setupFailed = false
+    @Published private(set) var setupIsWorking = false
 
     private let lifecycle: KeyphoreLifecycle
+    private let guidedSetup: GuidedSetup?
 
-    init(lifecycle: KeyphoreLifecycle) {
+    init(lifecycle: KeyphoreLifecycle, guidedSetup: GuidedSetup? = nil) {
         self.lifecycle = lifecycle
-        snapshot = lifecycle.refresh()
+        let initialSnapshot = lifecycle.refresh()
+        snapshot = initialSnapshot
+        self.guidedSetup = guidedSetup
+        setupSnapshot = Self.initialSetupSnapshot(for: initialSnapshot)
+        if let guidedSetup, let inspected = try? guidedSetup.inspect() {
+            setupSnapshot = inspected
+        }
     }
 
     convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -21,11 +31,33 @@ final class KeyphoreAppState: ObservableObject {
             lighting: FixtureLightingAdapter(),
             runtime: FixtureRuntimeAdapter()
         )
-        self.init(lifecycle: lifecycle)
+        self.init(
+            lifecycle: lifecycle,
+            guidedSetup: environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil ? .system() : nil
+        )
     }
 
     func refresh() {
         snapshot = lifecycle.refresh()
+        if let guidedSetup, let inspected = try? guidedSetup.inspect() {
+            setupSnapshot = inspected
+        }
+    }
+
+    func configureAfterReview() {
+        guard let guidedSetup, !setupIsWorking else { return }
+        setupIsWorking = true
+        setupFailed = false
+        Task {
+            do {
+                setupSnapshot = try await Task.detached {
+                    try guidedSetup.configureAfterReview()
+                }.value
+            } catch {
+                setupFailed = true
+            }
+            setupIsWorking = false
+        }
     }
 
     func prepareToQuit() {
@@ -34,6 +66,28 @@ final class KeyphoreAppState: ObservableObject {
 
     var menuBarSymbol: String {
         snapshot.currentSignal.presentation(in: snapshot.profile).systemImage
+    }
+
+    var menuState: MenuState {
+        switch setupSnapshot.phase {
+        case .codexHostMissing, .hookReview: .configurationRequired
+        case .configured: .configured
+        case .ready: .ready
+        }
+    }
+
+    private static func initialSetupSnapshot(for snapshot: LifecycleSnapshot) -> GuidedSetupSnapshot {
+        let phase: GuidedSetupPhase
+        switch snapshot.menuState {
+        case .configurationRequired: phase = .hookReview
+        case .configured: phase = .configured
+        case .ready: phase = .ready
+        }
+        return GuidedSetupSnapshot(
+            phase: phase,
+            detectedHosts: [],
+            hooks: HookDefinition.reviewedRelease
+        )
     }
 }
 

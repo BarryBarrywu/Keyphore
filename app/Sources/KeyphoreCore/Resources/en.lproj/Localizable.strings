@@ -16,3 +16,17 @@
 "action.diagnostics" = "Diagnostics";
 "action.quit" = "Quit Keyphore";
 "keyboard.rhythm_light_unchanged" = "Rhythm lights stay unchanged";
+"setup.title" = "Guided setup";
+"setup.host_found" = "Codex host detected";
+"setup.host.desktop" = "Codex desktop app";
+"setup.host.command_line" = "Codex CLI";
+"setup.host_missing" = "Install the Codex desktop app or Codex CLI, then try again.";
+"setup.hook_review" = "Review the eight Keyphore Hooks";
+"setup.privacy" = "Keyphore keeps only the listed lifecycle identifiers and receipt time. Prompts, responses, prose, transcripts, and tool content are never persisted.";
+"setup.fields" = "Allowed fields";
+"setup.consent" = "Allow these Hooks and configure Keyphore";
+"setup.working" = "Configuring…";
+"setup.repair" = "Repair setup";
+"setup.error" = "Setup could not finish. Nothing outside Keyphore was changed. Try repair.";
+"setup.configured" = "Keyphore is configured for this Mac user.";
+"setup.waiting_for_keyboard" = "Connect one Air65 V3 over wired USB to become Ready.";

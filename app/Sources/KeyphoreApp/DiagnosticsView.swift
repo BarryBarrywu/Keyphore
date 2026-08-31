@@ -3,11 +3,12 @@ import KeyphoreCore
 
 struct DiagnosticsView: View {
     let snapshot: LifecycleSnapshot
+    let menuState: MenuState
 
     var body: some View {
         Form {
             LabeledContent(AppCopy.value(.productName)) {
-                Text(AppCopy.value(snapshot.menuState.copyKey))
+                Text(AppCopy.value(menuState.copyKey))
             }
             LabeledContent(AppCopy.value(.deviceName)) {
                 Text(AppCopy.value(snapshot.keyboardHealth.copyKey))

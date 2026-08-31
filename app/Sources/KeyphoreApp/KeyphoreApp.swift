@@ -21,7 +21,7 @@ struct KeyphoreApp: App {
         }
 
         Window(AppCopy.value(.diagnostics), id: "diagnostics") {
-            DiagnosticsView(snapshot: state.snapshot)
+            DiagnosticsView(snapshot: state.snapshot, menuState: state.menuState)
         }
         .defaultSize(width: 420, height: 240)
     }
