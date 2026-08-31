@@ -12,6 +12,14 @@ struct KeyphorePopover: View {
             if state.menuState == .configurationRequired {
                 GuidedSetupView(state: state)
             } else {
+                if state.setupSnapshot.phase == .configured {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(AppCopy.value(.setupConfigured), systemImage: "checkmark.circle")
+                        Text(AppCopy.value(.setupWaitingForKeyboard))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Air65KeyboardView(signal: state.snapshot.currentSignal, profile: state.snapshot.profile)
                 statusGrid
             }
@@ -118,6 +126,16 @@ private struct GuidedSetupView: View {
                                 Text("\(AppCopy.value(.setupFields)): \(fields(hook))")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                Text("\(AppCopy.value(.setupCommand)): \(hook.command)")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .textSelection(.enabled)
+                                Text("\(AppCopy.value(.setupTimeout)): \(hook.timeoutSeconds)s")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text("\(AppCopy.value(.setupHash)): \(hook.reviewedHash)")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
                             }
                         }
                     }
@@ -128,7 +146,7 @@ private struct GuidedSetupView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if state.setupFailed {
-                    Text(AppCopy.value(.setupError))
+                    Text(AppCopy.value(state.setupHooksChanged ? .setupHooksChanged : .setupError))
                         .font(.caption)
                         .foregroundStyle(.red)
                 }

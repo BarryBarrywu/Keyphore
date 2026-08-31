@@ -11,6 +11,9 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: runtime/Sources
+    dependencies:
+      - package: KeyphoreAppModules
+        product: KeyphoreCore
     settings:
       base:
         ARCHS: arm64

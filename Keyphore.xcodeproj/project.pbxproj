@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = C1DDCFEE9542DF769377C699 /* KeyphoreCore */; };
+		30114C1BEC1957CFB834EE9B /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = 89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */; };
 		45948C3A8E769B19E7D2AECD /* SignalSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BDDF4944884C170A0CF8D2 /* SignalSettingsView.swift */; };
 		5E3950DB0CB43C0F1A32062E /* KeyphorePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */; };
 		6B340F207A25F5B70C2E9787 /* SignalColor+SwiftUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B04CCBFF0D5602D2A465F9 /* SignalColor+SwiftUI.swift */; };
@@ -55,6 +56,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BFC132996ADB5C8B29B1DA18 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30114C1BEC1957CFB834EE9B /* KeyphoreCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -132,6 +141,7 @@
 			buildConfigurationList = 708C152F41ADAC53B2DC38FE /* Build configuration list for PBXNativeTarget "KeyphoreRuntime" */;
 			buildPhases = (
 				BC983BE089CF90ADA61AB5AC /* Sources */,
+				BFC132996ADB5C8B29B1DA18 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -139,6 +149,7 @@
 			);
 			name = KeyphoreRuntime;
 			packageProductDependencies = (
+				89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */,
 			);
 			productName = KeyphoreRuntime;
 			productReference = 6C75AE08BA2C7A7C7D8B7F68 /* KeyphoreRuntime */;
@@ -513,6 +524,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeyphoreCore;
+		};
 		C1DDCFEE9542DF769377C699 /* KeyphoreCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeyphoreCore;

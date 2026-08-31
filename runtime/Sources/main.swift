@@ -1,5 +1,6 @@
 import Dispatch
 import Foundation
+import KeyphoreCore
 
 private let arguments = CommandLine.arguments.dropFirst()
 
@@ -9,7 +10,10 @@ case "hook":
     guard input.count <= 1_048_576 else {
         exit(1)
     }
-    guard (try? JSONSerialization.jsonObject(with: input)) != nil else {
+    guard (try? PrivacyAllowedHookRecord(
+        jsonData: input,
+        receivedAt: ISO8601DateFormatter().string(from: Date())
+    )) != nil else {
         exit(1)
     }
 case "companion":

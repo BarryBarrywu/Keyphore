@@ -1,4 +1,5 @@
 import Darwin
+import AppKit
 import Foundation
 import KeyphoreCore
 
@@ -6,15 +7,20 @@ struct SystemCodexHostDetector: CodexHostDetecting {
     let fileManager: FileManager
     let environment: [String: String]
     let homeDirectory: URL
+    let registeredDesktopAppURL: URL?
 
     init(
         fileManager: FileManager = .default,
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        registeredDesktopAppURL: URL? = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.openai.codex"
+        )
     ) {
         self.fileManager = fileManager
         self.environment = environment
         self.homeDirectory = homeDirectory
+        self.registeredDesktopAppURL = registeredDesktopAppURL
     }
 
     func detectHosts() throws -> Set<CodexHost> {
@@ -34,9 +40,10 @@ struct SystemCodexHostDetector: CodexHostDetecting {
 
     private var desktopCodexURL: URL? {
         let applications = [
+            registeredDesktopAppURL,
             URL(fileURLWithPath: "/Applications/Codex.app"),
             homeDirectory.appending(path: "Applications/Codex.app"),
-        ]
+        ].compactMap { $0 }
         return applications
             .map { $0.appending(path: "Contents/Resources/codex") }
             .first(where: isExecutable)
@@ -44,9 +51,15 @@ struct SystemCodexHostDetector: CodexHostDetecting {
 
     private var commandLineCodexURL: URL? {
         let path = environment["PATH"] ?? "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-        return path
+        let searchDirectories = path
             .split(separator: ":")
-            .map { URL(fileURLWithPath: String($0)).appending(path: "codex") }
+            .map { URL(fileURLWithPath: String($0)) } + [
+                homeDirectory.appending(path: ".local/bin"),
+                URL(fileURLWithPath: "/opt/homebrew/bin"),
+                URL(fileURLWithPath: "/usr/local/bin"),
+            ]
+        return searchDirectories
+            .map { $0.appending(path: "codex") }
             .first(where: isExecutable)
     }
 
@@ -87,13 +100,10 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     func health() throws -> SetupIntegrationHealth {
         let pluginInstalled = try installedPluginIDs().contains(Self.pluginID)
         let hooks = pluginInstalled ? try hookMetadata() : []
-        let expected = Dictionary(
-            uniqueKeysWithValues: HookDefinition.reviewedRelease.map { ($0.event, $0.reviewedHash) }
-        )
         let actual = Dictionary(uniqueKeysWithValues: hooks.compactMap { metadata in
             metadata.event.map { ($0, metadata.currentHash) }
         })
-        let hooksTrusted = actual == expected && hooks.allSatisfy {
+        let hooksTrusted = actual == HookDefinition.reviewedHashes && hooks.allSatisfy {
             $0.enabled && $0.trustStatus == "trusted"
         }
         return SetupIntegrationHealth(
@@ -105,13 +115,14 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     func stage(_ hooks: [HookDefinition]) throws {
+        guard hooks == HookDefinition.reviewedRelease else {
+            throw GuidedSetupError.reviewedHooksChanged
+        }
         try materializeMarketplace()
         if !(try marketplaceIsInstalled()) {
             _ = try runCodex(["plugin", "marketplace", "add", marketplaceRoot.path, "--json"])
         }
-        if !(try installedPluginIDs().contains(Self.pluginID)) {
-            _ = try runCodex(["plugin", "add", Self.pluginID, "--json"])
-        }
+        _ = try runCodex(["plugin", "add", Self.pluginID, "--json"])
     }
 
     func installedHookHashes() throws -> [HookEvent: String] {
@@ -121,8 +132,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     func trust(_ hooks: [HookDefinition]) throws {
         let metadata = try hookMetadata()
         let hashes = try validateOwnedMetadata(metadata)
-        let expected = Dictionary(uniqueKeysWithValues: hooks.map { ($0.event, $0.reviewedHash) })
-        guard hashes == expected else {
+        guard hashes == HookDefinition.reviewedHashes else {
             throw GuidedSetupError.reviewedHooksChanged
         }
         try CodexAppServer(codexURL: codexURL).configure(metadata, enabled: true)
@@ -149,8 +159,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             "version": 1,
             "plugin_id": Self.pluginID,
             "reviewed_hook_hashes": Dictionary(
-                uniqueKeysWithValues: HookDefinition.reviewedRelease.map {
-                    ($0.event.rawValue, $0.reviewedHash)
+                uniqueKeysWithValues: HookDefinition.reviewedHashes.map {
+                    ($0.key.rawValue, $0.value)
                 }
             ),
         ]

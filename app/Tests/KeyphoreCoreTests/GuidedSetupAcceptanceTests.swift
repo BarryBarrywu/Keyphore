@@ -29,9 +29,45 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         XCTAssertEqual(hooks[0].allowedFields, [.event, .session, .agent, .turn, .receivedAt])
         XCTAssertEqual(hooks[2].allowedFields, [.event, .session, .receivedAt])
         XCTAssertEqual(hooks[4].allowedFields, [.event, .session, .turn, .receivedAt])
+        XCTAssertTrue(hooks.allSatisfy { $0.command == "\"${PLUGIN_ROOT}/bin/keyphore\" hook" })
+        XCTAssertTrue(hooks.allSatisfy { $0.timeoutSeconds == 1 })
         XCTAssertFalse(HookField.allCases.map(\.rawValue).contains("prompt"))
         XCTAssertFalse(HookField.allCases.map(\.rawValue).contains("tool_response"))
         XCTAssertFalse(HookField.allCases.map(\.rawValue).contains("transcript_path"))
+    }
+
+    func testHookInputProjectsAwayPrivateContentBeforeRuntimeUse() throws {
+        let privateValues = [
+            "private prompt",
+            "private response prose",
+            "/private/transcript.jsonl",
+            "private tool output",
+        ]
+        let input: [String: Any] = [
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-1",
+            "agent_id": "agent-1",
+            "turn_id": "turn-1",
+            "prompt": privateValues[0],
+            "last_assistant_message": privateValues[1],
+            "transcript_path": privateValues[2],
+            "tool_response": privateValues[3],
+        ]
+
+        let record = try PrivacyAllowedHookRecord(
+            jsonData: JSONSerialization.data(withJSONObject: input),
+            receivedAt: "2026-08-31T12:00:00Z"
+        )
+        let persisted = String(decoding: try record.encoded(), as: UTF8.self)
+
+        for privateValue in privateValues {
+            XCTAssertFalse(persisted.contains(privateValue))
+        }
+        XCTAssertTrue(persisted.contains("UserPromptSubmit"))
+        XCTAssertTrue(persisted.contains("session-1"))
+        XCTAssertTrue(persisted.contains("agent-1"))
+        XCTAssertTrue(persisted.contains("turn-1"))
+        XCTAssertTrue(persisted.contains("2026-08-31T12:00:00Z"))
     }
 
     func testEitherCodexHostReachesHookReviewWithoutChangingIntegration() throws {
@@ -125,6 +161,26 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
             [.readHookHashes, .registerCompanion, .persistConfigured]
         )
         XCTAssertEqual(integration.unrelatedPluginState, "preserved")
+    }
+
+    func testChangedOrUntrustedDefinitionsAreRestagedBeforeRenewedConsent() throws {
+        let integration = RecordingSetupIntegration(
+            health: SetupIntegrationHealth(
+                pluginInstalled: true,
+                hooksTrusted: false,
+                companionRegistered: true,
+                managedStatePresent: true
+            )
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        _ = try setup.configureAfterReview()
+
+        XCTAssertEqual(integration.actions, [.stage, .readHookHashes, .trust])
     }
 
     func testConfiguredNeedsHealthyKeyboardBeforeItCanBeReady() throws {

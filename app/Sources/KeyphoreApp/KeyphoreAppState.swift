@@ -6,6 +6,7 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var snapshot: LifecycleSnapshot
     @Published private(set) var setupSnapshot: GuidedSetupSnapshot
     @Published private(set) var setupFailed = false
+    @Published private(set) var setupHooksChanged = false
     @Published private(set) var setupIsWorking = false
 
     private let lifecycle: KeyphoreLifecycle
@@ -48,6 +49,7 @@ final class KeyphoreAppState: ObservableObject {
         guard let guidedSetup, !setupIsWorking else { return }
         setupIsWorking = true
         setupFailed = false
+        setupHooksChanged = false
         Task {
             do {
                 setupSnapshot = try await Task.detached {
@@ -55,6 +57,7 @@ final class KeyphoreAppState: ObservableObject {
                 }.value
             } catch {
                 setupFailed = true
+                setupHooksChanged = (error as? GuidedSetupError) == .reviewedHooksChanged
             }
             setupIsWorking = false
         }

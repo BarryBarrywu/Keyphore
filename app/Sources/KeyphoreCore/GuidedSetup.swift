@@ -28,11 +28,21 @@ public struct HookDefinition: Equatable, Sendable {
     public let event: HookEvent
     public let allowedFields: Set<HookField>
     public let reviewedHash: String
+    public let command: String
+    public let timeoutSeconds: UInt64
 
-    public init(event: HookEvent, allowedFields: Set<HookField>, reviewedHash: String) {
+    public init(
+        event: HookEvent,
+        allowedFields: Set<HookField>,
+        reviewedHash: String,
+        command: String = "\"${PLUGIN_ROOT}/bin/keyphore\" hook",
+        timeoutSeconds: UInt64 = 1
+    ) {
         self.event = event
         self.allowedFields = allowedFields
         self.reviewedHash = reviewedHash
+        self.command = command
+        self.timeoutSeconds = timeoutSeconds
     }
 
     public static let reviewedRelease: [HookDefinition] = [
@@ -45,6 +55,44 @@ public struct HookDefinition: Equatable, Sendable {
         HookDefinition(event: .subagentStop, allowedFields: [.event, .session, .agent, .turn, .receivedAt], reviewedHash: "sha256:36375c4c50d15317921135227d6c423f134853c725df334433a38f47fe918c40"),
         HookDefinition(event: .userPromptSubmit, allowedFields: [.event, .session, .turn, .receivedAt], reviewedHash: "sha256:af395f0d95e15ee1a97f0437eedb1859cdea89b94225d88ba706619e661b9a20"),
     ]
+
+    public static let reviewedHashes = Dictionary(
+        uniqueKeysWithValues: reviewedRelease.map { ($0.event, $0.reviewedHash) }
+    )
+}
+
+public struct PrivacyAllowedHookRecord: Equatable, Sendable {
+    public let event: HookEvent
+    public let sessionID: String?
+    public let agentID: String?
+    public let turnID: String?
+    public let receivedAt: String
+
+    public init(jsonData: Data, receivedAt: String) throws {
+        guard
+            let input = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+            let eventName = input[HookField.event.rawValue] as? String,
+            let event = HookEvent(rawValue: eventName)
+        else {
+            throw GuidedSetupError.invalidHookInput
+        }
+        self.event = event
+        sessionID = input[HookField.session.rawValue] as? String
+        agentID = input[HookField.agent.rawValue] as? String
+        turnID = input[HookField.turn.rawValue] as? String
+        self.receivedAt = receivedAt
+    }
+
+    public func encoded() throws -> Data {
+        var fields = [
+            HookField.event.rawValue: event.rawValue,
+            HookField.receivedAt.rawValue: receivedAt,
+        ]
+        fields[HookField.session.rawValue] = sessionID
+        fields[HookField.agent.rawValue] = agentID
+        fields[HookField.turn.rawValue] = turnID
+        return try JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])
+    }
 }
 
 public enum GuidedSetupPhase: Equatable, Sendable {
@@ -56,6 +104,7 @@ public enum GuidedSetupPhase: Equatable, Sendable {
 
 public enum GuidedSetupError: Error, Equatable, Sendable {
     case codexHostMissing
+    case invalidHookInput
     case reviewedHooksChanged
 }
 
@@ -165,14 +214,11 @@ public final class GuidedSetup: @unchecked Sendable {
         }
         let reviewedHooks = HookDefinition.reviewedRelease
         let health = try integration.health()
-        if !health.pluginInstalled {
+        if !health.pluginInstalled || !health.hooksTrusted {
             try integration.stage(reviewedHooks)
         }
         let installedHashes = try integration.installedHookHashes()
-        let reviewedHashes = Dictionary(
-            uniqueKeysWithValues: reviewedHooks.map { ($0.event, $0.reviewedHash) }
-        )
-        guard installedHashes == reviewedHashes else {
+        guard installedHashes == HookDefinition.reviewedHashes else {
             throw GuidedSetupError.reviewedHooksChanged
         }
         if !health.hooksTrusted {
