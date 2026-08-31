@@ -35,7 +35,10 @@ struct SystemCodexHostDetector: CodexHostDetecting {
     }
 
     var preferredCodexURL: URL? {
-        desktopCodexURL ?? commandLineCodexURL
+        CodexRuntimeCompatibility.preferredURL(
+            commandLine: commandLineCodexURL,
+            desktop: desktopCodexURL
+        )
     }
 
     private var desktopCodexURL: URL? {
@@ -349,30 +352,6 @@ private enum SystemSetupError: Error {
     case unexpectedHookDefinition
 }
 
-private struct CodexHookMetadata: Decodable {
-    let key: String
-    let eventName: String
-    let handlerType: String
-    let executionMode: String?
-    let matcher: String?
-    let command: String?
-    let timeoutSec: UInt64
-    let statusMessage: String?
-    let additionalContextLimit: UInt64?
-    let sourcePath: String
-    let pluginID: String?
-    let enabled: Bool
-    let isManaged: Bool
-    let currentHash: String
-    let trustStatus: String
-
-    var event: HookEvent? {
-        HookEvent.allCases.first {
-            $0.rawValue.prefix(1).lowercased() + $0.rawValue.dropFirst() == eventName
-        }
-    }
-}
-
 private final class CodexAppServer {
     private let codexURL: URL
 
@@ -425,7 +404,7 @@ private final class AppServerSession {
 
     init(codexURL: URL) throws {
         process.executableURL = codexURL
-        process.arguments = ["app-server", "--stdio"]
+        process.arguments = CodexRuntimeCompatibility.appServerArguments
         process.standardInput = input
         process.standardOutput = output
         process.standardError = Pipe()

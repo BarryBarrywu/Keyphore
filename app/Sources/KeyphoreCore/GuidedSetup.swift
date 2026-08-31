@@ -6,6 +6,56 @@ public enum CodexHost: String, Hashable, Sendable {
     case commandLine
 }
 
+public enum CodexRuntimeCompatibility {
+    public static let appServerArguments = ["app-server"]
+
+    public static func preferredURL(commandLine: URL?, desktop: URL?) -> URL? {
+        commandLine ?? desktop
+    }
+}
+
+public struct CodexHookMetadata: Decodable {
+    public let key: String
+    public let eventName: String
+    public let handlerType: String
+    public let executionMode: String?
+    public let matcher: String?
+    public let command: String?
+    public let timeoutSec: UInt64
+    public let statusMessage: String?
+    public let additionalContextLimit: UInt64?
+    public let sourcePath: String
+    public let pluginID: String?
+    public let enabled: Bool
+    public let isManaged: Bool
+    public let currentHash: String
+    public let trustStatus: String
+
+    public var event: HookEvent? {
+        HookEvent.allCases.first {
+            $0.rawValue.prefix(1).lowercased() + $0.rawValue.dropFirst() == eventName
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case key
+        case eventName
+        case handlerType
+        case executionMode
+        case matcher
+        case command
+        case timeoutSec
+        case statusMessage
+        case additionalContextLimit
+        case sourcePath
+        case pluginID = "pluginId"
+        case enabled
+        case isManaged
+        case currentHash
+        case trustStatus
+    }
+}
+
 public enum HookEvent: String, CaseIterable, Sendable {
     case permissionRequest = "PermissionRequest"
     case postToolUse = "PostToolUse"

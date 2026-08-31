@@ -3,6 +3,49 @@ import KeyphoreCore
 
 @MainActor
 final class GuidedSetupAcceptanceTests: XCTestCase {
+    func testAppServerMetadataDecodesThePluginIdField() throws {
+        let data = Data(
+            """
+            {
+              "key": "keyphore@keyphore-app:hooks/hooks.json:session_start:0:0",
+              "eventName": "sessionStart",
+              "handlerType": "command",
+              "executionMode": "sync",
+              "matcher": null,
+              "command": "\\\"/plugin/bin/keyphore\\\" hook",
+              "timeoutSec": 1,
+              "statusMessage": null,
+              "additionalContextLimit": null,
+              "sourcePath": "/plugin/hooks/hooks.json",
+              "pluginId": "keyphore@keyphore-app",
+              "enabled": true,
+              "isManaged": false,
+              "currentHash": "sha256:reviewed",
+              "trustStatus": "trusted"
+            }
+            """.utf8
+        )
+
+        let metadata = try JSONDecoder().decode(CodexHookMetadata.self, from: data)
+
+        XCTAssertEqual(metadata.pluginID, "keyphore@keyphore-app")
+        XCTAssertEqual(metadata.event, .sessionStart)
+    }
+
+    func testRuntimeSelectionPrefersCLIWhenBothHostsAreInstalled() {
+        let cli = URL(fileURLWithPath: "/usr/local/bin/codex")
+        let desktop = URL(fileURLWithPath: "/Applications/Codex.app/Contents/Resources/codex")
+
+        XCTAssertEqual(
+            CodexRuntimeCompatibility.preferredURL(commandLine: cli, desktop: desktop),
+            cli
+        )
+    }
+
+    func testAppServerUsesTheDefaultStdioTransportAcceptedByBothHosts() {
+        XCTAssertEqual(CodexRuntimeCompatibility.appServerArguments, ["app-server"])
+    }
+
     func testHookReviewMatchesTheEightReleaseDefinitionsAndPrivacyBoundary() {
         let hooks = HookDefinition.reviewedRelease
 
