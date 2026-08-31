@@ -22,7 +22,22 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         )
     }
 
-    func testExecutionOutranksAnotherSessionsCompletionAfterItsWindowExpires() throws {
+    func testCompletionUsesTheConfiguredDisplayDuration() throws {
+        let fixture = try SignalFixture(completionDisplayDuration: .init(seconds: 1)!)
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
+
+        try fixture.companion.sync(at: .milliseconds(100))
+        try fixture.companion.sync(at: .milliseconds(1_099))
+        try fixture.companion.sync(at: .milliseconds(1_100))
+
+        XCTAssertEqual(
+            fixture.lighting.behaviors,
+            [.signal(LocalProfile.default.completion), .off]
+        )
+    }
+
+    func testExecutionOutranksCompletionAndSurvivesItsExpiry() throws {
         let fixture = try SignalFixture()
         try fixture.handle(
             "UserPromptSubmit",
@@ -637,13 +652,20 @@ private final class SignalFixture {
     let lighting = RecordingCompanionLightingAdapter()
     lazy var companion = KeyphoreCompanion(store: store, profile: .default, lighting: lighting)
 
-    init(lockBudget: Duration = .milliseconds(100)) throws {
+    init(
+        lockBudget: Duration = .milliseconds(100),
+        completionDisplayDuration: CompletionDisplayDuration = .fiveSeconds
+    ) throws {
         directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         statusURL = directory.appending(path: "status.json")
         store = DurableStatusStore(url: statusURL)
-        hook = ProductionHookHandler(store: store, lockBudget: lockBudget)
+        hook = ProductionHookHandler(
+            store: store,
+            lockBudget: lockBudget,
+            completionDisplayDuration: completionDisplayDuration
+        )
     }
 
     deinit {

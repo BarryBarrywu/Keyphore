@@ -318,14 +318,19 @@ extension DurableStatus {
 public final class ProductionHookHandler: @unchecked Sendable {
     public static let executionLifetime = Duration.seconds(60 * 60)
     public static let attentionLifetime = Duration.seconds(60 * 60)
-    public static let completionLifetime = Duration.seconds(5)
 
     private let store: DurableStatusStore
     private let lockBudget: Duration
+    private let completionDisplayDuration: CompletionDisplayDuration
 
-    public init(store: DurableStatusStore, lockBudget: Duration = .milliseconds(100)) {
+    public init(
+        store: DurableStatusStore,
+        lockBudget: Duration = .milliseconds(100),
+        completionDisplayDuration: CompletionDisplayDuration = .fiveSeconds
+    ) {
         self.store = store
         self.lockBudget = lockBudget
+        self.completionDisplayDuration = completionDisplayDuration
     }
 
     public func handle(_ input: Data, receivedAt: StatusTimestamp = .now) throws {
@@ -366,7 +371,9 @@ public final class ProductionHookHandler: @unchecked Sendable {
                 ownerID: ownerID,
                 turnID: turnID,
                 signal: .completion,
-                expiresAt: receivedAt.adding(Self.completionLifetime),
+                expiresAt: receivedAt.adding(
+                    .seconds(Int64(completionDisplayDuration.seconds))
+                ),
                 replacingSession: false,
                 lockBudget: lockBudget
             )
