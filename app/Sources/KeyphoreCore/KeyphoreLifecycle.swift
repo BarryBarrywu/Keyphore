@@ -24,7 +24,7 @@ public struct KeyphoreHealth: Equatable, Sendable {
     )
 }
 
-public enum CodexSignal: Hashable, Sendable {
+public enum CodexSignal: String, Codable, Hashable, Sendable {
     case execution
     case attention
     case completion
@@ -166,33 +166,5 @@ public final class KeyphoreLifecycle {
         runtime.stopCompanion()
         runtime.clearManagedRuntimeState()
         lighting.emit(.off)
-    }
-}
-
-private extension LocalProfile {
-    func aggregateSignal(for outcome: DurableStatusOutcome) -> AggregateSignal {
-        if outcome.activeSignals.contains(.attention), attention.isVisible {
-            return .attention
-        }
-        if outcome.activeSignals.contains(.execution), execution.isVisible {
-            return .execution
-        }
-        if outcome.activeSignals.contains(.completion), completion.isVisible {
-            return .completion
-        }
-        return .signalOff
-    }
-
-    func behavior(for signal: AggregateSignal) -> LightingBehavior {
-        switch signal {
-        case .signalOff:
-            signalOff
-        case .execution:
-            .signal(execution)
-        case .attention:
-            .signal(attention)
-        case .completion:
-            .signal(completion)
-        }
     }
 }

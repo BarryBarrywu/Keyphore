@@ -11,7 +11,7 @@ struct KeyphoreApp: App {
         MenuBarExtra {
             KeyphorePopover(state: state)
         } label: {
-            Image(systemName: state.menuBarSymbol)
+            Image(nsImage: state.currentSignalPresentation.menuBarImage)
                 .accessibilityLabel(AppCopy.value(.productName))
         }
         .menuBarExtraStyle(.window)

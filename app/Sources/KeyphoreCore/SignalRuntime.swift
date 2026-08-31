@@ -46,7 +46,7 @@ public struct StatusTimestamp: Codable, Comparable, Equatable, Sendable {
     }
 }
 
-public struct ExecutionOwnerID: Codable, Equatable, Hashable, Sendable {
+public struct SignalOwnerID: Codable, Equatable, Hashable, Sendable {
     public let product: String
     public let sessionID: String
     public let agentID: String
@@ -64,20 +64,23 @@ public struct ExecutionOwnerID: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-public struct ExecutionOwner: Codable, Equatable, Sendable {
-    public let id: ExecutionOwnerID
+public struct SignalOwner: Codable, Equatable, Sendable {
+    public let id: SignalOwnerID
     public let turnID: String
+    public let signal: CodexSignal
     public let generation: UInt64
     public let expiresAt: StatusTimestamp
 
     public init(
-        id: ExecutionOwnerID,
+        id: SignalOwnerID,
         turnID: String,
+        signal: CodexSignal,
         generation: UInt64,
         expiresAt: StatusTimestamp
     ) {
         self.id = id
         self.turnID = turnID
+        self.signal = signal
         self.generation = generation
         self.expiresAt = expiresAt
     }
@@ -85,17 +88,27 @@ public struct ExecutionOwner: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id
         case turnID = "turn_id"
+        case signal
         case generation
         case expiresAt = "expires_at"
     }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(SignalOwnerID.self, forKey: .id)
+        turnID = try container.decode(String.self, forKey: .turnID)
+        signal = try container.decodeIfPresent(CodexSignal.self, forKey: .signal) ?? .execution
+        generation = try container.decode(UInt64.self, forKey: .generation)
+        expiresAt = try container.decode(StatusTimestamp.self, forKey: .expiresAt)
+    }
 }
 
-public struct ExecutionExpiry: Equatable, Sendable {
-    public let ownerID: ExecutionOwnerID
+public struct SignalExpiry: Equatable, Sendable {
+    public let ownerID: SignalOwnerID
     public let generation: UInt64
     public let expiresAt: StatusTimestamp
 
-    public init(ownerID: ExecutionOwnerID, generation: UInt64, expiresAt: StatusTimestamp) {
+    public init(ownerID: SignalOwnerID, generation: UInt64, expiresAt: StatusTimestamp) {
         self.ownerID = ownerID
         self.generation = generation
         self.expiresAt = expiresAt
@@ -103,11 +116,11 @@ public struct ExecutionExpiry: Equatable, Sendable {
 }
 
 public struct CurrentOwnerTurn: Codable, Equatable, Sendable {
-    public let id: ExecutionOwnerID
+    public let id: SignalOwnerID
     public var currentTurnID: String
     public var previousTurnIDs: [String]
 
-    public init(id: ExecutionOwnerID, currentTurnID: String, previousTurnIDs: [String] = []) {
+    public init(id: SignalOwnerID, currentTurnID: String, previousTurnIDs: [String] = []) {
         self.id = id
         self.currentTurnID = currentTurnID
         self.previousTurnIDs = previousTurnIDs
@@ -121,12 +134,12 @@ public struct CurrentOwnerTurn: Codable, Equatable, Sendable {
 }
 
 public struct DurableStatus: Codable, Equatable, Sendable {
-    public var owners: [ExecutionOwner]
+    public var owners: [SignalOwner]
     public var currentOwnerTurns: [CurrentOwnerTurn]
     public var generation: UInt64
 
     public init(
-        owners: [ExecutionOwner] = [],
+        owners: [SignalOwner] = [],
         currentOwnerTurns: [CurrentOwnerTurn] = [],
         generation: UInt64 = 0
     ) {
@@ -135,9 +148,9 @@ public struct DurableStatus: Codable, Equatable, Sendable {
         self.generation = generation
     }
 
-    public var expiries: [ExecutionExpiry] {
+    public var expiries: [SignalExpiry] {
         owners.map {
-            ExecutionExpiry(ownerID: $0.id, generation: $0.generation, expiresAt: $0.expiresAt)
+            SignalExpiry(ownerID: $0.id, generation: $0.generation, expiresAt: $0.expiresAt)
         }
     }
 
@@ -169,9 +182,10 @@ public final class DurableStatusStore: @unchecked Sendable {
         }
     }
 
-    public func recordExecution(
-        ownerID: ExecutionOwnerID,
+    public func recordSignal(
+        ownerID: SignalOwnerID,
         turnID: String,
+        signal: CodexSignal,
         expiresAt: StatusTimestamp,
         replacingSession: Bool,
         lockBudget: Duration
@@ -192,9 +206,10 @@ public final class DurableStatusStore: @unchecked Sendable {
                 status.owners.removeAll { $0.id == ownerID }
             }
             status.owners.append(
-                ExecutionOwner(
+                SignalOwner(
                     id: ownerID,
                     turnID: turnID,
+                    signal: signal,
                     generation: status.generation,
                     expiresAt: expiresAt
                 ))
@@ -202,7 +217,7 @@ public final class DurableStatusStore: @unchecked Sendable {
     }
 
     public func removeOwner(
-        _ ownerID: ExecutionOwnerID,
+        _ ownerID: SignalOwnerID,
         turnID: String,
         lockBudget: Duration
     ) throws {
@@ -223,7 +238,7 @@ public final class DurableStatusStore: @unchecked Sendable {
         }
     }
 
-    public func expire(_ expiry: ExecutionExpiry, at now: StatusTimestamp, lockBudget: Duration)
+    public func expire(_ expiry: SignalExpiry, at now: StatusTimestamp, lockBudget: Duration)
         throws
     {
         try update(lockBudget: lockBudget) { status in
@@ -237,8 +252,12 @@ public final class DurableStatusStore: @unchecked Sendable {
     }
 
     public func outcome(at now: StatusTimestamp) throws -> DurableStatusOutcome {
-        let hasExecution = try load().owners.contains { $0.expiresAt > now }
-        return hasExecution ? .execution : .signalOff
+        let activeSignals = Set(
+            try load().owners.lazy
+                .filter { $0.expiresAt > now }
+                .map(\.signal)
+        )
+        return .active(activeSignals)
     }
 
     private func update(
@@ -277,7 +296,7 @@ public final class DurableStatusStore: @unchecked Sendable {
 }
 
 extension DurableStatus {
-    fileprivate mutating func accepts(turnID: String, for ownerID: ExecutionOwnerID, advancing: Bool)
+    fileprivate mutating func accepts(turnID: String, for ownerID: SignalOwnerID, advancing: Bool)
         -> Bool
     {
         guard let index = currentOwnerTurns.firstIndex(where: { $0.id == ownerID }) else {
@@ -298,6 +317,7 @@ extension DurableStatus {
 
 public final class ProductionHookHandler: @unchecked Sendable {
     public static let executionLifetime = Duration.seconds(60 * 60)
+    public static let attentionLifetime = Duration.seconds(60 * 60)
 
     private let store: DurableStatusStore
     private let lockBudget: Duration
@@ -327,7 +347,7 @@ public final class ProductionHookHandler: @unchecked Sendable {
         default:
             agentID = "main"
         }
-        let ownerID = ExecutionOwnerID(product: "codex", sessionID: sessionID, agentID: agentID)
+        let ownerID = SignalOwnerID(product: "codex", sessionID: sessionID, agentID: agentID)
 
         switch record.event {
         case .sessionStart, .sessionEnd:
@@ -341,15 +361,26 @@ public final class ProductionHookHandler: @unchecked Sendable {
             guard let turnID = record.turnID, !turnID.isEmpty else {
                 throw GuidedSetupError.invalidHookInput
             }
-            try store.recordExecution(
+            try store.recordSignal(
                 ownerID: ownerID,
                 turnID: turnID,
+                signal: .execution,
                 expiresAt: receivedAt.adding(Self.executionLifetime),
                 replacingSession: record.event == .userPromptSubmit,
                 lockBudget: lockBudget
             )
         case .permissionRequest:
-            throw GuidedSetupError.invalidHookInput
+            guard let turnID = record.turnID, !turnID.isEmpty else {
+                throw GuidedSetupError.invalidHookInput
+            }
+            try store.recordSignal(
+                ownerID: ownerID,
+                turnID: turnID,
+                signal: .attention,
+                expiresAt: receivedAt.adding(Self.attentionLifetime),
+                replacingSession: false,
+                lockBudget: lockBudget
+            )
         }
     }
 }
@@ -381,16 +412,14 @@ public final class KeyphoreCompanion {
         for expiry in try store.load().expiries where expiry.expiresAt <= now {
             try store.expire(expiry, at: now, lockBudget: lockBudget)
         }
-        let behavior: LightingBehavior =
-            try store.outcome(at: now) == .execution
-            ? .signal(profile.execution)
-            : .off
+        let outcome = try store.outcome(at: now)
+        let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome))
         guard behavior != applied else { return }
         try lighting.apply(behavior)
         applied = behavior
     }
 
-    public func handle(expiry: ExecutionExpiry, at now: StatusTimestamp) throws {
+    public func handle(expiry: SignalExpiry, at now: StatusTimestamp) throws {
         try store.expire(expiry, at: now, lockBudget: lockBudget)
         try sync(at: now)
     }

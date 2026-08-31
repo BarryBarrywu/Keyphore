@@ -69,6 +69,7 @@ struct KeyphorePopover: View {
                     ),
                     systemImage: state.menuBarSymbol
                 )
+                .foregroundStyle(state.currentSignalPresentation.color)
             }
             GridRow {
                 Text(AppCopy.value(.keyboardHealth))

@@ -112,3 +112,31 @@ public struct LocalProfile: Equatable, Sendable {
         completionDisplayDuration: .fiveSeconds
     )
 }
+
+extension LocalProfile {
+    func aggregateSignal(for outcome: DurableStatusOutcome) -> AggregateSignal {
+        if outcome.activeSignals.contains(.attention), attention.isVisible {
+            return .attention
+        }
+        if outcome.activeSignals.contains(.execution), execution.isVisible {
+            return .execution
+        }
+        if outcome.activeSignals.contains(.completion), completion.isVisible {
+            return .completion
+        }
+        return .signalOff
+    }
+
+    func behavior(for signal: AggregateSignal) -> LightingBehavior {
+        switch signal {
+        case .signalOff:
+            signalOff
+        case .execution:
+            .signal(execution)
+        case .attention:
+            .signal(attention)
+        case .completion:
+            .signal(completion)
+        }
+    }
+}
