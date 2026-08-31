@@ -15,20 +15,23 @@ case "hook":
         exit(1)
     }
 case "companion":
-    let lighting = RuntimeLightingBoundary()
-    let companion = KeyphoreCompanion(store: store, profile: profile, lighting: lighting)
+    let healthStore = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
+    let lighting = NuPhyIOAdapter(discovery: SystemAir65TransportDiscovery())
+    let companion = KeyphoreCompanion(
+        store: store,
+        profile: profile,
+        lighting: lighting,
+        keyboardHealthStore: healthStore
+    )
+    var lastHealthCheck = ContinuousClock.now
     while true {
         try? companion.sync()
+        if lastHealthCheck.duration(to: .now) >= .seconds(1) {
+            try? companion.healthCheck()
+            lastHealthCheck = .now
+        }
         Thread.sleep(forTimeInterval: 0.1)
     }
 default:
     exit(64)
-}
-
-private final class RuntimeLightingBoundary: CompanionLightingApplying {
-    private var currentBehavior: LightingBehavior = .off
-
-    func apply(_ behavior: LightingBehavior) throws {
-        currentBehavior = behavior
-    }
 }

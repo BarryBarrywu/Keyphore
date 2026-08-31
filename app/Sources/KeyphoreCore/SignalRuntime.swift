@@ -13,6 +13,12 @@ public enum KeyphoreRuntimePaths {
     ) -> URL {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "status.json")
     }
+
+    public static func keyboardHealthURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "keyboard-health.json")
+    }
 }
 
 public struct StatusTimestamp: Codable, Comparable, Equatable, Sendable {
@@ -409,10 +415,15 @@ public protocol CompanionLightingApplying: AnyObject {
     func apply(_ behavior: LightingBehavior) throws
 }
 
+public protocol CompanionLightingVerifying: AnyObject {
+    func displays(_ behavior: LightingBehavior) throws -> Bool
+}
+
 public final class KeyphoreCompanion {
     private let store: DurableStatusStore
     private let profile: LocalProfile
     private let lighting: any CompanionLightingApplying
+    private let keyboardHealthStore: KeyboardHealthStore?
     private let lockBudget: Duration
     private var applied: LightingBehavior?
 
@@ -420,11 +431,13 @@ public final class KeyphoreCompanion {
         store: DurableStatusStore,
         profile: LocalProfile,
         lighting: any CompanionLightingApplying,
+        keyboardHealthStore: KeyboardHealthStore? = nil,
         lockBudget: Duration = .milliseconds(100)
     ) {
         self.store = store
         self.profile = profile
         self.lighting = lighting
+        self.keyboardHealthStore = keyboardHealthStore
         self.lockBudget = lockBudget
     }
 
@@ -435,12 +448,49 @@ public final class KeyphoreCompanion {
         let outcome = try store.outcome(at: now)
         let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome))
         guard behavior != applied else { return }
-        try lighting.apply(behavior)
-        applied = behavior
+        do {
+            try lighting.apply(behavior)
+            applied = behavior
+            try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
+        } catch {
+            applied = nil
+            try keyboardHealthStore?.save(Self.health(for: error), at: now)
+            throw error
+        }
+    }
+
+    public func healthCheck(at now: StatusTimestamp = .now) throws {
+        guard let lighting = lighting as? any CompanionLightingVerifying else { return }
+        let outcome = try store.outcome(at: now)
+        let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome))
+        do {
+            if try lighting.displays(behavior) {
+                applied = behavior
+                try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
+                return
+            }
+            applied = nil
+            try self.lighting.apply(behavior)
+            applied = behavior
+            try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
+        } catch {
+            applied = nil
+            try keyboardHealthStore?.save(Self.health(for: error), at: now)
+            throw error
+        }
     }
 
     public func handle(expiry: SignalExpiry, at now: StatusTimestamp) throws {
         try store.expire(expiry, at: now, lockBudget: lockBudget)
         try sync(at: now)
+    }
+
+    private static func health(for error: Error) -> KeyboardHealth {
+        if let selectionError = error as? Air65DeviceSelectionError,
+            selectionError == .notFound
+        {
+            return .disconnected
+        }
+        return .connected(protocolHealthy: false)
     }
 }

@@ -33,13 +33,16 @@ final class KeyphoreAppState: ObservableObject {
     convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let fixture = AcceptanceFixture(environment["KEYPHORE_ACCEPTANCE_FIXTURE"])
         let durableStatus: any DurableStatusProviding
+        let health: any KeyphoreHealthProviding
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             durableStatus = SystemDurableStatusAdapter()
+            health = SystemKeyphoreHealthAdapter()
         } else {
             durableStatus = FixtureDurableStatusAdapter(outcome: fixture.outcome)
+            health = FixtureHealthAdapter(health: fixture.health)
         }
         let lifecycle = KeyphoreLifecycle(
-            health: FixtureHealthAdapter(health: fixture.health),
+            health: health,
             profiles: FixtureProfileAdapter(),
             durableStatus: durableStatus,
             lighting: FixtureLightingAdapter(),
@@ -159,6 +162,19 @@ private struct SystemDurableStatusAdapter: DurableStatusProviding {
 
     func currentOutcome() -> DurableStatusOutcome {
         (try? store.outcome(at: .now)) ?? .signalOff
+    }
+}
+
+private struct SystemKeyphoreHealthAdapter: KeyphoreHealthProviding {
+    private let fileManager = FileManager.default
+    private let setupURL = KeyphoreRuntimePaths.supportDirectory().appending(path: "setup.json")
+    private let keyboardHealth = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
+
+    func currentHealth() -> KeyphoreHealth {
+        KeyphoreHealth(
+            isConfigured: fileManager.fileExists(atPath: setupURL.path),
+            keyboard: keyboardHealth.load()
+        )
     }
 }
 
