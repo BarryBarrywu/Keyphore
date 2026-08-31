@@ -33,7 +33,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
         XCTAssertEqual(
             fixture.lighting.behaviors,
-            [.signal(LocalProfile.default.completion), .off]
+            [.signal(fixture.profile.completion), .off]
         )
     }
 
@@ -649,8 +649,9 @@ private final class SignalFixture {
     let statusURL: URL
     let store: DurableStatusStore
     let hook: ProductionHookHandler
+    let profile: LocalProfile
     let lighting = RecordingCompanionLightingAdapter()
-    lazy var companion = KeyphoreCompanion(store: store, profile: .default, lighting: lighting)
+    lazy var companion = KeyphoreCompanion(store: store, profile: profile, lighting: lighting)
 
     init(
         lockBudget: Duration = .milliseconds(100),
@@ -661,10 +662,17 @@ private final class SignalFixture {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         statusURL = directory.appending(path: "status.json")
         store = DurableStatusStore(url: statusURL)
+        let defaultProfile = LocalProfile.default
+        profile = LocalProfile(
+            execution: defaultProfile.execution,
+            attention: defaultProfile.attention,
+            completion: defaultProfile.completion,
+            completionDisplayDuration: completionDisplayDuration
+        )
         hook = ProductionHookHandler(
             store: store,
             lockBudget: lockBudget,
-            completionDisplayDuration: completionDisplayDuration
+            profile: profile
         )
     }
 

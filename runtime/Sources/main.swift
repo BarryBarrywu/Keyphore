@@ -3,6 +3,7 @@ import KeyphoreCore
 
 private let arguments = CommandLine.arguments.dropFirst()
 private let store = DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL())
+private let profile = LocalProfile.default
 
 switch arguments.first {
 case "hook":
@@ -10,12 +11,12 @@ case "hook":
     guard input.count <= 1_048_576 else {
         exit(1)
     }
-    guard (try? ProductionHookHandler(store: store).handle(input)) != nil else {
+    guard (try? ProductionHookHandler(store: store, profile: profile).handle(input)) != nil else {
         exit(1)
     }
 case "companion":
     let lighting = RuntimeLightingBoundary()
-    let companion = KeyphoreCompanion(store: store, profile: .default, lighting: lighting)
+    let companion = KeyphoreCompanion(store: store, profile: profile, lighting: lighting)
     while true {
         try? companion.sync()
         Thread.sleep(forTimeInterval: 0.1)

@@ -321,16 +321,16 @@ public final class ProductionHookHandler: @unchecked Sendable {
 
     private let store: DurableStatusStore
     private let lockBudget: Duration
-    private let completionDisplayDuration: CompletionDisplayDuration
+    private let profile: LocalProfile
 
     public init(
         store: DurableStatusStore,
         lockBudget: Duration = .milliseconds(100),
-        completionDisplayDuration: CompletionDisplayDuration = .fiveSeconds
+        profile: LocalProfile = .default
     ) {
         self.store = store
         self.lockBudget = lockBudget
-        self.completionDisplayDuration = completionDisplayDuration
+        self.profile = profile
     }
 
     public func handle(_ input: Data, receivedAt: StatusTimestamp = .now) throws {
@@ -372,7 +372,7 @@ public final class ProductionHookHandler: @unchecked Sendable {
                 turnID: turnID,
                 signal: .completion,
                 expiresAt: receivedAt.adding(
-                    .seconds(Int64(completionDisplayDuration.seconds))
+                    .seconds(Int64(profile.completionDisplayDuration.seconds))
                 ),
                 replacingSession: false,
                 lockBudget: lockBudget
