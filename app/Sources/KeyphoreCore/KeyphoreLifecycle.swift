@@ -108,9 +108,24 @@ public protocol LightingEmitting: AnyObject {
 
 @MainActor
 public protocol KeyphoreRuntimeManaging: AnyObject {
-    func disableOwnedHooks()
-    func stopCompanion()
-    func clearManagedRuntimeState()
+    var isQuitGateActive: Bool { get }
+    func activateQuitGate() throws
+    func disableOwnedHooks() throws
+    func stopCompanion() throws
+    func clearManagedRuntimeState() throws
+    func requestSignalOff() throws
+    func enableOwnedHooksIfTrusted() throws -> Bool
+    func startCompanion() throws
+    func clearQuitGate() throws
+}
+
+public extension KeyphoreRuntimeManaging {
+    var isQuitGateActive: Bool { false }
+}
+
+public enum ReopenOutcome: Equatable, Sendable {
+    case restored
+    case renewedConsentRequired
 }
 
 @MainActor
@@ -163,10 +178,27 @@ public final class KeyphoreLifecycle {
         )
     }
 
-    public func quit() {
-        runtime.disableOwnedHooks()
-        runtime.stopCompanion()
-        runtime.clearManagedRuntimeState()
-        lighting.emit(.off)
+    public func quit() throws {
+        try runtime.activateQuitGate()
+        try runtime.disableOwnedHooks()
+        try runtime.clearManagedRuntimeState()
+        try runtime.requestSignalOff()
+        try runtime.stopCompanion()
+    }
+
+    public func reopen() throws -> ReopenOutcome {
+        try runtime.clearManagedRuntimeState()
+        try runtime.startCompanion()
+        try runtime.requestSignalOff()
+        guard try runtime.enableOwnedHooksIfTrusted() else {
+            return .renewedConsentRequired
+        }
+        try runtime.clearQuitGate()
+        return .restored
+    }
+
+    public func reopenIfNeeded() throws -> ReopenOutcome? {
+        guard runtime.isQuitGateActive else { return nil }
+        return try reopen()
     }
 }

@@ -81,28 +81,34 @@ struct KeyphorePopover: View {
     }
 
     private var actions: some View {
-        HStack {
-            if state.menuState != .configurationRequired {
-                if #available(macOS 14.0, *) {
-                    SettingsLink {
-                        Text(AppCopy.value(.settings))
-                    }
-                } else {
-                    Button(AppCopy.value(.settings)) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if state.menuState != .configurationRequired {
+                    if #available(macOS 14.0, *) {
+                        SettingsLink {
+                            Text(AppCopy.value(.settings))
+                        }
+                    } else {
+                        Button(AppCopy.value(.settings)) {
+                            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                        }
                     }
                 }
+                Button(AppCopy.value(.diagnostics)) {
+                    openWindow(id: "diagnostics")
+                }
+                Spacer()
+                Button(AppCopy.value(.quit)) {
+                    NSApp.terminate(nil)
+                }
             }
-            Button(AppCopy.value(.diagnostics)) {
-                openWindow(id: "diagnostics")
-            }
-            Spacer()
-            Button(AppCopy.value(.quit)) {
-                state.prepareToQuit()
-                NSApp.terminate(nil)
+            .controlSize(.small)
+            if state.quitFailed {
+                Text(AppCopy.value(.quitError))
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
-        .controlSize(.small)
     }
 }
 
@@ -152,6 +158,7 @@ private struct GuidedSetupView: View {
                 Text(AppCopy.value(.setupPrivacy))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle(AppCopy.value(.setupLoginLaunch), isOn: $state.loginLaunchEnabled)
                 if state.setupFailed {
                     Text(AppCopy.value(state.setupHooksChanged ? .setupHooksChanged : .setupError))
                         .font(.caption)

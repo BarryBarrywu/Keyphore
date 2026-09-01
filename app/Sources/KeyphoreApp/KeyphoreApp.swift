@@ -13,6 +13,9 @@ struct KeyphoreApp: App {
         } label: {
             Image(nsImage: state.currentSignalPresentation.menuBarImage)
                 .accessibilityLabel(AppCopy.value(.productName))
+                .onAppear {
+                    appDelegate.prepareToQuit = state.prepareToQuit
+                }
         }
         .menuBarExtraStyle(.window)
 
@@ -24,11 +27,5 @@ struct KeyphoreApp: App {
             DiagnosticsView(snapshot: state.snapshot, menuState: state.menuState)
         }
         .defaultSize(width: 420, height: 240)
-    }
-}
-
-final class KeyphoreAppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
     }
 }

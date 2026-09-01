@@ -269,6 +269,14 @@ public protocol GuidedSetupIntegrating: AnyObject {
     func resetRuntimeState() throws
     func registerCompanion() throws
     func persistConfigured() throws
+    func setLoginLaunchEnabled(_ enabled: Bool) throws
+    func loginLaunchEnabled() -> Bool
+    func finishConfiguration() throws
+}
+
+public extension GuidedSetupIntegrating {
+    func loginLaunchEnabled() -> Bool { false }
+    func finishConfiguration() throws {}
 }
 
 public final class GuidedSetup: @unchecked Sendable {
@@ -340,6 +348,7 @@ public final class GuidedSetup: @unchecked Sendable {
         guard try integration.health().isConfigured else {
             throw GuidedSetupError.configurationIncomplete
         }
+        try integration.finishConfiguration()
         let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
             == .connected(protocolHealthy: true) ? .ready : .configured
         return GuidedSetupSnapshot(
@@ -347,5 +356,19 @@ public final class GuidedSetup: @unchecked Sendable {
             detectedHosts: detectedHosts,
             hooks: reviewedHooks
         )
+    }
+
+    public func configureAfterReview(loginLaunchEnabled: Bool) throws -> GuidedSetupSnapshot {
+        let snapshot = try configureAfterReview()
+        try integration.setLoginLaunchEnabled(loginLaunchEnabled)
+        return snapshot
+    }
+
+    public func setLoginLaunchEnabled(_ enabled: Bool) throws {
+        try integration.setLoginLaunchEnabled(enabled)
+    }
+
+    public func loginLaunchEnabled() -> Bool {
+        integration.loginLaunchEnabled()
     }
 }

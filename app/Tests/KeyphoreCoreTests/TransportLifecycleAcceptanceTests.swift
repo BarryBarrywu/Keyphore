@@ -279,9 +279,14 @@ private final class RecordingTransportMenuLighting: LightingEmitting {
 }
 
 private final class EmptyTransportRuntime: KeyphoreRuntimeManaging {
+    func activateQuitGate() {}
     func disableOwnedHooks() {}
     func stopCompanion() {}
     func clearManagedRuntimeState() {}
+    func requestSignalOff() {}
+    func enableOwnedHooksIfTrusted() -> Bool { true }
+    func startCompanion() {}
+    func clearQuitGate() {}
 }
 
 private final class VerifiedLightingBoundary: CompanionLightingApplying, CompanionLightingVerifying {

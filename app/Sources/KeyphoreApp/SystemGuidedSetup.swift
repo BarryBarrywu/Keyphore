@@ -2,6 +2,7 @@ import Darwin
 import AppKit
 import Foundation
 import KeyphoreCore
+import ServiceManagement
 
 struct SystemCodexHostDetector: CodexHostDetecting {
     let fileManager: FileManager
@@ -138,7 +139,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         guard hashes == HookDefinition.reviewedHashes else {
             throw GuidedSetupError.reviewedHooksChanged
         }
-        try CodexAppServer(codexURL: codexURL).configure(metadata, enabled: true)
+        try CodexAppServer(codexURL: codexURL).trustAndEnable(metadata)
         let trusted = try hookMetadata()
         guard trusted.allSatisfy({ $0.enabled && $0.trustStatus == "trusted" }) else {
             throw SystemSetupError.codexRejectedHookConsent
@@ -178,9 +179,129 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         try data.write(to: stateURL, options: .atomic)
     }
 
+    func setLoginLaunchEnabled(_ enabled: Bool) throws {
+        let service = SMAppService.mainApp
+        if enabled {
+            if service.status != .enabled {
+                try service.register()
+            }
+        } else if service.status != .notRegistered {
+            try service.unregister()
+        }
+        if !enabled, fileManager.fileExists(atPath: launchAgentURL.path) {
+            try fileManager.removeItem(at: launchAgentURL)
+        }
+    }
+
+    func loginLaunchEnabled() -> Bool {
+        SMAppService.mainApp.status == .enabled
+    }
+
+    var isQuitGateActive: Bool { quitGate.isActive }
+
+    func activateQuitGate() throws {
+        try quitGate.activate()
+    }
+
+    func disableOwnedHooks() throws {
+        let metadata = try hookMetadata()
+        guard metadata.count == HookDefinition.reviewedRelease.count,
+              Set(metadata.compactMap(\.event)).count == HookDefinition.reviewedRelease.count
+        else {
+            throw SystemSetupError.unexpectedHookDefinition
+        }
+        try CodexAppServer(codexURL: codexURL).setEnabled(metadata, enabled: false)
+        guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
+            throw SystemSetupError.codexRejectedHookState
+        }
+    }
+
+    func stopCompanion() throws {
+        _ = try? run(launchctlURL, ["bootout", launchTarget])
+        guard (try? run(launchctlURL, ["print", launchTarget])) == nil else {
+            throw SystemSetupError.companionStillRunning
+        }
+        if fileManager.fileExists(atPath: launchAgentURL.path) {
+            try fileManager.removeItem(at: launchAgentURL)
+        }
+    }
+
+    func clearManagedRuntimeState() throws {
+        try resetRuntimeState()
+        for url in [
+            KeyphoreRuntimePaths.keyboardHealthURL(),
+            KeyphoreRuntimePaths.signalPreviewURL(),
+            KeyphoreRuntimePaths.signalOffAcknowledgementURL(),
+        ] where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
+    func requestSignalOff() throws {
+        let acknowledgement = SignalOffAcknowledgementStore(
+            url: KeyphoreRuntimePaths.signalOffAcknowledgementURL()
+        )
+        try acknowledgement.clear()
+        let healthURL = KeyphoreRuntimePaths.keyboardHealthURL()
+        if fileManager.fileExists(atPath: healthURL.path) {
+            try fileManager.removeItem(at: healthURL)
+        }
+        try resetRuntimeState()
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline {
+            if acknowledgement.isAcknowledged {
+                return
+            }
+            if fileManager.fileExists(atPath: healthURL.path),
+               KeyboardHealthStore(url: healthURL).load() == .disconnected
+            {
+                return
+            }
+            usleep(10_000)
+        }
+        throw SystemSetupError.signalOffNotAcknowledged
+    }
+
+    func enableOwnedHooksIfTrusted() throws -> Bool {
+        let metadata = try hookMetadata()
+        guard
+            (try? validateOwnedMetadata(metadata)) == HookDefinition.reviewedHashes,
+            metadata.allSatisfy({ $0.trustStatus == "trusted" })
+        else {
+            return false
+        }
+        try CodexAppServer(codexURL: codexURL).setEnabled(metadata, enabled: true)
+        let enabled = try hookMetadata()
+        guard enabled.allSatisfy({ $0.enabled && $0.trustStatus == "trusted" }) else {
+            throw SystemSetupError.codexRejectedHookState
+        }
+        return true
+    }
+
+    func startCompanion() throws {
+        try registerCompanion()
+        if !loginLaunchEnabled(), fileManager.fileExists(atPath: launchAgentURL.path) {
+            try fileManager.removeItem(at: launchAgentURL)
+        }
+    }
+
+    func clearQuitGate() throws {
+        try quitGate.clear()
+    }
+
+    func finishConfiguration() throws {
+        guard quitGate.isActive else { return }
+        try clearManagedRuntimeState()
+        try requestSignalOff()
+        try clearQuitGate()
+    }
+
     private var marketplaceRoot: URL { supportDirectory.appending(path: "Marketplace") }
     private var pluginRoot: URL { marketplaceRoot.appending(path: "plugin") }
     private var stateURL: URL { supportDirectory.appending(path: "setup.json") }
+    private var quitGate: QuitGateStore {
+        QuitGateStore(url: KeyphoreRuntimePaths.quitGateURL())
+    }
     private var launchAgentURL: URL {
         launchAgentsDirectory.appending(path: "\(Self.launchLabel).plist")
     }
@@ -238,7 +359,6 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     private func companionIsRegistered() -> Bool {
-        guard fileManager.fileExists(atPath: launchAgentURL.path) else { return false }
         return (try? run(launchctlURL, ["print", launchTarget])) != nil
     }
 
@@ -375,9 +495,33 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 }
 
+@MainActor
+private final class SystemKeyphoreRuntimeAdapter: KeyphoreRuntimeManaging {
+    private let integration: SystemGuidedSetupIntegration
+
+    init(integration: SystemGuidedSetupIntegration) {
+        self.integration = integration
+    }
+
+    var isQuitGateActive: Bool { integration.isQuitGateActive }
+    func activateQuitGate() throws { try integration.activateQuitGate() }
+    func disableOwnedHooks() throws { try integration.disableOwnedHooks() }
+    func stopCompanion() throws { try integration.stopCompanion() }
+    func clearManagedRuntimeState() throws { try integration.clearManagedRuntimeState() }
+    func requestSignalOff() throws { try integration.requestSignalOff() }
+    func enableOwnedHooksIfTrusted() throws -> Bool {
+        try integration.enableOwnedHooksIfTrusted()
+    }
+    func startCompanion() throws { try integration.startCompanion() }
+    func clearQuitGate() throws { try integration.clearQuitGate() }
+}
+
 private enum SystemSetupError: Error {
     case commandFailed
     case codexRejectedHookConsent
+    case codexRejectedHookState
+    case companionStillRunning
+    case signalOffNotAcknowledged
     case runtimeMissing
     case unexpectedHookDefinition
 }
@@ -403,10 +547,21 @@ private final class CodexAppServer {
         return try JSONDecoder().decode([CodexHookMetadata].self, from: encoded)
     }
 
-    func configure(_ hooks: [CodexHookMetadata], enabled: Bool) throws {
+    func setEnabled(_ hooks: [CodexHookMetadata], enabled: Bool) throws {
         let states = Dictionary(uniqueKeysWithValues: hooks.map { hook in
-            (hook.key, ["enabled": enabled, "trusted_hash": hook.currentHash] as [String: Any])
+            (hook.key, ["enabled": enabled] as [String: Any])
         })
+        try write(states)
+    }
+
+    func trustAndEnable(_ hooks: [CodexHookMetadata]) throws {
+        let states = Dictionary(uniqueKeysWithValues: hooks.map { hook in
+            (hook.key, ["enabled": true, "trusted_hash": hook.currentHash] as [String: Any])
+        })
+        try write(states)
+    }
+
+    private func write(_ states: [String: [String: Any]]) throws {
         _ = try request(
             method: "config/batchWrite",
             params: [
@@ -517,16 +672,28 @@ private struct SetupKeyboardAdapter: SetupKeyboardHealthProviding {
 }
 
 extension GuidedSetup {
+    @MainActor
     static func system() -> GuidedSetup? {
+        systemServices().setup
+    }
+
+    @MainActor
+    static func systemServices() -> (setup: GuidedSetup, runtime: (any KeyphoreRuntimeManaging)?) {
         let detector = SystemCodexHostDetector()
         guard let integration = SystemGuidedSetupIntegration(detector: detector) else {
-            return GuidedSetup(
-                hosts: detector,
-                integration: MissingHostIntegration(),
-                keyboard: SetupKeyboardAdapter()
+            return (
+                GuidedSetup(
+                    hosts: detector,
+                    integration: MissingHostIntegration(),
+                    keyboard: SetupKeyboardAdapter()
+                ),
+                nil
             )
         }
-        return GuidedSetup(hosts: detector, integration: integration, keyboard: SetupKeyboardAdapter())
+        return (
+            GuidedSetup(hosts: detector, integration: integration, keyboard: SetupKeyboardAdapter()),
+            SystemKeyphoreRuntimeAdapter(integration: integration)
+        )
     }
 }
 
@@ -538,4 +705,5 @@ private final class MissingHostIntegration: GuidedSetupIntegrating {
     func resetRuntimeState() throws { throw GuidedSetupError.codexHostMissing }
     func registerCompanion() throws { throw GuidedSetupError.codexHostMissing }
     func persistConfigured() throws { throw GuidedSetupError.codexHostMissing }
+    func setLoginLaunchEnabled(_ enabled: Bool) throws { throw GuidedSetupError.codexHostMissing }
 }

@@ -31,6 +31,72 @@ public enum KeyphoreRuntimePaths {
     ) -> URL {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "signal-preview.json")
     }
+
+    public static func quitGateURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "quit-gate")
+    }
+
+    public static func signalOffAcknowledgementURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "signal-off-ack")
+    }
+}
+
+public final class QuitGateStore: @unchecked Sendable {
+    public let url: URL
+    private let fileManager: FileManager
+
+    public init(url: URL, fileManager: FileManager = .default) {
+        self.url = url
+        self.fileManager = fileManager
+    }
+
+    public var isActive: Bool {
+        fileManager.fileExists(atPath: url.path)
+    }
+
+    public func activate() throws {
+        try fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: url, options: .atomic)
+    }
+
+    public func clear() throws {
+        guard isActive else { return }
+        try fileManager.removeItem(at: url)
+    }
+}
+
+public final class SignalOffAcknowledgementStore: @unchecked Sendable {
+    public let url: URL
+    private let fileManager: FileManager
+
+    public init(url: URL, fileManager: FileManager = .default) {
+        self.url = url
+        self.fileManager = fileManager
+    }
+
+    public var isAcknowledged: Bool {
+        fileManager.fileExists(atPath: url.path)
+    }
+
+    public func acknowledge() throws {
+        try fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: url, options: .atomic)
+    }
+
+    public func clear() throws {
+        guard isAcknowledged else { return }
+        try fileManager.removeItem(at: url)
+    }
 }
 
 public struct StatusTimestamp: Codable, Comparable, Equatable, Sendable {
@@ -344,17 +410,20 @@ public final class ProductionHookHandler: @unchecked Sendable {
     public static let attentionLifetime = Duration.seconds(60 * 60)
 
     private let store: DurableStatusStore
+    private let quitGate: QuitGateStore?
     private let lockBudget: Duration
     private let profileProvider: () throws -> LocalProfile
 
     public convenience init(
         store: DurableStatusStore,
         lockBudget: Duration = .milliseconds(100),
+        quitGate: QuitGateStore? = nil,
         profile: LocalProfile = .default
     ) {
         self.init(
             store: store,
             lockBudget: lockBudget,
+            quitGate: quitGate,
             profileProvider: { profile }
         )
     }
@@ -362,14 +431,17 @@ public final class ProductionHookHandler: @unchecked Sendable {
     public init(
         store: DurableStatusStore,
         lockBudget: Duration = .milliseconds(100),
+        quitGate: QuitGateStore? = nil,
         profileProvider: @escaping () throws -> LocalProfile
     ) {
         self.store = store
+        self.quitGate = quitGate
         self.lockBudget = lockBudget
         self.profileProvider = profileProvider
     }
 
     public func handle(_ input: Data, receivedAt: StatusTimestamp = .now) throws {
+        guard quitGate?.isActive != true else { return }
         let record = try PrivacyAllowedHookRecord(
             jsonData: input,
             receivedAt: String(receivedAt.millisecondsSince1970)
@@ -527,6 +599,7 @@ public final class KeyphoreCompanion {
     private let keyboardHealthStore: KeyboardHealthStore?
     private let lockBudget: Duration
     private let previewController: SignalPreviewController?
+    private let signalOffAcknowledgement: SignalOffAcknowledgementStore?
     private var applied: LightingBehavior?
 
     public convenience init(
@@ -535,7 +608,8 @@ public final class KeyphoreCompanion {
         lighting: any CompanionLightingApplying,
         keyboardHealthStore: KeyboardHealthStore? = nil,
         lockBudget: Duration = .milliseconds(100),
-        previewStore: SignalPreviewStore? = nil
+        previewStore: SignalPreviewStore? = nil,
+        signalOffAcknowledgement: SignalOffAcknowledgementStore? = nil
     ) {
         self.init(
             store: store,
@@ -543,7 +617,8 @@ public final class KeyphoreCompanion {
             lighting: lighting,
             keyboardHealthStore: keyboardHealthStore,
             lockBudget: lockBudget,
-            previewStore: previewStore
+            previewStore: previewStore,
+            signalOffAcknowledgement: signalOffAcknowledgement
         )
     }
 
@@ -553,13 +628,15 @@ public final class KeyphoreCompanion {
         lighting: any CompanionLightingApplying,
         keyboardHealthStore: KeyboardHealthStore? = nil,
         lockBudget: Duration = .milliseconds(100),
-        previewStore: SignalPreviewStore? = nil
+        previewStore: SignalPreviewStore? = nil,
+        signalOffAcknowledgement: SignalOffAcknowledgementStore? = nil
     ) {
         self.store = store
         self.profileProvider = profileProvider
         self.lighting = lighting
         self.keyboardHealthStore = keyboardHealthStore
         self.lockBudget = lockBudget
+        self.signalOffAcknowledgement = signalOffAcknowledgement
         if let previewStore, let evidenceLighting = lighting as? any CompanionLightingEvidenceApplying {
             previewController = SignalPreviewController(
                 store: previewStore,
@@ -589,10 +666,21 @@ public final class KeyphoreCompanion {
         let outcome = try store.outcome(at: now)
         let profile = try profileProvider()
         let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome), at: now)
-        guard behavior != applied else { return }
+        guard behavior != applied else {
+            if behavior == .off, signalOffAcknowledgement?.isAcknowledged == false {
+                try signalOffAcknowledgement?.acknowledge()
+            }
+            return
+        }
+        if behavior != .off {
+            try signalOffAcknowledgement?.clear()
+        }
         do {
             try lighting.apply(behavior)
             applied = behavior
+            if behavior == .off {
+                try signalOffAcknowledgement?.acknowledge()
+            }
             try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
         } catch {
             applied = nil

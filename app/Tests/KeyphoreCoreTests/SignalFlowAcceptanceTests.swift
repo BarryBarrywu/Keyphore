@@ -536,6 +536,53 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(fixture.lighting.behaviors, [.off])
     }
 
+    func testCompanionAcknowledgesSignalOffOnlyAfterApplyingIt() throws {
+        let fixture = try SignalFixture()
+        let acknowledgement = SignalOffAcknowledgementStore(
+            url: fixture.directory.appending(path: "signal-off-ack")
+        )
+        let companion = KeyphoreCompanion(
+            store: fixture.store,
+            profile: fixture.profile,
+            lighting: fixture.lighting,
+            signalOffAcknowledgement: acknowledgement
+        )
+
+        XCTAssertFalse(acknowledgement.isAcknowledged)
+
+        try companion.sync(at: .milliseconds(0))
+
+        XCTAssertTrue(acknowledgement.isAcknowledged)
+        XCTAssertEqual(fixture.lighting.behaviors, [.off])
+
+        try acknowledgement.clear()
+        try companion.sync(at: .milliseconds(1))
+
+        XCTAssertTrue(acknowledgement.isAcknowledged)
+        XCTAssertEqual(fixture.lighting.behaviors, [.off])
+    }
+
+    func testCachedHookInvocationAfterQuitReturnsWithoutWritingStatus() throws {
+        let fixture = try SignalFixture()
+        let quitGate = QuitGateStore(url: fixture.directory.appending(path: "quit-gate"))
+        try quitGate.activate()
+        let hook = ProductionHookHandler(
+            store: fixture.store,
+            quitGate: quitGate,
+            profile: fixture.profile
+        )
+        let input = Data(
+            """
+            {"hook_event_name":"UserPromptSubmit","session_id":"cached","turn_id":"turn-1"}
+            """.utf8
+        )
+
+        try hook.handle(input, receivedAt: .milliseconds(0))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.statusURL.path))
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+    }
+
     func testConcurrentHooksRemainAtomicWithinTheProductionLockBudget() throws {
         let fixture = try SignalFixture()
         let statusURL = fixture.statusURL
@@ -648,9 +695,14 @@ private final class RecordingMenuLightingAdapter: LightingEmitting {
 }
 
 private final class SignalFlowRuntimeAdapter: KeyphoreRuntimeManaging {
+    func activateQuitGate() {}
     func disableOwnedHooks() {}
     func stopCompanion() {}
     func clearManagedRuntimeState() {}
+    func requestSignalOff() {}
+    func enableOwnedHooksIfTrusted() -> Bool { true }
+    func startCompanion() {}
+    func clearQuitGate() {}
 }
 
 private final class SignalFixture {

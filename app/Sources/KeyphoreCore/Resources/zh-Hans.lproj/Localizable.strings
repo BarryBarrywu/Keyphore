@@ -36,6 +36,9 @@
 "setup.hooks_changed" = "已安装的 Hook 与本次审查版本不同。Keyphore 未信任它们；请运行修复并重新审查。";
 "setup.configured" = "Keyphore 已为当前 Mac 用户配置完成。";
 "setup.waiting_for_keyboard" = "通过有线 USB 连接一把 Air65 V3 后即可进入已就绪状态。";
+"setup.login_launch" = "登录 Mac 时启动 Keyphore";
+"settings.login_launch" = "登录时启动";
+"quit.error" = "Keyphore 未能完成安全退出流程，请重试。";
 "settings.visibility" = "显示";
 "settings.color" = "颜色";
 "settings.brightness" = "亮度";

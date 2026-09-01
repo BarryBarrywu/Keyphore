@@ -18,6 +18,7 @@ struct SignalSettingsView: View {
                             .monospacedDigit()
                     }
                 }
+                Toggle(AppCopy.value(.settingsLoginLaunch), isOn: loginLaunch)
             }
 
             previewSection
@@ -131,6 +132,13 @@ struct SignalSettingsView: View {
                     state.updateCompletionDisplayDuration(duration)
                 }
             }
+        )
+    }
+
+    private var loginLaunch: Binding<Bool> {
+        Binding(
+            get: { state.loginLaunchEnabled },
+            set: { state.updateLoginLaunch($0) }
         )
     }
 

@@ -12,6 +12,8 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var validationFailed = false
     @Published private(set) var previewStateFailed = false
     @Published private(set) var previewRecord: SignalPreviewRecord?
+    @Published private(set) var quitFailed = false
+    @Published var loginLaunchEnabled = true
 
     private let lifecycle: KeyphoreLifecycle
     private let guidedSetup: GuidedSetup?
@@ -20,7 +22,7 @@ final class KeyphoreAppState: ObservableObject {
     private let previewStore: SignalPreviewStore?
     private var durableStatusTimer: Timer?
 
-    private init(
+    init(
         lifecycle: KeyphoreLifecycle,
         guidedSetup: GuidedSetup? = nil,
         systemHealth: SystemKeyphoreHealthAdapter? = nil,
@@ -48,6 +50,9 @@ final class KeyphoreAppState: ObservableObject {
         if let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
             systemHealth?.isConfigured = inspected.phase.isConfigured
+            if inspected.phase.isConfigured {
+                loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
+            }
         }
         durableStatusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
             [weak self] _ in
@@ -66,9 +71,12 @@ final class KeyphoreAppState: ObservableObject {
         let profileStore: LocalProfileStore?
         let previewStore: SignalPreviewStore?
         let profiles: any LocalProfileProviding
+        let runtime: any KeyphoreRuntimeManaging
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             durableStatus = SystemDurableStatusAdapter()
-            guidedSetup = .system()
+            let services = GuidedSetup.systemServices()
+            guidedSetup = services.setup
+            runtime = services.runtime ?? FixtureRuntimeAdapter()
             let configured = guidedSetup.flatMap { try? $0.inspect() }?.phase.isConfigured ?? false
             let adapter = SystemKeyphoreHealthAdapter(isConfigured: configured)
             systemHealth = adapter
@@ -86,14 +94,18 @@ final class KeyphoreAppState: ObservableObject {
             profileStore = nil
             previewStore = nil
             profiles = FixtureProfileAdapter()
+            runtime = FixtureRuntimeAdapter()
         }
         let lifecycle = KeyphoreLifecycle(
             health: health,
             profiles: profiles,
             durableStatus: durableStatus,
             lighting: FixtureLightingAdapter(),
-            runtime: FixtureRuntimeAdapter()
+            runtime: runtime
         )
+        if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
+            _ = try? lifecycle.reopenIfNeeded()
+        }
         self.init(
             lifecycle: lifecycle,
             guidedSetup: guidedSetup,
@@ -113,12 +125,16 @@ final class KeyphoreAppState: ObservableObject {
         setupIsWorking = true
         setupFailed = false
         setupHooksChanged = false
+        let loginLaunchEnabled = loginLaunchEnabled
         Task {
             do {
                 let configured = try await Task.detached {
-                    try guidedSetup.configureAfterReview()
+                    try guidedSetup.configureAfterReview(
+                        loginLaunchEnabled: loginLaunchEnabled
+                    )
                 }.value
                 apply(configured)
+                self.loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
                 snapshot = lifecycle.refresh()
             } catch {
                 setupFailed = true
@@ -128,8 +144,30 @@ final class KeyphoreAppState: ObservableObject {
         }
     }
 
-    func prepareToQuit() {
-        lifecycle.quit()
+    func prepareToQuit() -> Bool {
+        do {
+            try lifecycle.quit()
+            quitFailed = false
+            return true
+        } catch {
+            quitFailed = true
+            return false
+        }
+    }
+
+    func reopenIfNeeded() throws -> ReopenOutcome? {
+        try lifecycle.reopenIfNeeded()
+    }
+
+    func updateLoginLaunch(_ enabled: Bool) {
+        guard let guidedSetup else { return }
+        do {
+            try guidedSetup.setLoginLaunchEnabled(enabled)
+            loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
+            settingsFailed = false
+        } catch {
+            settingsFailed = true
+        }
     }
 
     func updateAppearance(_ appearance: SignalAppearance, for signal: CodexSignal) {
@@ -305,7 +343,7 @@ private struct SystemDurableStatusAdapter: DurableStatusProviding {
     }
 }
 
-private final class SystemKeyphoreHealthAdapter: KeyphoreHealthProviding {
+final class SystemKeyphoreHealthAdapter: KeyphoreHealthProviding {
     var isConfigured: Bool
     private let keyboardHealth = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
 
@@ -332,7 +370,12 @@ private final class FixtureLightingAdapter: LightingEmitting {
 }
 
 private final class FixtureRuntimeAdapter: KeyphoreRuntimeManaging {
+    func activateQuitGate() {}
     func disableOwnedHooks() {}
     func stopCompanion() {}
     func clearManagedRuntimeState() {}
+    func requestSignalOff() {}
+    func enableOwnedHooksIfTrusted() -> Bool { true }
+    func startCompanion() {}
+    func clearQuitGate() {}
 }

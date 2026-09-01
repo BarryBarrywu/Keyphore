@@ -73,7 +73,10 @@ targets:
     sources:
       - path: app/Tests/KeyphoreAppTests
       - path: app/Sources/KeyphoreApp/AggregateSignal+Presentation.swift
+      - path: app/Sources/KeyphoreApp/KeyphoreAppDelegate.swift
+      - path: app/Sources/KeyphoreApp/KeyphoreAppState.swift
       - path: app/Sources/KeyphoreApp/SignalColor+SwiftUI.swift
+      - path: app/Sources/KeyphoreApp/SystemGuidedSetup.swift
     dependencies:
       - package: KeyphoreAppModules
         product: KeyphoreCore

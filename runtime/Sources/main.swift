@@ -15,6 +15,7 @@ case "hook":
     guard
         (try? ProductionHookHandler(
             store: store,
+            quitGate: QuitGateStore(url: KeyphoreRuntimePaths.quitGateURL()),
             profileProvider: { profileStore.loadOrDefault() }
         ).handle(input)) != nil
     else {
@@ -35,7 +36,10 @@ case "companion":
         profileProvider: { try profileStore.load() },
         lighting: lighting,
         keyboardHealthStore: healthStore,
-        previewStore: previewStore
+        previewStore: previewStore,
+        signalOffAcknowledgement: SignalOffAcknowledgementStore(
+            url: KeyphoreRuntimePaths.signalOffAcknowledgementURL()
+        )
     )
     let recovery = CompanionRecoveryController(companion: companion)
     let powerEvents = SystemPowerEventMonitor { event in

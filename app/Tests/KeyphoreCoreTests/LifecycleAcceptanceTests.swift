@@ -70,7 +70,7 @@ final class LifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(lighting.behaviors, [.signal(profile.execution)])
     }
 
-    func testQuitDisablesManagedRuntimeBeforeEmittingSignalOff() {
+    func testQuitClosesGateBeforeDisablingOnlyOwnedRuntimeAndSignalSurface() throws {
         let runtime = RecordingRuntimeAdapter()
         let lighting = RecordingLightingAdapter()
         let lifecycle = KeyphoreLifecycle(
@@ -81,10 +81,51 @@ final class LifecycleAcceptanceTests: XCTestCase {
             runtime: runtime
         )
 
-        lifecycle.quit()
+        try lifecycle.quit()
 
-        XCTAssertEqual(runtime.actions, [.disableOwnedHooks, .stopCompanion, .clearManagedRuntimeState])
-        XCTAssertEqual(lighting.behaviors, [.off])
+        XCTAssertEqual(
+            runtime.actions,
+            [.activateQuitGate, .disableOwnedHooks, .clearManagedRuntimeState, .requestSignalOff, .stopCompanion]
+        )
+        XCTAssertTrue(lighting.behaviors.isEmpty)
+    }
+
+    func testReopenStartsFreshAndRestoresOnlyTrustedUnchangedHooks() throws {
+        let runtime = RecordingRuntimeAdapter(hooksMatchReviewedRelease: true)
+        let lifecycle = KeyphoreLifecycle(
+            health: FixedHealthAdapter(.configured(keyboard: .disconnected)),
+            profiles: FixedProfileAdapter(.default),
+            durableStatus: FixedDurableStatusAdapter(.execution),
+            lighting: RecordingLightingAdapter(),
+            runtime: runtime
+        )
+
+        let outcome = try lifecycle.reopen()
+
+        XCTAssertEqual(outcome, .restored)
+        XCTAssertEqual(
+            runtime.actions,
+            [.clearManagedRuntimeState, .startCompanion, .requestSignalOff, .enableOwnedHooksIfTrusted, .clearQuitGate]
+        )
+    }
+
+    func testReopenKeepsChangedHookDefinitionsDisabledAndQuitGateClosed() throws {
+        let runtime = RecordingRuntimeAdapter(hooksMatchReviewedRelease: false)
+        let lifecycle = KeyphoreLifecycle(
+            health: FixedHealthAdapter(.configured(keyboard: .disconnected)),
+            profiles: FixedProfileAdapter(.default),
+            durableStatus: FixedDurableStatusAdapter(.execution),
+            lighting: RecordingLightingAdapter(),
+            runtime: runtime
+        )
+
+        let outcome = try lifecycle.reopen()
+
+        XCTAssertEqual(outcome, .renewedConsentRequired)
+        XCTAssertEqual(
+            runtime.actions,
+            [.clearManagedRuntimeState, .startCompanion, .requestSignalOff, .enableOwnedHooksIfTrusted]
+        )
     }
 }
 
@@ -128,12 +169,26 @@ private final class RecordingLightingAdapter: LightingEmitting {
 
 private final class RecordingRuntimeAdapter: KeyphoreRuntimeManaging {
     enum Action: Equatable {
+        case activateQuitGate
         case disableOwnedHooks
         case stopCompanion
         case clearManagedRuntimeState
+        case requestSignalOff
+        case enableOwnedHooksIfTrusted
+        case startCompanion
+        case clearQuitGate
     }
 
     private(set) var actions: [Action] = []
+    private let hooksMatchReviewedRelease: Bool
+
+    init(hooksMatchReviewedRelease: Bool = true) {
+        self.hooksMatchReviewedRelease = hooksMatchReviewedRelease
+    }
+
+    func activateQuitGate() {
+        actions.append(.activateQuitGate)
+    }
 
     func disableOwnedHooks() {
         actions.append(.disableOwnedHooks)
@@ -145,5 +200,22 @@ private final class RecordingRuntimeAdapter: KeyphoreRuntimeManaging {
 
     func clearManagedRuntimeState() {
         actions.append(.clearManagedRuntimeState)
+    }
+
+    func requestSignalOff() {
+        actions.append(.requestSignalOff)
+    }
+
+    func enableOwnedHooksIfTrusted() -> Bool {
+        actions.append(.enableOwnedHooksIfTrusted)
+        return hooksMatchReviewedRelease
+    }
+
+    func startCompanion() {
+        actions.append(.startCompanion)
+    }
+
+    func clearQuitGate() {
+        actions.append(.clearQuitGate)
     }
 }

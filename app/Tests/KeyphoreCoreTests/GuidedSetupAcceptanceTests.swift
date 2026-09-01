@@ -202,8 +202,36 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
                 .resetRuntimeState,
                 .registerCompanion,
                 .persistConfigured,
+                .finishConfiguration,
             ]
         )
+    }
+
+    func testGuidedSetupAppliesExplicitLoginLaunchChoiceOnlyAfterConfiguration() throws {
+        for enabled in [true, false] {
+            let integration = RecordingSetupIntegration()
+            let setup = GuidedSetup(
+                hosts: FixedCodexHostDetector([.desktopApp]),
+                integration: integration,
+                keyboard: FixedSetupKeyboard(.disconnected)
+            )
+
+            _ = try setup.configureAfterReview(loginLaunchEnabled: enabled)
+
+            XCTAssertEqual(
+                integration.actions,
+                [
+                    .stage,
+                    .readHookHashes,
+                    .trust,
+                    .resetRuntimeState,
+                    .registerCompanion,
+                    .persistConfigured,
+                    .finishConfiguration,
+                    .setLoginLaunch(enabled),
+                ]
+            )
+        }
     }
 
     func testChangedHookHashCannotReceiveConsentOrReachConfigured() throws {
@@ -250,6 +278,7 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
                 .resetRuntimeState,
                 .registerCompanion,
                 .persistConfigured,
+                .finishConfiguration,
             ]
         )
         XCTAssertEqual(integration.unrelatedPluginState, "preserved")
@@ -280,6 +309,7 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
                 .resetRuntimeState,
                 .registerCompanion,
                 .persistConfigured,
+                .finishConfiguration,
             ]
         )
     }
@@ -301,7 +331,7 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
 
         _ = try setup.configureAfterReview()
 
-        XCTAssertEqual(integration.actions, [.readHookHashes, .registerCompanion])
+        XCTAssertEqual(integration.actions, [.readHookHashes, .registerCompanion, .finishConfiguration])
     }
 
     func testManagedRuntimeIntegrityFailsClosedAndRequiresEveryExecutableCopyToMatch() throws {
@@ -403,7 +433,7 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
 
         _ = try setup.configureAfterReview()
 
-        XCTAssertEqual(integration.actions, [.stage, .readHookHashes, .trust])
+        XCTAssertEqual(integration.actions, [.stage, .readHookHashes, .trust, .finishConfiguration])
     }
 
     func testConfiguredNeedsHealthyKeyboardBeforeItCanBeReady() throws {
@@ -457,6 +487,8 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
         case resetRuntimeState
         case registerCompanion
         case persistConfigured
+        case setLoginLaunch(Bool)
+        case finishConfiguration
     }
 
     private(set) var actions: [Action] = []
@@ -527,5 +559,13 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
             companionRegistered: integrationHealth.companionRegistered,
             managedStatePresent: true
         )
+    }
+
+    func setLoginLaunchEnabled(_ enabled: Bool) throws {
+        actions.append(.setLoginLaunch(enabled))
+    }
+
+    func finishConfiguration() throws {
+        actions.append(.finishConfiguration)
     }
 }

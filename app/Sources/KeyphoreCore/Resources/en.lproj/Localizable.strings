@@ -36,6 +36,9 @@
 "setup.hooks_changed" = "The installed Hooks differ from this reviewed release. Keyphore kept them untrusted; run repair to reinstall and review them again.";
 "setup.configured" = "Keyphore is configured for this Mac user.";
 "setup.waiting_for_keyboard" = "Connect one Air65 V3 over wired USB to become Ready.";
+"setup.login_launch" = "Start Keyphore when I log in";
+"settings.login_launch" = "Launch at login";
+"quit.error" = "Keyphore could not finish its safe quit sequence. Try again.";
 "settings.visibility" = "Visible";
 "settings.color" = "Color";
 "settings.brightness" = "Brightness";
