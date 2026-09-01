@@ -270,6 +270,10 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         if !(try marketplaceIsInstalled()) {
             _ = try runCodex(["plugin", "marketplace", "add", marketplaceRoot.path, "--json"])
         }
+        if try allInstalledPluginIDs().contains(Self.pluginID) {
+            guard !(try installedPluginIsCurrent()) else { return }
+            _ = try runCodex(["plugin", "remove", Self.pluginID, "--json"])
+        }
         _ = try runCodex(["plugin", "add", Self.pluginID, "--json"])
     }
 
@@ -308,6 +312,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             throw SystemSetupError.companionStillRunning
         }
         _ = try run(launchctlURL, ["bootstrap", launchDomain, launchAgentURL.path])
+        if try companionIsRunningForDiagnostics() {
+            return
+        }
         _ = try run(launchctlURL, ["kickstart", "-k", launchTarget])
     }
 
@@ -651,12 +658,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         else {
             return false
         }
-        let installedRuntimeURLs = Set(hooks.map {
-            URL(fileURLWithPath: $0.sourcePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appending(path: "bin/keyphore")
-        })
+        let installedRuntimeURLs = installedRuntimeURLs(from: hooks)
         guard installedRuntimeURLs.count == 1, let installedRuntimeURL = installedRuntimeURLs.first
         else {
             return false
@@ -674,6 +676,35 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
 
     private func helperDigest() throws -> String {
         ManagedRuntimeIntegrity.digest(try Data(contentsOf: helperURL))
+    }
+
+    private func installedPluginIsCurrent() throws -> Bool {
+        let metadata = try hookMetadata()
+        let installedRuntimeURLs = installedRuntimeURLs(from: metadata)
+        guard installedRuntimeURLs.count == 1, let installedRuntimeURL = installedRuntimeURLs.first
+        else {
+            return false
+        }
+        guard ManagedRuntimeIntegrity.isCurrent(
+            recordedDigest: try helperDigest(),
+            runtimeURLs: [
+                pluginRoot.appending(path: "bin/keyphore"),
+                installedRuntimeURL,
+            ],
+            fileManager: fileManager
+        ) else {
+            return false
+        }
+        return (try? validateOwnedMetadata(metadata)) == HookDefinition.reviewedHashes
+    }
+
+    private func installedRuntimeURLs(from hooks: [CodexHookMetadata]) -> Set<URL> {
+        Set(hooks.map {
+            URL(fileURLWithPath: $0.sourcePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appending(path: "bin/keyphore")
+        })
     }
 
     private func materializeMarketplace() throws {

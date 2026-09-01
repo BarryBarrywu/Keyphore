@@ -425,9 +425,10 @@ public final class GuidedSetup: @unchecked Sendable {
             break
         }
         let reviewedHooks = HookDefinition.reviewedRelease
-        let health = try integration.health()
+        var health = try integration.health()
         if !health.pluginInstalled || !health.hooksTrusted || !health.managedStatePresent {
             try integration.stage(reviewedHooks)
+            health = try integration.health()
         }
         let installedHashes = try integration.installedHookHashes()
         guard installedHashes == HookDefinition.reviewedHashes else {

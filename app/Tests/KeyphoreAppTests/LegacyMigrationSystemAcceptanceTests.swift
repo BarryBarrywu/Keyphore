@@ -48,6 +48,30 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         XCTAssertThrowsError(try integration.companionIsRunningForDiagnostics())
     }
 
+    func testCompanionRegistrationSucceedsWhenBootstrapAlreadyStartedTheJob() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try Data().write(to: fixture.kickstartFailure)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper
+            )
+        )
+
+        try integration.registerCompanion()
+
+        XCTAssertTrue(try integration.companionIsRunningForDiagnostics())
+    }
+
     func testOtherPluginIsNotReportedAsKeyphoreOwned() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -73,6 +97,78 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         XCTAssertFalse(health.companionRegistered)
         XCTAssertFalse(health.managedStatePresent)
         XCTAssertEqual(try String(contentsOf: fixture.otherPluginState), "preserved")
+    }
+
+    func testStagingAnInstalledPluginRefreshesItsCodexCache() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try FileManager.default.removeItem(at: fixture.legacyState)
+        try "keyphore@keyphore-app\nother@product\n".write(
+            to: fixture.pluginState,
+            atomically: true,
+            encoding: .utf8
+        )
+        try "stale-runtime".write(
+            to: fixture.cachedHelper,
+            atomically: true,
+            encoding: .utf8
+        )
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper
+            )
+        )
+
+        try integration.stage(HookDefinition.reviewedRelease)
+
+        let commands = try String(contentsOf: fixture.commandLog)
+        XCTAssertTrue(commands.contains("plugin remove keyphore@keyphore-app"))
+        XCTAssertTrue(commands.contains("plugin add keyphore@keyphore-app"))
+        XCTAssertEqual(
+            try Data(contentsOf: fixture.cachedHelper),
+            try Data(contentsOf: fixture.helper)
+        )
+    }
+
+    func testStagingRefreshesStaleHookDefinitionsWhenTheRuntimeAlreadyMatches() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try FileManager.default.removeItem(at: fixture.legacyState)
+        try "keyphore@keyphore-app\nother@product\n".write(
+            to: fixture.pluginState,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.copyItem(at: fixture.helper, to: fixture.cachedHelper)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper
+            )
+        )
+
+        try integration.stage(HookDefinition.reviewedRelease)
+
+        let commands = try String(contentsOf: fixture.commandLog)
+        XCTAssertTrue(commands.contains("plugin remove keyphore@keyphore-app"))
+        XCTAssertTrue(commands.contains("plugin add keyphore@keyphore-app"))
     }
 
     func testInspectionDetectsKnownLegacyOwnershipWithoutChangingEitherPlugin() throws {
@@ -247,6 +343,8 @@ private struct LegacyMigrationFixture {
     let launchctl: URL
     let processList: URL
     let helper: URL
+    let cachedPlugin: URL
+    let cachedHelper: URL
     let commandLog: URL
     let otherPluginState: URL
     let legacyState: URL
@@ -258,6 +356,7 @@ private struct LegacyMigrationFixture {
     let orphanProcess: URL
     let staleRemoval: URL
     let launchctlFailure: URL
+    let kickstartFailure: URL
 
     init() throws {
         let fileManager = FileManager.default
@@ -267,6 +366,8 @@ private struct LegacyMigrationFixture {
         launchctl = bin.appending(path: "launchctl")
         processList = bin.appending(path: "ps")
         helper = root.appending(path: "current-keyphore")
+        cachedPlugin = root.appending(path: "codex-cache/keyphore")
+        cachedHelper = cachedPlugin.appending(path: "bin/keyphore")
         commandLog = root.appending(path: "commands.log")
         otherPluginState = root.appending(path: "other-plugin-state")
         pluginState = root.appending(path: "plugins.txt")
@@ -277,11 +378,19 @@ private struct LegacyMigrationFixture {
         orphanProcess = root.appending(path: "orphan-process")
         staleRemoval = root.appending(path: "stale-removal")
         launchctlFailure = root.appending(path: "launchctl-failure")
+        kickstartFailure = root.appending(path: "kickstart-failure")
         let support = home.appending(path: "Library/Application Support/Keyphore")
         legacyState = support.appending(path: "lifecycle.json")
         let launchAgents = home.appending(path: "Library/LaunchAgents")
         let legacyPlugin = root.appending(path: "legacy-plugin")
-        for directory in [bin, support, launchAgents, legacyPlugin.appending(path: "hooks")] {
+        for directory in [
+            bin,
+            support,
+            launchAgents,
+            legacyPlugin.appending(path: "hooks"),
+            cachedPlugin.appending(path: "hooks"),
+            cachedPlugin.appending(path: "bin"),
+        ] {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         try "preserved".write(to: otherPluginState, atomically: true, encoding: .utf8)
@@ -306,8 +415,14 @@ private struct LegacyMigrationFixture {
             contents: """
             #!/bin/sh
             printf 'codex %s\\n' "$*" >> '\(commandLog.path)'
+            if [ "$1" = "plugin" ] && [ "$2" = "marketplace" ] && [ "$3" = "list" ]; then
+              printf '%s\\n' '{"marketplaces":[]}'
+              exit 0
+            fi
             if [ "$1" = "plugin" ] && [ "$2" = "list" ]; then
-              if /usr/bin/grep -Fxq 'keyphore@keyphore' '\(pluginState.path)'; then
+              if /usr/bin/grep -Fxq 'keyphore@keyphore-app' '\(pluginState.path)'; then
+                printf '%s\\n' '{"installed":[{"pluginId":"keyphore@keyphore-app","enabled":true},{"pluginId":"other@product","enabled":true}]}'
+              elif /usr/bin/grep -Fxq 'keyphore@keyphore' '\(pluginState.path)'; then
                 printf '%s\\n' '{"installed":[{"pluginId":"keyphore@keyphore","enabled":true},{"pluginId":"other@product","enabled":true},{"pluginId":"keyphore@third-party","enabled":true}]}'
               else
                 printf '%s\\n' '{"installed":[{"pluginId":"other@product","enabled":true},{"pluginId":"keyphore@third-party","enabled":true}]}'
@@ -320,12 +435,19 @@ private struct LegacyMigrationFixture {
               /bin/mv '\(pluginState.path).tmp' '\(pluginState.path)'
               exit 0
             fi
+            if [ "$1" = "plugin" ] && [ "$2" = "add" ]; then
+              /usr/bin/grep -Fxq "$3" '\(pluginState.path)' || printf '%s\\n' "$3" >> '\(pluginState.path)'
+              /bin/cp '\(support.appending(path: "Marketplace/plugin/bin/keyphore").path)' '\(cachedHelper.path)'
+              exit 0
+            fi
             if [ "$1" = "app-server" ]; then
               read initialize
               printf '%s\\n' '{"id":1,"result":{"userAgent":"test"}}'
               read initialized
               read request
-              if /usr/bin/grep -Fxq 'keyphore@keyphore' '\(pluginState.path)'; then
+              if /usr/bin/grep -Fxq 'keyphore@keyphore-app' '\(pluginState.path)'; then
+                printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"current","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":true,"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
+              elif /usr/bin/grep -Fxq 'keyphore@keyphore' '\(pluginState.path)'; then
                 printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"legacy","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"legacy","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(legacyPlugin.path)/hooks/hooks.json","pluginId":"keyphore@keyphore","enabled":true,"isManaged":false,"currentHash":"sha256:legacy","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
               else
                 printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[],"warnings":[],"errors":[]}]}}'
@@ -374,7 +496,10 @@ private struct LegacyMigrationFixture {
               /usr/bin/touch '\(currentRunning.path)'
               exit 0
             fi
-            if [ "$command" = "kickstart" ]; then exit 0; fi
+            if [ "$command" = "kickstart" ]; then
+              [ -e '\(kickstartFailure.path)' ] && exit 1
+              exit 0
+            fi
             exit 1
             """
         )
