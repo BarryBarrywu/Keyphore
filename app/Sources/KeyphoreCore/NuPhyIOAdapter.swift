@@ -8,6 +8,7 @@ public protocol Air65ReportTransport: AnyObject {
 public protocol Air65TransportDiscovering: AnyObject {
     func discover() throws -> [HIDDeviceDescriptor]
     func open(_ descriptor: HIDDeviceDescriptor) throws -> any Air65ReportTransport
+    func resetDiscoveryState()
 }
 
 public enum VisualConfirmation: Equatable, Sendable {
@@ -40,6 +41,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
     private let discovery: any Air65TransportDiscovering
     private let makeChallenge: () -> [UInt8]
     private var ownedTransport: (any Air65ReportTransport)?
+    private var discoveryNeedsReset = false
 
     public convenience init(discovery: any Air65TransportDiscovering) {
         self.init(discovery: discovery, challenge: Self.randomChallenge)
@@ -55,11 +57,11 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     public func applyAndVerify(_ behavior: LightingBehavior) throws -> NuPhyIOEvidence {
         let expected = try mainState(for: behavior)
-        let transport = try acquireTransport()
         do {
+            let transport = try acquireTransport()
             return try applyAndVerify(expected, using: transport)
         } catch {
-            ownedTransport = nil
+            invalidateTransport()
             throw error
         }
     }
@@ -109,25 +111,30 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     public func displays(_ behavior: LightingBehavior) throws -> Bool {
         let expected = try mainState(for: behavior)
-        let transport = try acquireTransport()
         do {
+            let transport = try acquireTransport()
             let challenge = makeChallenge()
             let key = try startTemporarySession(transport, challenge: challenge)
             let current = try readLightState(transport, key: key)
             return mainStateMatches(current, expected: expected)
         } catch {
-            ownedTransport = nil
+            invalidateTransport()
             throw error
         }
     }
 
     public func invalidateTransport() {
         ownedTransport = nil
+        discoveryNeedsReset = true
     }
 
     private func acquireTransport() throws -> any Air65ReportTransport {
         if let ownedTransport {
             return ownedTransport
+        }
+        if discoveryNeedsReset {
+            discovery.resetDiscoveryState()
+            discoveryNeedsReset = false
         }
         let selected = try Air65DeviceSelector.select(from: discovery.discover())
         let transport = try discovery.open(selected)

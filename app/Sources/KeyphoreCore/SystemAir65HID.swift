@@ -2,13 +2,12 @@ import Foundation
 import IOKit.hid
 
 public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
-    private let manager: IOHIDManager
+    private var manager: IOHIDManager
     private var devicesByID: [String: IOHIDDevice] = [:]
     private var reportStatesByID: [String: SystemAir65ReportState] = [:]
 
     public init() {
-        manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        IOHIDManagerSetDeviceMatching(manager, nil)
+        manager = Self.makeManager()
     }
 
     deinit {
@@ -64,6 +63,19 @@ public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
         let state = reportStatesByID[descriptor.id] ?? SystemAir65ReportState()
         reportStatesByID[descriptor.id] = state
         return try SystemAir65ReportTransport(device: device, state: state)
+    }
+
+    public func resetDiscoveryState() {
+        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        devicesByID.removeAll(keepingCapacity: true)
+        reportStatesByID.removeAll(keepingCapacity: true)
+        manager = Self.makeManager()
+    }
+
+    private static func makeManager() -> IOHIDManager {
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        IOHIDManagerSetDeviceMatching(manager, nil)
+        return manager
     }
 
     private func numberProperty(_ device: IOHIDDevice, _ key: String) -> Int? {

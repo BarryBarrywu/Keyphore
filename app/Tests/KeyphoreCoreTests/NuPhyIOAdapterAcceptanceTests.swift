@@ -175,10 +175,12 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         let adapter = NuPhyIOAdapter(discovery: discovery, challenge: { challenge })
 
         try adapter.apply(.off)
+        discovery.isStale = true
         adapter.invalidateTransport()
         try adapter.apply(.off)
 
         XCTAssertEqual(discovery.openCount, 2)
+        XCTAssertEqual(discovery.invalidationCount, 1)
     }
 
     func testUnavailableDeviceRecoversThroughValidationAndAggregateReplayWithoutPreview() throws {
@@ -223,7 +225,8 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
                 ),
             ]
         )
-        let discovery = FakeDiscovery(devices: [], transport: transport)
+        let discovery = FakeDiscovery(devices: [air65()], transport: transport)
+        discovery.isStale = true
         let companion = KeyphoreCompanion(
             store: store,
             profile: .default,
@@ -234,12 +237,12 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
 
         XCTAssertThrowsError(try recovery.poll(at: .milliseconds(100)))
         XCTAssertEqual(healthStore.load(at: .milliseconds(100)), .disconnected)
-        discovery.devices = [air65()]
 
         try recovery.poll(at: .milliseconds(200))
 
         XCTAssertEqual(try store.load(), statusBeforeRecovery)
         XCTAssertEqual(healthStore.load(at: .milliseconds(200)), .connected(protocolHealthy: true))
+        XCTAssertEqual(discovery.invalidationCount, 1)
         XCTAssertEqual(discovery.openCount, 1)
         XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd6, 0xd5])
     }
@@ -292,19 +295,26 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
 
 private final class FakeDiscovery: Air65TransportDiscovering {
     var devices: [HIDDeviceDescriptor]
+    var isStale = false
     let transport: FakeReportTransport
     private(set) var openCount = 0
+    private(set) var invalidationCount = 0
 
     init(devices: [HIDDeviceDescriptor], transport: FakeReportTransport) {
         self.devices = devices
         self.transport = transport
     }
 
-    func discover() throws -> [HIDDeviceDescriptor] { devices }
+    func discover() throws -> [HIDDeviceDescriptor] { isStale ? [] : devices }
 
     func open(_ descriptor: HIDDeviceDescriptor) throws -> any Air65ReportTransport {
         openCount += 1
         return transport
+    }
+
+    func resetDiscoveryState() {
+        invalidationCount += 1
+        isStale = false
     }
 }
 
