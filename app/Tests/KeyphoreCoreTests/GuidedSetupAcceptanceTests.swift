@@ -195,7 +195,14 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         XCTAssertEqual(snapshot.phase, .configured)
         XCTAssertEqual(
             integration.actions,
-            [.stage, .readHookHashes, .trust, .registerCompanion, .persistConfigured]
+            [
+                .stage,
+                .readHookHashes,
+                .trust,
+                .resetRuntimeState,
+                .registerCompanion,
+                .persistConfigured,
+            ]
         )
     }
 
@@ -237,7 +244,13 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         XCTAssertEqual(snapshot.phase, .configured)
         XCTAssertEqual(
             integration.actions,
-            [.stage, .readHookHashes, .registerCompanion, .persistConfigured]
+            [
+                .stage,
+                .readHookHashes,
+                .resetRuntimeState,
+                .registerCompanion,
+                .persistConfigured,
+            ]
         )
         XCTAssertEqual(integration.unrelatedPluginState, "preserved")
     }
@@ -261,8 +274,34 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
 
         XCTAssertEqual(
             integration.actions,
-            [.stage, .readHookHashes, .registerCompanion, .persistConfigured]
+            [
+                .stage,
+                .readHookHashes,
+                .resetRuntimeState,
+                .registerCompanion,
+                .persistConfigured,
+            ]
         )
+    }
+
+    func testCurrentManagedRuntimePreservesOwnersWhenOnlyCompanionRegistrationIsMissing() throws {
+        let integration = RecordingSetupIntegration(
+            health: SetupIntegrationHealth(
+                pluginInstalled: true,
+                hooksTrusted: true,
+                companionRegistered: false,
+                managedStatePresent: true
+            )
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        _ = try setup.configureAfterReview()
+
+        XCTAssertEqual(integration.actions, [.readHookHashes, .registerCompanion])
     }
 
     func testManagedRuntimeIntegrityFailsClosedAndRequiresEveryExecutableCopyToMatch() throws {
@@ -337,7 +376,13 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         }
         XCTAssertEqual(
             integration.actions,
-            [.stage, .readHookHashes, .registerCompanion, .persistConfigured]
+            [
+                .stage,
+                .readHookHashes,
+                .resetRuntimeState,
+                .registerCompanion,
+                .persistConfigured,
+            ]
         )
     }
 
@@ -409,6 +454,7 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
         case stage
         case readHookHashes
         case trust
+        case resetRuntimeState
         case registerCompanion
         case persistConfigured
     }
@@ -456,6 +502,10 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
             companionRegistered: integrationHealth.companionRegistered,
             managedStatePresent: integrationHealth.managedStatePresent
         )
+    }
+
+    func resetRuntimeState() throws {
+        actions.append(.resetRuntimeState)
     }
 
     func registerCompanion() throws {

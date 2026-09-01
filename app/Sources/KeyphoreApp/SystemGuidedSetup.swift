@@ -145,6 +145,11 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         }
     }
 
+    func resetRuntimeState() throws {
+        try DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL())
+            .reset(lockBudget: .seconds(1))
+    }
+
     func registerCompanion() throws {
         guard fileManager.isExecutableFile(atPath: helperURL.path) else {
             throw SystemSetupError.runtimeMissing
@@ -530,6 +535,7 @@ private final class MissingHostIntegration: GuidedSetupIntegrating {
     func stage(_ hooks: [HookDefinition]) throws { throw GuidedSetupError.codexHostMissing }
     func installedHookHashes() throws -> [HookEvent: String] { [:] }
     func trust(_ hooks: [HookDefinition]) throws { throw GuidedSetupError.codexHostMissing }
+    func resetRuntimeState() throws { throw GuidedSetupError.codexHostMissing }
     func registerCompanion() throws { throw GuidedSetupError.codexHostMissing }
     func persistConfigured() throws { throw GuidedSetupError.codexHostMissing }
 }

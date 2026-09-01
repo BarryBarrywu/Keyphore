@@ -83,8 +83,14 @@ struct KeyphorePopover: View {
     private var actions: some View {
         HStack {
             if state.menuState != .configurationRequired {
-                Button(AppCopy.value(.settings)) {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                if #available(macOS 14.0, *) {
+                    SettingsLink {
+                        Text(AppCopy.value(.settings))
+                    }
+                } else {
+                    Button(AppCopy.value(.settings)) {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    }
                 }
             }
             Button(AppCopy.value(.diagnostics)) {

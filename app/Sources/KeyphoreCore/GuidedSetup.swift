@@ -266,6 +266,7 @@ public protocol GuidedSetupIntegrating: AnyObject {
     func stage(_ hooks: [HookDefinition]) throws
     func installedHookHashes() throws -> [HookEvent: String]
     func trust(_ hooks: [HookDefinition]) throws
+    func resetRuntimeState() throws
     func registerCompanion() throws
     func persistConfigured() throws
 }
@@ -326,6 +327,9 @@ public final class GuidedSetup: @unchecked Sendable {
         }
         if !health.hooksTrusted {
             try integration.trust(reviewedHooks)
+        }
+        if !health.managedStatePresent {
+            try integration.resetRuntimeState()
         }
         if !health.companionRegistered || !health.managedStatePresent {
             try integration.registerCompanion()

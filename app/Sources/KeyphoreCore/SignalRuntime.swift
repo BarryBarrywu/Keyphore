@@ -256,6 +256,12 @@ public final class DurableStatusStore: @unchecked Sendable {
         }
     }
 
+    public func reset(lockBudget: Duration) throws {
+        try update(lockBudget: lockBudget) { status in
+            status = DurableStatus()
+        }
+    }
+
     public func expire(_ expiry: SignalExpiry, at now: StatusTimestamp, lockBudget: Duration)
         throws
     {

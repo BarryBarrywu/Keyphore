@@ -4,6 +4,15 @@ import KeyphoreCore
 import XCTest
 
 final class SignalFlowAcceptanceTests: XCTestCase {
+    func testRuntimeReplacementClearsOwnersAndTurnHistory() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "stale-session", turn: "turn-1", at: 0)
+
+        try fixture.store.reset(lockBudget: .milliseconds(100))
+
+        XCTAssertEqual(try fixture.store.load(), DurableStatus())
+    }
+
     func testMainStopShowsCompletionForFiveSecondsThenTurnsSignalOff() throws {
         let fixture = try SignalFixture()
         try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
