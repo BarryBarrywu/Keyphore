@@ -17,7 +17,7 @@ struct KeyphoreApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            SignalSettingsView(profile: state.snapshot.profile)
+            SignalSettingsView(state: state)
         }
 
         Window(AppCopy.value(.diagnostics), id: "diagnostics") {

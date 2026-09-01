@@ -3,7 +3,8 @@ import KeyphoreCore
 
 private let arguments = CommandLine.arguments.dropFirst()
 private let store = DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL())
-private let profile = LocalProfile.default
+private let profileStore = LocalProfileStore(url: KeyphoreRuntimePaths.localProfileURL())
+private let previewStore = SignalPreviewStore(url: KeyphoreRuntimePaths.signalPreviewURL())
 
 switch arguments.first {
 case "hook":
@@ -11,7 +12,12 @@ case "hook":
     guard input.count <= 1_048_576 else {
         exit(1)
     }
-    guard (try? ProductionHookHandler(store: store, profile: profile).handle(input)) != nil else {
+    guard
+        (try? ProductionHookHandler(
+            store: store,
+            profileProvider: { profileStore.loadOrDefault() }
+        ).handle(input)) != nil
+    else {
         exit(1)
     }
 case "companion":
@@ -26,9 +32,10 @@ case "companion":
     let lighting = NuPhyIOAdapter(discovery: SystemAir65TransportDiscovery())
     let companion = KeyphoreCompanion(
         store: store,
-        profile: profile,
+        profileProvider: { try profileStore.load() },
         lighting: lighting,
-        keyboardHealthStore: healthStore
+        keyboardHealthStore: healthStore,
+        previewStore: previewStore
     )
     let recovery = CompanionRecoveryController(companion: companion)
     let powerEvents = SystemPowerEventMonitor { event in

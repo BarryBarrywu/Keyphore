@@ -8,23 +8,43 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var setupFailed = false
     @Published private(set) var setupHooksChanged = false
     @Published private(set) var setupIsWorking = false
+    @Published private(set) var settingsFailed = false
+    @Published private(set) var validationFailed = false
+    @Published private(set) var previewStateFailed = false
+    @Published private(set) var previewRecord: SignalPreviewRecord?
 
     private let lifecycle: KeyphoreLifecycle
     private let guidedSetup: GuidedSetup?
     private let systemHealth: SystemKeyphoreHealthAdapter?
+    private let profileStore: LocalProfileStore?
+    private let previewStore: SignalPreviewStore?
     private var durableStatusTimer: Timer?
 
     private init(
         lifecycle: KeyphoreLifecycle,
         guidedSetup: GuidedSetup? = nil,
-        systemHealth: SystemKeyphoreHealthAdapter? = nil
+        systemHealth: SystemKeyphoreHealthAdapter? = nil,
+        profileStore: LocalProfileStore? = nil,
+        previewStore: SignalPreviewStore? = nil
     ) {
         self.lifecycle = lifecycle
         self.systemHealth = systemHealth
+        self.profileStore = profileStore
+        self.previewStore = previewStore
         let initialSnapshot = lifecycle.refresh()
         snapshot = initialSnapshot
         self.guidedSetup = guidedSetup
         setupSnapshot = Self.initialSetupSnapshot(for: initialSnapshot)
+        if let profileStore {
+            validationFailed = (try? profileStore.load()) == nil
+        }
+        if let previewStore {
+            do {
+                previewRecord = try previewStore.load()
+            } catch {
+                previewStateFailed = true
+            }
+        }
         if let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
             systemHealth?.isConfigured = inspected.phase.isConfigured
@@ -43,6 +63,9 @@ final class KeyphoreAppState: ObservableObject {
         let health: any KeyphoreHealthProviding
         let guidedSetup: GuidedSetup?
         let systemHealth: SystemKeyphoreHealthAdapter?
+        let profileStore: LocalProfileStore?
+        let previewStore: SignalPreviewStore?
+        let profiles: any LocalProfileProviding
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             durableStatus = SystemDurableStatusAdapter()
             guidedSetup = .system()
@@ -50,15 +73,23 @@ final class KeyphoreAppState: ObservableObject {
             let adapter = SystemKeyphoreHealthAdapter(isConfigured: configured)
             systemHealth = adapter
             health = adapter
+            let storedProfile = LocalProfileStore(url: KeyphoreRuntimePaths.localProfileURL())
+            let storedPreview = SignalPreviewStore(url: KeyphoreRuntimePaths.signalPreviewURL())
+            profileStore = storedProfile
+            previewStore = storedPreview
+            profiles = SystemProfileAdapter(store: storedProfile)
         } else {
             durableStatus = FixtureDurableStatusAdapter(outcome: fixture.outcome)
             health = FixtureHealthAdapter(health: fixture.health)
             guidedSetup = nil
             systemHealth = nil
+            profileStore = nil
+            previewStore = nil
+            profiles = FixtureProfileAdapter()
         }
         let lifecycle = KeyphoreLifecycle(
             health: health,
-            profiles: FixtureProfileAdapter(),
+            profiles: profiles,
             durableStatus: durableStatus,
             lighting: FixtureLightingAdapter(),
             runtime: FixtureRuntimeAdapter()
@@ -66,7 +97,9 @@ final class KeyphoreAppState: ObservableObject {
         self.init(
             lifecycle: lifecycle,
             guidedSetup: guidedSetup,
-            systemHealth: systemHealth
+            systemHealth: systemHealth,
+            profileStore: profileStore,
+            previewStore: previewStore
         )
     }
 
@@ -99,6 +132,45 @@ final class KeyphoreAppState: ObservableObject {
         lifecycle.quit()
     }
 
+    func updateAppearance(_ appearance: SignalAppearance, for signal: CodexSignal) {
+        save(snapshot.profile.replacingAppearance(appearance, for: signal))
+    }
+
+    func updateCompletionDisplayDuration(_ duration: CompletionDisplayDuration) {
+        let profile = snapshot.profile
+        save(
+            LocalProfile(
+                execution: profile.execution,
+                attention: profile.attention,
+                completion: profile.completion,
+                completionDisplayDuration: duration
+            )
+        )
+    }
+
+    func beginSignalPreview() {
+        guard menuState == .ready, let previewStore else { return }
+        do {
+            previewRecord = try previewStore.begin()
+            settingsFailed = false
+            previewStateFailed = false
+        } catch {
+            settingsFailed = true
+        }
+    }
+
+    func confirmSignalPreview(_ confirmation: VisualConfirmation) {
+        guard let previewStore else { return }
+        do {
+            try previewStore.recordVisualConfirmation(confirmation)
+            previewRecord = try previewStore.load()
+            settingsFailed = false
+            previewStateFailed = false
+        } catch {
+            settingsFailed = true
+        }
+    }
+
     var menuBarSymbol: String {
         currentSignalPresentation.systemImage
     }
@@ -119,6 +191,7 @@ final class KeyphoreAppState: ObservableObject {
             refreshSetupSnapshot()
         }
         snapshot = lifecycle.refresh()
+        refreshStoredState()
     }
 
     private func refreshSetupSnapshot() {
@@ -129,6 +202,37 @@ final class KeyphoreAppState: ObservableObject {
     private func apply(_ inspected: GuidedSetupSnapshot) {
         setupSnapshot = inspected
         systemHealth?.isConfigured = inspected.phase.isConfigured
+    }
+
+    private func save(_ profile: LocalProfile) {
+        guard let profileStore else { return }
+        do {
+            try profileStore.save(profile)
+            snapshot = lifecycle.refresh()
+            settingsFailed = false
+            validationFailed = false
+        } catch {
+            settingsFailed = true
+        }
+    }
+
+    private func refreshStoredState() {
+        if let profileStore {
+            do {
+                _ = try profileStore.load()
+                validationFailed = false
+            } catch {
+                validationFailed = true
+            }
+        }
+        if let previewStore {
+            do {
+                previewRecord = try previewStore.load()
+                previewStateFailed = false
+            } catch {
+                previewStateFailed = true
+            }
+        }
     }
 
     private static func initialSetupSnapshot(for snapshot: LifecycleSnapshot) -> GuidedSetupSnapshot {
@@ -178,6 +282,14 @@ private struct FixtureHealthAdapter: KeyphoreHealthProviding {
 
 private struct FixtureProfileAdapter: LocalProfileProviding {
     func currentProfile() -> LocalProfile { .default }
+}
+
+private struct SystemProfileAdapter: LocalProfileProviding {
+    let store: LocalProfileStore
+
+    func currentProfile() -> LocalProfile {
+        (try? store.load()) ?? .default
+    }
 }
 
 private struct FixtureDurableStatusAdapter: DurableStatusProviding {

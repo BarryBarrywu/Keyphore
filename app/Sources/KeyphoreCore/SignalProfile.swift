@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SignalColor: Equatable, Sendable {
+public struct SignalColor: Codable, Equatable, Sendable {
     public let red: UInt8
     public let green: UInt8
     public let blue: UInt8
@@ -12,12 +12,12 @@ public struct SignalColor: Equatable, Sendable {
     }
 }
 
-public enum SignalPattern: Equatable, Sendable {
+public enum SignalPattern: String, CaseIterable, Codable, Equatable, Sendable {
     case steady
     case slowFlashing
 }
 
-public struct SignalBrightness: Equatable, Sendable {
+public struct SignalBrightness: Codable, Equatable, Sendable {
     public let percent: UInt8
 
     public init?(percent: UInt8) {
@@ -30,9 +30,26 @@ public struct SignalBrightness: Equatable, Sendable {
     }
 
     public static let full = SignalBrightness(unchecked: 100)
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let percent = try container.decode(UInt8.self, forKey: .percent)
+        guard let value = SignalBrightness(percent: percent) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .percent,
+                in: container,
+                debugDescription: "Signal brightness must be between 1 and 100."
+            )
+        }
+        self = value
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case percent
+    }
 }
 
-public struct CompletionDisplayDuration: Equatable, Sendable {
+public struct CompletionDisplayDuration: Codable, Equatable, Sendable {
     public let seconds: UInt8
 
     public init?(seconds: UInt8) {
@@ -45,9 +62,26 @@ public struct CompletionDisplayDuration: Equatable, Sendable {
     }
 
     public static let fiveSeconds = CompletionDisplayDuration(unchecked: 5)
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let seconds = try container.decode(UInt8.self, forKey: .seconds)
+        guard let value = CompletionDisplayDuration(seconds: seconds) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .seconds,
+                in: container,
+                debugDescription: "Completion display duration must be between 1 and 60 seconds."
+            )
+        }
+        self = value
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case seconds
+    }
 }
 
-public struct SignalAppearance: Equatable, Sendable {
+public struct SignalAppearance: Codable, Equatable, Sendable {
     public let isVisible: Bool
     public let color: SignalColor
     public let brightness: SignalBrightness
@@ -71,7 +105,7 @@ public enum LightingBehavior: Equatable, Sendable {
     case off
 }
 
-public struct LocalProfile: Equatable, Sendable {
+public struct LocalProfile: Codable, Equatable, Sendable {
     public let execution: SignalAppearance
     public let attention: SignalAppearance
     public let completion: SignalAppearance
@@ -113,7 +147,74 @@ public struct LocalProfile: Equatable, Sendable {
     )
 }
 
+public final class LocalProfileStore: @unchecked Sendable {
+    public let url: URL
+
+    public init(url: URL) {
+        self.url = url
+    }
+
+    public func load() throws -> LocalProfile {
+        do {
+            return try JSONDecoder().decode(LocalProfile.self, from: Data(contentsOf: url))
+        } catch CocoaError.fileReadNoSuchFile {
+            return .default
+        }
+    }
+
+    public func loadOrDefault() -> LocalProfile {
+        (try? load()) ?? .default
+    }
+
+    public func save(_ profile: LocalProfile) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try encoder.encode(profile).write(to: url, options: .atomic)
+    }
+}
+
 extension LocalProfile {
+    public func appearance(for signal: CodexSignal) -> SignalAppearance {
+        switch signal {
+        case .execution: execution
+        case .attention: attention
+        case .completion: completion
+        }
+    }
+
+    public func replacingAppearance(
+        _ appearance: SignalAppearance,
+        for signal: CodexSignal
+    ) -> LocalProfile {
+        switch signal {
+        case .execution:
+            LocalProfile(
+                execution: appearance,
+                attention: attention,
+                completion: completion,
+                completionDisplayDuration: completionDisplayDuration
+            )
+        case .attention:
+            LocalProfile(
+                execution: execution,
+                attention: appearance,
+                completion: completion,
+                completionDisplayDuration: completionDisplayDuration
+            )
+        case .completion:
+            LocalProfile(
+                execution: execution,
+                attention: attention,
+                completion: appearance,
+                completionDisplayDuration: completionDisplayDuration
+            )
+        }
+    }
+
     func aggregateSignal(for outcome: DurableStatusOutcome) -> AggregateSignal {
         if outcome.activeSignals.contains(.attention), attention.isVisible {
             return .attention
@@ -138,5 +239,24 @@ extension LocalProfile {
         case .completion:
             .signal(completion)
         }
+    }
+
+    func behavior(for signal: AggregateSignal, at timestamp: StatusTimestamp) -> LightingBehavior {
+        let configured = behavior(for: signal)
+        guard case .signal(let appearance) = configured else { return configured }
+        guard appearance.pattern == .slowFlashing else { return configured }
+        guard timestamp.millisecondsSince1970 / 1_000 % 2 == 0 else { return .off }
+        return .signal(appearance.replacingPattern(with: .steady))
+    }
+}
+
+extension SignalAppearance {
+    func replacingPattern(with pattern: SignalPattern) -> SignalAppearance {
+        SignalAppearance(
+            isVisible: isVisible,
+            color: color,
+            brightness: brightness,
+            pattern: pattern
+        )
     }
 }

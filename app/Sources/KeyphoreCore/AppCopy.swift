@@ -44,6 +44,29 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
     case setupHooksChanged = "setup.hooks_changed"
     case setupConfigured = "setup.configured"
     case setupWaitingForKeyboard = "setup.waiting_for_keyboard"
+    case settingsVisibility = "settings.visibility"
+    case settingsColor = "settings.color"
+    case settingsBrightness = "settings.brightness"
+    case settingsPattern = "settings.pattern"
+    case settingsSteady = "settings.pattern.steady"
+    case settingsSlowFlashing = "settings.pattern.slow_flashing"
+    case settingsCompletionDuration = "settings.completion_duration"
+    case settingsSeconds = "settings.seconds"
+    case settingsSaveError = "settings.save_error"
+    case settingsValidationError = "settings.validation_error"
+    case previewTitle = "preview.title"
+    case previewStart = "preview.start"
+    case previewUnavailable = "preview.unavailable"
+    case previewRunning = "preview.running"
+    case previewProtocolVerified = "preview.protocol_verified"
+    case previewRhythmPreserved = "preview.rhythm_preserved"
+    case previewConfirmPrompt = "preview.confirm_prompt"
+    case previewConfirm = "preview.confirm"
+    case previewReject = "preview.reject"
+    case previewConfirmed = "preview.confirmed"
+    case previewRejected = "preview.rejected"
+    case previewFailed = "preview.failed"
+    case previewStateError = "preview.state_error"
 }
 
 public enum AppCopy {
@@ -63,5 +86,15 @@ public enum AppCopy {
         }
 
         return bundle.localizedString(forKey: key.rawValue, value: key.rawValue, table: nil)
+    }
+}
+
+public extension CodexSignal {
+    var copyKey: AppCopyKey {
+        switch self {
+        case .execution: .execution
+        case .attention: .attention
+        case .completion: .completion
+        }
     }
 }

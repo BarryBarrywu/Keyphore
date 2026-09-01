@@ -19,6 +19,18 @@ public enum KeyphoreRuntimePaths {
     ) -> URL {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "keyboard-health.json")
     }
+
+    public static func localProfileURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "profile.json")
+    }
+
+    public static func signalPreviewURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "signal-preview.json")
+    }
 }
 
 public struct StatusTimestamp: Codable, Comparable, Equatable, Sendable {
@@ -327,16 +339,28 @@ public final class ProductionHookHandler: @unchecked Sendable {
 
     private let store: DurableStatusStore
     private let lockBudget: Duration
-    private let profile: LocalProfile
+    private let profileProvider: () throws -> LocalProfile
 
-    public init(
+    public convenience init(
         store: DurableStatusStore,
         lockBudget: Duration = .milliseconds(100),
         profile: LocalProfile = .default
     ) {
+        self.init(
+            store: store,
+            lockBudget: lockBudget,
+            profileProvider: { profile }
+        )
+    }
+
+    public init(
+        store: DurableStatusStore,
+        lockBudget: Duration = .milliseconds(100),
+        profileProvider: @escaping () throws -> LocalProfile
+    ) {
         self.store = store
         self.lockBudget = lockBudget
-        self.profile = profile
+        self.profileProvider = profileProvider
     }
 
     public func handle(_ input: Data, receivedAt: StatusTimestamp = .now) throws {
@@ -373,6 +397,7 @@ public final class ProductionHookHandler: @unchecked Sendable {
             guard let turnID = record.turnID, !turnID.isEmpty else {
                 throw GuidedSetupError.invalidHookInput
             }
+            let profile = try profileProvider()
             try store.recordSignal(
                 ownerID: ownerID,
                 turnID: turnID,
@@ -491,32 +516,73 @@ public final class CompanionRecoveryController {
 
 public final class KeyphoreCompanion {
     private let store: DurableStatusStore
-    private let profile: LocalProfile
+    private let profileProvider: () throws -> LocalProfile
     private let lighting: any CompanionLightingApplying
     private let keyboardHealthStore: KeyboardHealthStore?
     private let lockBudget: Duration
+    private let previewController: SignalPreviewController?
     private var applied: LightingBehavior?
 
-    public init(
+    public convenience init(
         store: DurableStatusStore,
         profile: LocalProfile,
         lighting: any CompanionLightingApplying,
         keyboardHealthStore: KeyboardHealthStore? = nil,
-        lockBudget: Duration = .milliseconds(100)
+        lockBudget: Duration = .milliseconds(100),
+        previewStore: SignalPreviewStore? = nil
+    ) {
+        self.init(
+            store: store,
+            profileProvider: { profile },
+            lighting: lighting,
+            keyboardHealthStore: keyboardHealthStore,
+            lockBudget: lockBudget,
+            previewStore: previewStore
+        )
+    }
+
+    public init(
+        store: DurableStatusStore,
+        profileProvider: @escaping () throws -> LocalProfile,
+        lighting: any CompanionLightingApplying,
+        keyboardHealthStore: KeyboardHealthStore? = nil,
+        lockBudget: Duration = .milliseconds(100),
+        previewStore: SignalPreviewStore? = nil
     ) {
         self.store = store
-        self.profile = profile
+        self.profileProvider = profileProvider
         self.lighting = lighting
         self.keyboardHealthStore = keyboardHealthStore
         self.lockBudget = lockBudget
+        if let previewStore, let evidenceLighting = lighting as? any CompanionLightingEvidenceApplying {
+            previewController = SignalPreviewController(
+                store: previewStore,
+                profileProvider: profileProvider,
+                lighting: evidenceLighting
+            )
+        } else {
+            previewController = nil
+        }
     }
 
     public func sync(at now: StatusTimestamp = .now) throws {
+        if let previewController {
+            switch try previewController.poll(at: now) {
+            case .active:
+                applied = nil
+                return
+            case .finished:
+                applied = nil
+            case .inactive:
+                break
+            }
+        }
         for expiry in try store.load().expiries where expiry.expiresAt <= now {
             try store.expire(expiry, at: now, lockBudget: lockBudget)
         }
         let outcome = try store.outcome(at: now)
-        let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome))
+        let profile = try profileProvider()
+        let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome), at: now)
         guard behavior != applied else { return }
         do {
             try lighting.apply(behavior)
@@ -530,9 +596,11 @@ public final class KeyphoreCompanion {
     }
 
     public func healthCheck(at now: StatusTimestamp = .now) throws {
+        if try previewController?.hasActivePreview() == true { return }
         guard let lighting = lighting as? any CompanionLightingVerifying else { return }
         let outcome = try store.outcome(at: now)
-        let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome))
+        let profile = try profileProvider()
+        let behavior = profile.behavior(for: profile.aggregateSignal(for: outcome), at: now)
         do {
             if try lighting.displays(behavior) {
                 applied = behavior

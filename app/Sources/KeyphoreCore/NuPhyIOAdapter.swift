@@ -11,7 +11,7 @@ public protocol Air65TransportDiscovering: AnyObject {
     func resetDiscoveryState()
 }
 
-public enum VisualConfirmation: Equatable, Sendable {
+public enum VisualConfirmation: String, Codable, Equatable, Sendable {
     case notRequested
     case confirmed
     case rejected
@@ -23,6 +23,20 @@ public struct NuPhyIOEvidence: Equatable, Sendable {
     public let mainState: [UInt8]
     public let rhythmBefore: [UInt8]
     public let rhythmAfter: [UInt8]
+
+    public init(
+        protocolReadbackSucceeded: Bool,
+        visualConfirmation: VisualConfirmation,
+        mainState: [UInt8],
+        rhythmBefore: [UInt8],
+        rhythmAfter: [UInt8]
+    ) {
+        self.protocolReadbackSucceeded = protocolReadbackSucceeded
+        self.visualConfirmation = visualConfirmation
+        self.mainState = mainState
+        self.rhythmBefore = rhythmBefore
+        self.rhythmAfter = rhythmAfter
+    }
 }
 
 public enum NuPhyIOAdapterError: Error, Equatable, Sendable {
@@ -34,7 +48,7 @@ public enum NuPhyIOAdapterError: Error, Equatable, Sendable {
 }
 
 public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingVerifying,
-    CompanionLightingRecovering
+    CompanionLightingRecovering, CompanionLightingEvidenceApplying
 {
     public static let responseTimeout: TimeInterval = 1
 
