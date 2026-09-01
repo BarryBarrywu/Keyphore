@@ -113,7 +113,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             pluginInstalled: pluginInstalled,
             hooksTrusted: hooksTrusted,
             companionRegistered: companionIsRegistered(),
-            managedStatePresent: managedStateIsCurrent()
+            managedStatePresent: managedStateIsCurrent(hooks: hooks)
         )
     }
 
@@ -162,6 +162,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             "version": 1,
             "plugin_id": Self.pluginID,
             "reviewed_release_digest": HookDefinition.reviewedReleaseDigest,
+            "runtime_sha256": try helperDigest(),
             "reviewed_hook_hashes": Dictionary(
                 uniqueKeysWithValues: HookDefinition.reviewedHashes.map {
                     ($0.key.rawValue, $0.value)
@@ -236,16 +237,40 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         return (try? run(launchctlURL, ["print", launchTarget])) != nil
     }
 
-    private func managedStateIsCurrent() -> Bool {
+    private func managedStateIsCurrent(hooks: [CodexHookMetadata]) -> Bool {
         guard
             let data = try? Data(contentsOf: stateURL),
-            let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            state["plugin_id"] as? String == Self.pluginID,
+            state["reviewed_release_digest"] as? String
+                == HookDefinition.reviewedReleaseDigest,
+            let recordedDigest = state["runtime_sha256"] as? String
         else {
             return false
         }
-        return state["plugin_id"] as? String == Self.pluginID
-            && state["reviewed_release_digest"] as? String
-                == HookDefinition.reviewedReleaseDigest
+        let installedRuntimeURLs = Set(hooks.map {
+            URL(fileURLWithPath: $0.sourcePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appending(path: "bin/keyphore")
+        })
+        guard installedRuntimeURLs.count == 1, let installedRuntimeURL = installedRuntimeURLs.first
+        else {
+            return false
+        }
+        return ManagedRuntimeIntegrity.isCurrent(
+            recordedDigest: recordedDigest,
+            runtimeURLs: [
+                helperURL,
+                pluginRoot.appending(path: "bin/keyphore"),
+                installedRuntimeURL,
+            ],
+            fileManager: fileManager
+        )
+    }
+
+    private func helperDigest() throws -> String {
+        ManagedRuntimeIntegrity.digest(try Data(contentsOf: helperURL))
     }
 
     private func materializeMarketplace() throws {

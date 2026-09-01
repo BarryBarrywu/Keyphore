@@ -130,6 +130,32 @@ public struct HookDefinition: Equatable, Sendable {
     }
 }
 
+public enum ManagedRuntimeIntegrity {
+    public static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    public static func isCurrent(
+        recordedDigest: String?,
+        runtimeURLs: [URL],
+        fileManager: FileManager = .default
+    ) -> Bool {
+        guard let recordedDigest, !runtimeURLs.isEmpty else { return false }
+        for url in runtimeURLs {
+            guard
+                fileManager.isExecutableFile(atPath: url.path),
+                let data = try? Data(contentsOf: url),
+                digest(data) == recordedDigest
+            else {
+                return false
+            }
+        }
+        return true
+    }
+}
+
 public struct PrivacyAllowedHookRecord: Equatable, Sendable {
     public let event: HookEvent
     public let sessionID: String?
@@ -180,6 +206,7 @@ public enum GuidedSetupPhase: Equatable, Sendable {
 
 public enum GuidedSetupError: Error, Equatable, Sendable {
     case codexHostMissing
+    case configurationIncomplete
     case invalidHookInput
     case reviewedHooksChanged
 }
@@ -290,7 +317,7 @@ public final class GuidedSetup: @unchecked Sendable {
         }
         let reviewedHooks = HookDefinition.reviewedRelease
         let health = try integration.health()
-        if !health.pluginInstalled || !health.hooksTrusted {
+        if !health.pluginInstalled || !health.hooksTrusted || !health.managedStatePresent {
             try integration.stage(reviewedHooks)
         }
         let installedHashes = try integration.installedHookHashes()
@@ -300,11 +327,14 @@ public final class GuidedSetup: @unchecked Sendable {
         if !health.hooksTrusted {
             try integration.trust(reviewedHooks)
         }
-        if !health.companionRegistered {
+        if !health.companionRegistered || !health.managedStatePresent {
             try integration.registerCompanion()
         }
         if !health.managedStatePresent {
             try integration.persistConfigured()
+        }
+        guard try integration.health().isConfigured else {
+            throw GuidedSetupError.configurationIncomplete
         }
         let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
             == .connected(protocolHealthy: true) ? .ready : .configured

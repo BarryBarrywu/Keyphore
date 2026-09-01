@@ -217,7 +217,7 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         XCTAssertEqual(integration.actions, [.stage, .readHookHashes])
     }
 
-    func testInterruptedSetupRepairsOnlyMissingOwnedComponents() throws {
+    func testChangedManagedReleaseRestagesRuntimeAndRepairsMissingOwnedComponents() throws {
         let integration = RecordingSetupIntegration(
             health: SetupIntegrationHealth(
                 pluginInstalled: true,
@@ -237,9 +237,108 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         XCTAssertEqual(snapshot.phase, .configured)
         XCTAssertEqual(
             integration.actions,
-            [.readHookHashes, .registerCompanion, .persistConfigured]
+            [.stage, .readHookHashes, .registerCompanion, .persistConfigured]
         )
         XCTAssertEqual(integration.unrelatedPluginState, "preserved")
+    }
+
+    func testChangedManagedReleaseRestartsAnAlreadyRegisteredCompanion() throws {
+        let integration = RecordingSetupIntegration(
+            health: SetupIntegrationHealth(
+                pluginInstalled: true,
+                hooksTrusted: true,
+                companionRegistered: true,
+                managedStatePresent: false
+            )
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        _ = try setup.configureAfterReview()
+
+        XCTAssertEqual(
+            integration.actions,
+            [.stage, .readHookHashes, .registerCompanion, .persistConfigured]
+        )
+    }
+
+    func testManagedRuntimeIntegrityFailsClosedAndRequiresEveryExecutableCopyToMatch() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let bundled = directory.appending(path: "bundled")
+        let staged = directory.appending(path: "staged")
+        let installed = directory.appending(path: "installed")
+        let runtime = Data("current-runtime".utf8)
+        for url in [bundled, staged, installed] {
+            try runtime.write(to: url)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+        let digest = ManagedRuntimeIntegrity.digest(runtime)
+
+        XCTAssertTrue(
+            ManagedRuntimeIntegrity.isCurrent(
+                recordedDigest: digest,
+                runtimeURLs: [bundled, staged, installed]
+            )
+        )
+        XCTAssertFalse(
+            ManagedRuntimeIntegrity.isCurrent(
+                recordedDigest: nil,
+                runtimeURLs: [bundled, staged, installed]
+            )
+        )
+        XCTAssertFalse(
+            ManagedRuntimeIntegrity.isCurrent(
+                recordedDigest: digest,
+                runtimeURLs: [bundled, directory.appending(path: "missing"), installed]
+            )
+        )
+
+        try Data("stale-runtime".utf8).write(to: installed)
+        XCTAssertFalse(
+            ManagedRuntimeIntegrity.isCurrent(
+                recordedDigest: digest,
+                runtimeURLs: [bundled, staged, installed]
+            )
+        )
+        try runtime.write(to: installed)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: staged.path)
+        XCTAssertFalse(
+            ManagedRuntimeIntegrity.isCurrent(
+                recordedDigest: digest,
+                runtimeURLs: [bundled, staged, installed]
+            )
+        )
+    }
+
+    func testConfigurationFailsClosedWhenFinalManagedRuntimeIntegrityIsStillInvalid() throws {
+        let integration = RecordingSetupIntegration(
+            health: SetupIntegrationHealth(
+                pluginInstalled: true,
+                hooksTrusted: true,
+                companionRegistered: true,
+                managedStatePresent: false
+            ),
+            persistSucceeds: false
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.connected(protocolHealthy: true))
+        )
+
+        XCTAssertThrowsError(try setup.configureAfterReview()) { error in
+            XCTAssertEqual(error as? GuidedSetupError, .configurationIncomplete)
+        }
+        XCTAssertEqual(
+            integration.actions,
+            [.stage, .readHookHashes, .registerCompanion, .persistConfigured]
+        )
     }
 
     func testChangedOrUntrustedDefinitionsAreRestagedBeforeRenewedConsent() throws {
@@ -315,24 +414,33 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
     }
 
     private(set) var actions: [Action] = []
-    private let integrationHealth: SetupIntegrationHealth
+    private var integrationHealth: SetupIntegrationHealth
     private let hashes: [HookEvent: String]
+    private let persistSucceeds: Bool
     let unrelatedPluginState = "preserved"
 
     init(
         health: SetupIntegrationHealth = .notConfigured,
         hashes: [HookEvent: String] = Dictionary(
             uniqueKeysWithValues: HookDefinition.reviewedRelease.map { ($0.event, $0.reviewedHash) }
-        )
+        ),
+        persistSucceeds: Bool = true
     ) {
         integrationHealth = health
         self.hashes = hashes
+        self.persistSucceeds = persistSucceeds
     }
 
     func health() throws -> SetupIntegrationHealth { integrationHealth }
 
     func stage(_ hooks: [HookDefinition]) throws {
         actions.append(.stage)
+        integrationHealth = SetupIntegrationHealth(
+            pluginInstalled: true,
+            hooksTrusted: integrationHealth.hooksTrusted,
+            companionRegistered: integrationHealth.companionRegistered,
+            managedStatePresent: integrationHealth.managedStatePresent
+        )
     }
 
     func installedHookHashes() throws -> [HookEvent: String] {
@@ -342,13 +450,32 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
 
     func trust(_ hooks: [HookDefinition]) throws {
         actions.append(.trust)
+        integrationHealth = SetupIntegrationHealth(
+            pluginInstalled: integrationHealth.pluginInstalled,
+            hooksTrusted: true,
+            companionRegistered: integrationHealth.companionRegistered,
+            managedStatePresent: integrationHealth.managedStatePresent
+        )
     }
 
     func registerCompanion() throws {
         actions.append(.registerCompanion)
+        integrationHealth = SetupIntegrationHealth(
+            pluginInstalled: integrationHealth.pluginInstalled,
+            hooksTrusted: integrationHealth.hooksTrusted,
+            companionRegistered: true,
+            managedStatePresent: integrationHealth.managedStatePresent
+        )
     }
 
     func persistConfigured() throws {
         actions.append(.persistConfigured)
+        guard persistSucceeds else { return }
+        integrationHealth = SetupIntegrationHealth(
+            pluginInstalled: integrationHealth.pluginInstalled,
+            hooksTrusted: integrationHealth.hooksTrusted,
+            companionRegistered: integrationHealth.companionRegistered,
+            managedStatePresent: true
+        )
     }
 }
