@@ -10,6 +10,7 @@ temp_guard=${KEYPHORE_TEMP_GUARD:-/Users/barry/.local/bin/codex-temp-guard}
 launch_domain="gui/$(/usr/bin/id -u)"
 current_target="$launch_domain/com.barrywu.keyphore.companion"
 legacy_target="$launch_domain/com.barrybarrywu.keyphore"
+development_team=${KEYPHORE_DEVELOPMENT_TEAM:-RFW398ARA9}
 
 usage() {
   print 'Usage: tools/keyphore-development-app build-open | install <Keyphore.app> | preflight'
@@ -20,7 +21,9 @@ service_is_loaded() {
 }
 
 preflight() {
-  /usr/bin/osascript -e 'tell application id "com.barrywu.keyphore" to quit' >/dev/null 2>&1 || true
+  for app_pid in $(/usr/bin/pgrep -f "^$destination/Contents/MacOS/Keyphore$"); do
+    /bin/kill "$app_pid"
+  done
   for _ in {1..30}; do
     if ! /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore($| )' >/dev/null; then
       break
@@ -55,6 +58,12 @@ install_app() {
     print -u2 'The build has an unexpected bundle identifier.'
     return 1
   fi
+  app_team=$(/usr/bin/codesign -dv --verbose=4 "$source_app" 2>&1 | /usr/bin/awk -F= '/^TeamIdentifier=/{print $2}')
+  helper_team=$(/usr/bin/codesign -dv --verbose=4 "$source_app/Contents/Helpers/keyphore" 2>&1 | /usr/bin/awk -F= '/^TeamIdentifier=/{print $2}')
+  if [[ "$app_team" != "$development_team" || "$helper_team" != "$development_team" ]]; then
+    print -u2 'The development App and Companion must use the stable development team signature.'
+    return 1
+  fi
 
   preflight
   /bin/mkdir -p "$applications_directory"
@@ -86,6 +95,9 @@ build_open() {
     -scheme Keyphore \
     -configuration Debug \
     -derivedDataPath "$build_root/DerivedData" \
+    DEVELOPMENT_TEAM="$development_team" \
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY='Apple Development' \
     build
   install_app "$build_root/DerivedData/Build/Products/Debug/Keyphore.app"
   $temp_guard release "$build_root"

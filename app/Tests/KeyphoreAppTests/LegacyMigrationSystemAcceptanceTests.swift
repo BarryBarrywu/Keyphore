@@ -284,6 +284,7 @@ private struct LegacyMigrationFixture {
             to: processList,
             contents: """
             #!/bin/sh
+            /usr/bin/awk 'BEGIN { for (i = 0; i < 10000; i++) print "/usr/bin/safe-process" }'
             if [ -e '\(orphanProcess.path)' ]; then
               printf '%s\\n' '/legacy/bin/keyphore companion'
             fi

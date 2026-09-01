@@ -676,17 +676,27 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
 
     private func run(_ executable: URL, _ arguments: [String]) throws -> Data {
         let process = Process()
-        let stdout = Pipe()
+        let outputURL = fileManager.temporaryDirectory
+            .appending(path: "keyphore-command-\(UUID().uuidString)")
+        guard fileManager.createFile(atPath: outputURL.path, contents: nil) else {
+            throw SystemSetupError.commandFailed
+        }
+        let outputHandle = try FileHandle(forWritingTo: outputURL)
+        defer {
+            try? outputHandle.close()
+            try? fileManager.removeItem(at: outputURL)
+        }
         process.executableURL = executable
         process.arguments = arguments
-        process.standardOutput = stdout
-        process.standardError = Pipe()
+        process.standardOutput = outputHandle
+        process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
+        try outputHandle.close()
         guard process.terminationStatus == 0 else {
             throw SystemSetupError.commandFailed
         }
-        return stdout.fileHandleForReading.readDataToEndOfFile()
+        return try Data(contentsOf: outputURL)
     }
 
     private var companionPlist: String {
