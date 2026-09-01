@@ -144,6 +144,27 @@ final class KeyphoreAppState: ObservableObject {
         }
     }
 
+    func migrateLegacyAfterReview() {
+        guard let guidedSetup, !setupIsWorking else { return }
+        setupIsWorking = true
+        setupFailed = false
+        setupHooksChanged = false
+        Task {
+            do {
+                let configured = try await Task.detached {
+                    try guidedSetup.migrateLegacyAfterReview()
+                }.value
+                apply(configured)
+                snapshot = lifecycle.refresh()
+            } catch {
+                setupFailed = true
+                setupHooksChanged = (error as? GuidedSetupError) == .reviewedHooksChanged
+                refreshSetupSnapshot()
+            }
+            setupIsWorking = false
+        }
+    }
+
     func prepareToQuit() -> Bool {
         do {
             try lifecycle.quit()
@@ -201,7 +222,9 @@ final class KeyphoreAppState: ObservableObject {
         guard let previewStore else { return }
         do {
             try previewStore.recordVisualConfirmation(confirmation)
+            try guidedSetup?.completeLegacySignalPreview(confirmation)
             previewRecord = try previewStore.load()
+            refreshSetupSnapshot()
             settingsFailed = false
             previewStateFailed = false
         } catch {
@@ -217,9 +240,17 @@ final class KeyphoreAppState: ObservableObject {
         snapshot.currentSignal.presentation(in: snapshot.profile)
     }
 
+    var migrationRequiresSignalPreview: Bool {
+        if case .awaitingSignalPreview = setupSnapshot.legacyMigrationStatus {
+            return true
+        }
+        return false
+    }
+
     var menuState: MenuState {
         switch setupSnapshot.phase {
-        case .codexHostMissing, .hookReview: .configurationRequired
+        case .codexHostMissing, .legacyMigrationReview, .legacyMigrationRepair, .hookReview:
+            .configurationRequired
         case .configured, .ready: snapshot.menuState
         }
     }

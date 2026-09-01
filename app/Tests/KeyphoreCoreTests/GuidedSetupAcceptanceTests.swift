@@ -167,6 +167,170 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         }
     }
 
+    func testLegacyInstallationRequiresReviewWithoutChangingOwnedComponents() throws {
+        let legacy = LegacyMigrationStatus.reviewRequired([
+            .plugin,
+            .hooks,
+            .companionRegistration,
+            .managedRuntimeState,
+        ])
+        let integration = RecordingSetupIntegration(legacyMigrationStatus: legacy)
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        let snapshot = try setup.inspect()
+
+        XCTAssertEqual(snapshot.phase, .legacyMigrationReview)
+        XCTAssertEqual(snapshot.legacyMigrationStatus, legacy)
+        XCTAssertEqual(integration.actions, [])
+    }
+
+    func testConfirmedLegacyMigrationProvesOldCompanionStoppedBeforeStartingCurrentCompanion() throws {
+        let integration = RecordingSetupIntegration(
+            legacyMigrationStatus: .reviewRequired(Set(LegacyComponent.allCases))
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        let migration = try setup.migrateLegacyAfterReview()
+
+        XCTAssertEqual(migration.phase, .hookReview)
+        XCTAssertEqual(
+            migration.legacyMigrationStatus,
+            .awaitingHookConsent(Set(LegacyComponent.allCases))
+        )
+        XCTAssertEqual(
+            integration.actions,
+            [
+                .beginLegacyMigration,
+                .disableLegacyHooks,
+                .stopLegacyCompanion,
+                .verifyLegacyCompanionStopped,
+                .removeLegacyComponents,
+                .stage,
+                .readHookHashes,
+                .resetRuntimeState,
+                .completeLegacyMigration,
+            ]
+        )
+        XCTAssertFalse(integration.actions.contains(.trust))
+        XCTAssertFalse(integration.actions.contains(.registerCompanion))
+
+        _ = try setup.configureAfterReview()
+
+        XCTAssertEqual(
+            integration.actions,
+            [
+                .beginLegacyMigration,
+                .disableLegacyHooks,
+                .stopLegacyCompanion,
+                .verifyLegacyCompanionStopped,
+                .removeLegacyComponents,
+                .stage,
+                .readHookHashes,
+                .resetRuntimeState,
+                .completeLegacyMigration,
+                .stage,
+                .readHookHashes,
+                .trust,
+                .resetRuntimeState,
+                .registerCompanion,
+                .persistConfigured,
+                .completeLegacyHookConsent,
+                .finishConfiguration,
+            ]
+        )
+        let stopProof = try XCTUnwrap(
+            integration.actions.firstIndex(of: .verifyLegacyCompanionStopped)
+        )
+        let currentStart = try XCTUnwrap(integration.actions.firstIndex(of: .registerCompanion))
+        XCTAssertLessThan(stopProof, currentStart)
+    }
+
+    func testOrdinaryConsentCannotBypassLegacyReviewOrRepair() throws {
+        for status in [
+            LegacyMigrationStatus.reviewRequired(Set(LegacyComponent.allCases)),
+            .repairRequired(Set(LegacyComponent.allCases)),
+        ] {
+            let integration = RecordingSetupIntegration(legacyMigrationStatus: status)
+            let setup = GuidedSetup(
+                hosts: FixedCodexHostDetector([.desktopApp]),
+                integration: integration,
+                keyboard: FixedSetupKeyboard(.disconnected)
+            )
+
+            XCTAssertThrowsError(try setup.configureAfterReview()) { error in
+                XCTAssertEqual(error as? GuidedSetupError, .legacyMigrationRequired)
+            }
+            XCTAssertEqual(integration.actions, [])
+        }
+    }
+
+    func testMigrationRemainsIncompleteUntilSignalPreviewGetsVisualConfirmation() throws {
+        let integration = RecordingSetupIntegration(
+            legacyMigrationStatus: .reviewRequired(Set(LegacyComponent.allCases))
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.connected(protocolHealthy: true))
+        )
+
+        _ = try setup.migrateLegacyAfterReview()
+        let configured = try setup.configureAfterReview()
+
+        XCTAssertEqual(
+            configured.legacyMigrationStatus,
+            .awaitingSignalPreview(Set(LegacyComponent.allCases))
+        )
+        try setup.completeLegacySignalPreview(.rejected)
+        XCTAssertEqual(
+            try setup.inspect().legacyMigrationStatus,
+            .awaitingSignalPreview(Set(LegacyComponent.allCases))
+        )
+        XCTAssertNotEqual(integration.actions.last, .completeLegacySignalPreview)
+
+        try setup.completeLegacySignalPreview(.confirmed)
+        XCTAssertEqual(try setup.inspect().legacyMigrationStatus, .none)
+        XCTAssertEqual(integration.actions.last, .completeLegacySignalPreview)
+    }
+
+    func testInterruptedMigrationNeverStartsCurrentCompanionAndReopensAsRepairable() throws {
+        let integration = RecordingSetupIntegration(
+            legacyMigrationStatus: .reviewRequired(Set(LegacyComponent.allCases)),
+            legacyCompanionStops: false
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        XCTAssertThrowsError(try setup.migrateLegacyAfterReview()) { error in
+            XCTAssertEqual(error as? GuidedSetupError, .legacyCompanionStillRunning)
+        }
+        XCTAssertEqual(
+            integration.actions,
+            [
+                .beginLegacyMigration,
+                .disableLegacyHooks,
+                .stopLegacyCompanion,
+                .verifyLegacyCompanionStopped,
+            ]
+        )
+        XCTAssertFalse(integration.actions.contains(.stage))
+        XCTAssertFalse(integration.actions.contains(.registerCompanion))
+
+        let repair = try setup.inspect()
+        XCTAssertEqual(repair.phase, .legacyMigrationRepair)
+    }
+
     func testMissingCodexHostIsReportedWithoutChangingIntegration() throws {
         let integration = RecordingSetupIntegration()
         let setup = GuidedSetup(
@@ -481,6 +645,11 @@ private struct FixedSetupKeyboard: SetupKeyboardHealthProviding {
 
 private final class RecordingSetupIntegration: GuidedSetupIntegrating {
     enum Action: Equatable {
+        case beginLegacyMigration
+        case disableLegacyHooks
+        case stopLegacyCompanion
+        case verifyLegacyCompanionStopped
+        case removeLegacyComponents
         case stage
         case readHookHashes
         case trust
@@ -489,12 +658,17 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
         case persistConfigured
         case setLoginLaunch(Bool)
         case finishConfiguration
+        case completeLegacyMigration
+        case completeLegacyHookConsent
+        case completeLegacySignalPreview
     }
 
     private(set) var actions: [Action] = []
     private var integrationHealth: SetupIntegrationHealth
     private let hashes: [HookEvent: String]
     private let persistSucceeds: Bool
+    private var legacyMigrationStatus: LegacyMigrationStatus
+    private let legacyCompanionStops: Bool
     let unrelatedPluginState = "preserved"
 
     init(
@@ -502,11 +676,48 @@ private final class RecordingSetupIntegration: GuidedSetupIntegrating {
         hashes: [HookEvent: String] = Dictionary(
             uniqueKeysWithValues: HookDefinition.reviewedRelease.map { ($0.event, $0.reviewedHash) }
         ),
-        persistSucceeds: Bool = true
+        persistSucceeds: Bool = true,
+        legacyMigrationStatus: LegacyMigrationStatus = .none,
+        legacyCompanionStops: Bool = true
     ) {
         integrationHealth = health
         self.hashes = hashes
         self.persistSucceeds = persistSucceeds
+        self.legacyMigrationStatus = legacyMigrationStatus
+        self.legacyCompanionStops = legacyCompanionStops
+    }
+
+    func inspectLegacyMigration() throws -> LegacyMigrationStatus { legacyMigrationStatus }
+
+    func beginLegacyMigration() throws {
+        actions.append(.beginLegacyMigration)
+        legacyMigrationStatus = .repairRequired(legacyMigrationStatus.components)
+    }
+
+    func disableLegacyHooks() throws { actions.append(.disableLegacyHooks) }
+
+    func stopLegacyCompanion() throws { actions.append(.stopLegacyCompanion) }
+
+    func legacyCompanionIsStopped() throws -> Bool {
+        actions.append(.verifyLegacyCompanionStopped)
+        return legacyCompanionStops
+    }
+
+    func removeLegacyComponents() throws { actions.append(.removeLegacyComponents) }
+
+    func completeLegacyMigration() throws {
+        actions.append(.completeLegacyMigration)
+        legacyMigrationStatus = .awaitingHookConsent(legacyMigrationStatus.components)
+    }
+
+    func completeLegacyHookConsent() throws {
+        actions.append(.completeLegacyHookConsent)
+        legacyMigrationStatus = .awaitingSignalPreview(legacyMigrationStatus.components)
+    }
+
+    func completeLegacySignalPreview() throws {
+        actions.append(.completeLegacySignalPreview)
+        legacyMigrationStatus = .none
     }
 
     func health() throws -> SetupIntegrationHealth { integrationHealth }

@@ -105,7 +105,7 @@ final class LifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(outcome, .restored)
         XCTAssertEqual(
             runtime.actions,
-            [.clearManagedRuntimeState, .startCompanion, .requestSignalOff, .enableOwnedHooksIfTrusted, .clearQuitGate]
+            [.clearManagedRuntimeState, .enableOwnedHooksIfTrusted, .startCompanion, .requestSignalOff, .clearQuitGate]
         )
     }
 
@@ -124,7 +124,7 @@ final class LifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(outcome, .renewedConsentRequired)
         XCTAssertEqual(
             runtime.actions,
-            [.clearManagedRuntimeState, .startCompanion, .requestSignalOff, .enableOwnedHooksIfTrusted]
+            [.clearManagedRuntimeState, .enableOwnedHooksIfTrusted]
         )
     }
 }

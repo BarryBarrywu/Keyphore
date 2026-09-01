@@ -199,15 +199,43 @@ public struct PrivacyAllowedHookRecord: Equatable, Sendable {
 
 public enum GuidedSetupPhase: Equatable, Sendable {
     case codexHostMissing
+    case legacyMigrationReview
+    case legacyMigrationRepair
     case hookReview
     case configured
     case ready
+}
+
+public enum LegacyComponent: String, CaseIterable, Codable, Hashable, Sendable {
+    case plugin
+    case hooks
+    case companionRegistration
+    case managedRuntimeState
+}
+
+public enum LegacyMigrationStatus: Equatable, Sendable {
+    case none
+    case reviewRequired(Set<LegacyComponent>)
+    case repairRequired(Set<LegacyComponent>)
+    case awaitingHookConsent(Set<LegacyComponent>)
+    case awaitingSignalPreview(Set<LegacyComponent>)
+
+    public var components: Set<LegacyComponent> {
+        switch self {
+        case .none: []
+        case let .reviewRequired(components), let .repairRequired(components),
+             let .awaitingHookConsent(components), let .awaitingSignalPreview(components):
+            components
+        }
+    }
 }
 
 public enum GuidedSetupError: Error, Equatable, Sendable {
     case codexHostMissing
     case configurationIncomplete
     case invalidHookInput
+    case legacyMigrationRequired
+    case legacyCompanionStillRunning
     case reviewedHooksChanged
 }
 
@@ -215,11 +243,18 @@ public struct GuidedSetupSnapshot: Equatable, Sendable {
     public let phase: GuidedSetupPhase
     public let detectedHosts: Set<CodexHost>
     public let hooks: [HookDefinition]
+    public let legacyMigrationStatus: LegacyMigrationStatus
 
-    public init(phase: GuidedSetupPhase, detectedHosts: Set<CodexHost>, hooks: [HookDefinition]) {
+    public init(
+        phase: GuidedSetupPhase,
+        detectedHosts: Set<CodexHost>,
+        hooks: [HookDefinition],
+        legacyMigrationStatus: LegacyMigrationStatus = .none
+    ) {
         self.phase = phase
         self.detectedHosts = detectedHosts
         self.hooks = hooks
+        self.legacyMigrationStatus = legacyMigrationStatus
     }
 }
 
@@ -262,6 +297,15 @@ public protocol SetupKeyboardHealthProviding {
 }
 
 public protocol GuidedSetupIntegrating: AnyObject {
+    func inspectLegacyMigration() throws -> LegacyMigrationStatus
+    func beginLegacyMigration() throws
+    func disableLegacyHooks() throws
+    func stopLegacyCompanion() throws
+    func legacyCompanionIsStopped() throws -> Bool
+    func removeLegacyComponents() throws
+    func completeLegacyMigration() throws
+    func completeLegacyHookConsent() throws
+    func completeLegacySignalPreview() throws
     func health() throws -> SetupIntegrationHealth
     func stage(_ hooks: [HookDefinition]) throws
     func installedHookHashes() throws -> [HookEvent: String]
@@ -275,6 +319,15 @@ public protocol GuidedSetupIntegrating: AnyObject {
 }
 
 public extension GuidedSetupIntegrating {
+    func inspectLegacyMigration() throws -> LegacyMigrationStatus { .none }
+    func beginLegacyMigration() throws { throw GuidedSetupError.legacyMigrationRequired }
+    func disableLegacyHooks() throws { throw GuidedSetupError.legacyMigrationRequired }
+    func stopLegacyCompanion() throws { throw GuidedSetupError.legacyMigrationRequired }
+    func legacyCompanionIsStopped() throws -> Bool { false }
+    func removeLegacyComponents() throws { throw GuidedSetupError.legacyMigrationRequired }
+    func completeLegacyMigration() throws { throw GuidedSetupError.legacyMigrationRequired }
+    func completeLegacyHookConsent() throws { throw GuidedSetupError.legacyMigrationRequired }
+    func completeLegacySignalPreview() throws { throw GuidedSetupError.legacyMigrationRequired }
     func loginLaunchEnabled() -> Bool { false }
     func finishConfiguration() throws {}
 }
@@ -303,6 +356,34 @@ public final class GuidedSetup: @unchecked Sendable {
                 hooks: HookDefinition.reviewedRelease
             )
         }
+        let legacyMigrationStatus = try integration.inspectLegacyMigration()
+        switch legacyMigrationStatus {
+        case .none:
+            break
+        case .reviewRequired:
+            return GuidedSetupSnapshot(
+                phase: .legacyMigrationReview,
+                detectedHosts: detectedHosts,
+                hooks: HookDefinition.reviewedRelease,
+                legacyMigrationStatus: legacyMigrationStatus
+            )
+        case .repairRequired:
+            return GuidedSetupSnapshot(
+                phase: .legacyMigrationRepair,
+                detectedHosts: detectedHosts,
+                hooks: HookDefinition.reviewedRelease,
+                legacyMigrationStatus: legacyMigrationStatus
+            )
+        case .awaitingHookConsent:
+            return GuidedSetupSnapshot(
+                phase: .hookReview,
+                detectedHosts: detectedHosts,
+                hooks: HookDefinition.reviewedRelease,
+                legacyMigrationStatus: legacyMigrationStatus
+            )
+        case .awaitingSignalPreview:
+            break
+        }
         guard try integration.health().isConfigured else {
             return GuidedSetupSnapshot(
                 phase: .hookReview,
@@ -315,7 +396,8 @@ public final class GuidedSetup: @unchecked Sendable {
         return GuidedSetupSnapshot(
             phase: phase,
             detectedHosts: detectedHosts,
-            hooks: HookDefinition.reviewedRelease
+            hooks: HookDefinition.reviewedRelease,
+            legacyMigrationStatus: legacyMigrationStatus
         )
     }
 
@@ -323,6 +405,13 @@ public final class GuidedSetup: @unchecked Sendable {
         let detectedHosts = try hosts.detectHosts()
         guard !detectedHosts.isEmpty else {
             throw GuidedSetupError.codexHostMissing
+        }
+        let migrationStatus = try integration.inspectLegacyMigration()
+        switch migrationStatus {
+        case .reviewRequired, .repairRequired:
+            throw GuidedSetupError.legacyMigrationRequired
+        case .none, .awaitingHookConsent, .awaitingSignalPreview:
+            break
         }
         let reviewedHooks = HookDefinition.reviewedRelease
         let health = try integration.health()
@@ -348,13 +437,54 @@ public final class GuidedSetup: @unchecked Sendable {
         guard try integration.health().isConfigured else {
             throw GuidedSetupError.configurationIncomplete
         }
+        if case .awaitingHookConsent = migrationStatus {
+            try integration.completeLegacyHookConsent()
+        }
         try integration.finishConfiguration()
+        let completedMigrationStatus = try integration.inspectLegacyMigration()
         let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
             == .connected(protocolHealthy: true) ? .ready : .configured
         return GuidedSetupSnapshot(
             phase: phase,
             detectedHosts: detectedHosts,
-            hooks: reviewedHooks
+            hooks: reviewedHooks,
+            legacyMigrationStatus: completedMigrationStatus
+        )
+    }
+
+    public func migrateLegacyAfterReview() throws -> GuidedSetupSnapshot {
+        let detectedHosts = try hosts.detectHosts()
+        guard !detectedHosts.isEmpty else {
+            throw GuidedSetupError.codexHostMissing
+        }
+        let migrationStatus = try integration.inspectLegacyMigration()
+        switch migrationStatus {
+        case .reviewRequired, .repairRequired:
+            break
+        case .none, .awaitingHookConsent, .awaitingSignalPreview:
+            throw GuidedSetupError.legacyMigrationRequired
+        }
+
+        try integration.beginLegacyMigration()
+        try integration.disableLegacyHooks()
+        try integration.stopLegacyCompanion()
+        guard try integration.legacyCompanionIsStopped() else {
+            throw GuidedSetupError.legacyCompanionStillRunning
+        }
+        try integration.removeLegacyComponents()
+
+        let reviewedHooks = HookDefinition.reviewedRelease
+        try integration.stage(reviewedHooks)
+        guard try integration.installedHookHashes() == HookDefinition.reviewedHashes else {
+            throw GuidedSetupError.reviewedHooksChanged
+        }
+        try integration.resetRuntimeState()
+        try integration.completeLegacyMigration()
+        return GuidedSetupSnapshot(
+            phase: .hookReview,
+            detectedHosts: detectedHosts,
+            hooks: reviewedHooks,
+            legacyMigrationStatus: try integration.inspectLegacyMigration()
         )
     }
 
@@ -370,5 +500,13 @@ public final class GuidedSetup: @unchecked Sendable {
 
     public func loginLaunchEnabled() -> Bool {
         integration.loginLaunchEnabled()
+    }
+
+    public func completeLegacySignalPreview(_ confirmation: VisualConfirmation) throws {
+        guard case .awaitingSignalPreview = try integration.inspectLegacyMigration() else {
+            return
+        }
+        guard confirmation == .confirmed else { return }
+        try integration.completeLegacySignalPreview()
     }
 }

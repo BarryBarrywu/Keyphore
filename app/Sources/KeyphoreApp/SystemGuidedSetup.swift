@@ -4,6 +4,11 @@ import Foundation
 import KeyphoreCore
 import ServiceManagement
 
+private let knownLegacyPluginIDs: Set<String> = [
+    "nuphy-codex@nuphy-codex",
+    "keyphore@keyphore",
+]
+
 struct SystemCodexHostDetector: CodexHostDetecting {
     let fileManager: FileManager
     let environment: [String: String]
@@ -72,9 +77,35 @@ struct SystemCodexHostDetector: CodexHostDetecting {
     }
 }
 
+private struct LegacyLifecycleState: Decodable {
+    let pluginID: String
+    let pluginRoot: URL
+
+    private enum CodingKeys: String, CodingKey {
+        case pluginID = "plugin_id"
+        case pluginRoot = "plugin_root"
+    }
+
+    var isKnownKeyphoreInstallation: Bool {
+        knownLegacyPluginIDs.contains(pluginID)
+    }
+}
+
+private struct MigrationJournal: Codable {
+    enum Phase: String, Codable {
+        case replacingLegacy
+        case awaitingHookConsent
+        case awaitingSignalPreview
+    }
+
+    let phase: Phase
+    let components: Set<LegacyComponent>
+}
+
 final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private static let pluginID = "keyphore@keyphore-app"
     private static let launchLabel = "com.barrywu.keyphore.companion"
+    private static let legacyLaunchLabel = "com.barrybarrywu.keyphore"
 
     private let fileManager: FileManager
     private let codexURL: URL
@@ -82,23 +113,28 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private let supportDirectory: URL
     private let launchAgentsDirectory: URL
     private let launchctlURL: URL
+    private let processListURL: URL
 
     init?(
         detector: SystemCodexHostDetector,
         bundle: Bundle = .main,
         fileManager: FileManager = .default,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        launchctlURL: URL = URL(fileURLWithPath: "/bin/launchctl")
+        launchctlURL: URL = URL(fileURLWithPath: "/bin/launchctl"),
+        processListURL: URL = URL(fileURLWithPath: "/bin/ps"),
+        helperURL: URL? = nil
     ) {
         guard let codexURL = detector.preferredCodexURL else {
             return nil
         }
         self.fileManager = fileManager
         self.codexURL = codexURL
-        helperURL = bundle.bundleURL.appending(path: "Contents/Helpers/keyphore")
+        self.helperURL = helperURL
+            ?? bundle.bundleURL.appending(path: "Contents/Helpers/keyphore")
         supportDirectory = homeDirectory.appending(path: "Library/Application Support/Keyphore")
         launchAgentsDirectory = homeDirectory.appending(path: "Library/LaunchAgents")
         self.launchctlURL = launchctlURL
+        self.processListURL = processListURL
     }
 
     func health() throws -> SetupIntegrationHealth {
@@ -116,6 +152,114 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
             companionRegistered: companionIsRegistered(),
             managedStatePresent: managedStateIsCurrent(hooks: hooks)
         )
+    }
+
+    func inspectLegacyMigration() throws -> LegacyMigrationStatus {
+        if fileManager.fileExists(atPath: migrationJournalURL.path) {
+            guard let journal = try? migrationJournal() else {
+                return .repairRequired(Set(LegacyComponent.allCases))
+            }
+            switch journal.phase {
+            case .replacingLegacy: return .repairRequired(journal.components)
+            case .awaitingHookConsent: return .awaitingHookConsent(journal.components)
+            case .awaitingSignalPreview: return .awaitingSignalPreview(journal.components)
+            }
+        }
+
+        var components: Set<LegacyComponent> = []
+        let installedLegacyIDs = try allInstalledPluginIDs().filter(isLegacyPluginID)
+        if !installedLegacyIDs.isEmpty {
+            components.formUnion([.plugin, .hooks])
+        }
+        if fileManager.fileExists(atPath: legacyStateURL.path) {
+            components.insert(.managedRuntimeState)
+            if let legacy = try? legacyLifecycleState(),
+               !(try legacyHookMetadata(legacy)).isEmpty
+            {
+                components.insert(.hooks)
+            }
+        }
+        if companionIsRegistered(target: legacyLaunchTarget)
+            || fileManager.fileExists(atPath: legacyLaunchAgentURL.path)
+        {
+            components.insert(.companionRegistration)
+        }
+        return components.isEmpty ? .none : .reviewRequired(components)
+    }
+
+    func beginLegacyMigration() throws {
+        let status = try inspectLegacyMigration()
+        guard status != .none else {
+            throw GuidedSetupError.legacyMigrationRequired
+        }
+        try quitGate.activate()
+        try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(MigrationJournal(
+            phase: .replacingLegacy,
+            components: status.components
+        ))
+            .write(to: migrationJournalURL, options: .atomic)
+    }
+
+    func disableLegacyHooks() throws {
+        guard let legacy = try? legacyLifecycleState() else { return }
+        let hooks = try legacyHookMetadata(legacy)
+        guard !hooks.isEmpty else { return }
+        try CodexAppServer(codexURL: codexURL).setEnabled(hooks, enabled: false)
+        guard try legacyHookMetadata(legacy).allSatisfy({ !$0.enabled }) else {
+            throw SystemSetupError.codexRejectedHookState
+        }
+    }
+
+    func stopLegacyCompanion() throws {
+        for target in [legacyLaunchTarget, launchTarget] {
+            _ = try? run(launchctlURL, ["bootout", target])
+        }
+        guard try legacyCompanionIsStopped() else {
+            throw GuidedSetupError.legacyCompanionStillRunning
+        }
+    }
+
+    func legacyCompanionIsStopped() throws -> Bool {
+        let processIsRunning = try companionProcessIsRunning()
+        return !companionIsRegistered(target: legacyLaunchTarget)
+            && !companionIsRegistered(target: launchTarget)
+            && !processIsRunning
+    }
+
+    func removeLegacyComponents() throws {
+        for pluginID in try allInstalledPluginIDs().filter(isLegacyPluginID) {
+            _ = try runCodex(["plugin", "remove", pluginID, "--json"])
+        }
+        try verifyLegacyPluginAndHooksRemoved()
+        for url in [
+            legacyLaunchAgentURL,
+            legacyStateURL,
+            supportDirectory.appending(path: "hook-events.jsonl"),
+            supportDirectory.appending(path: "companion.stdout.log"),
+            supportDirectory.appending(path: "companion.stderr.log"),
+            supportDirectory.appending(path: "hardware-health.json"),
+        ] where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
+    func completeLegacyMigration() throws {
+        let components = (try? migrationJournal())?.components
+            ?? Set(LegacyComponent.allCases)
+        try writeMigrationJournal(.awaitingHookConsent, components: components)
+    }
+
+    func completeLegacyHookConsent() throws {
+        let components = (try? migrationJournal())?.components
+            ?? Set(LegacyComponent.allCases)
+        try writeMigrationJournal(.awaitingSignalPreview, components: components)
+    }
+
+    func completeLegacySignalPreview() throws {
+        if fileManager.fileExists(atPath: migrationJournalURL.path) {
+            try fileManager.removeItem(at: migrationJournalURL)
+        }
     }
 
     func stage(_ hooks: [HookDefinition]) throws {
@@ -157,7 +301,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         }
         try fileManager.createDirectory(at: launchAgentsDirectory, withIntermediateDirectories: true)
         try companionPlist.data(using: .utf8)?.write(to: launchAgentURL, options: .atomic)
-        _ = try? run(launchctlURL, ["bootout", launchTarget])
+        for target in [launchTarget, legacyLaunchTarget] {
+            _ = try? run(launchctlURL, ["bootout", target])
+        }
+        guard try legacyCompanionIsStopped() else {
+            throw SystemSetupError.companionStillRunning
+        }
         _ = try run(launchctlURL, ["bootstrap", launchDomain, launchAgentURL.path])
         _ = try run(launchctlURL, ["kickstart", "-k", launchTarget])
     }
@@ -263,6 +412,13 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     func enableOwnedHooksIfTrusted() throws -> Bool {
+        if fileManager.fileExists(atPath: migrationJournalURL.path) {
+            guard let journal = try? migrationJournal(),
+                  journal.phase == .awaitingSignalPreview
+            else {
+                return false
+            }
+        }
         let metadata = try hookMetadata()
         guard
             (try? validateOwnedMetadata(metadata)) == HookDefinition.reviewedHashes,
@@ -299,14 +455,20 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private var marketplaceRoot: URL { supportDirectory.appending(path: "Marketplace") }
     private var pluginRoot: URL { marketplaceRoot.appending(path: "plugin") }
     private var stateURL: URL { supportDirectory.appending(path: "setup.json") }
+    private var legacyStateURL: URL { supportDirectory.appending(path: "lifecycle.json") }
+    private var migrationJournalURL: URL { supportDirectory.appending(path: "migration.json") }
     private var quitGate: QuitGateStore {
         QuitGateStore(url: KeyphoreRuntimePaths.quitGateURL())
     }
     private var launchAgentURL: URL {
         launchAgentsDirectory.appending(path: "\(Self.launchLabel).plist")
     }
+    private var legacyLaunchAgentURL: URL {
+        launchAgentsDirectory.appending(path: "\(Self.legacyLaunchLabel).plist")
+    }
     private var launchDomain: String { "gui/\(geteuid())" }
     private var launchTarget: String { "\(launchDomain)/\(Self.launchLabel)" }
+    private var legacyLaunchTarget: String { "\(launchDomain)/\(Self.legacyLaunchLabel)" }
 
     private func marketplaceIsInstalled() throws -> Bool {
         let output = try runCodex(["plugin", "marketplace", "list", "--json"])
@@ -316,13 +478,44 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     private func installedPluginIDs() throws -> Set<String> {
+        try pluginEntries().reduce(into: []) { result, entry in
+            guard entry["enabled"] as? Bool == true, let id = entry["pluginId"] as? String else {
+                return
+            }
+            result.insert(id)
+        }
+    }
+
+    private func allInstalledPluginIDs() throws -> Set<String> {
+        Set(try pluginEntries().compactMap { $0["pluginId"] as? String })
+    }
+
+    private func isLegacyPluginID(_ pluginID: String) -> Bool {
+        knownLegacyPluginIDs.contains(pluginID)
+    }
+
+    private func verifyLegacyPluginAndHooksRemoved() throws {
+        guard try allInstalledPluginIDs().isDisjoint(with: knownLegacyPluginIDs) else {
+            throw SystemSetupError.unexpectedLegacyInstallation
+        }
+        guard try knownLegacyHookMetadata().isEmpty else {
+            throw SystemSetupError.codexRejectedHookState
+        }
+        do {
+            if let legacy = try legacyLifecycleState(), !(try legacyHookMetadata(legacy)).isEmpty {
+                throw SystemSetupError.codexRejectedHookState
+            }
+        } catch is DecodingError {
+            guard try legacyCompanionIsStopped() else {
+                throw GuidedSetupError.legacyCompanionStillRunning
+            }
+        }
+    }
+
+    private func pluginEntries() throws -> [[String: Any]] {
         let output = try runCodex(["plugin", "list", "--json"])
         let root = try JSONSerialization.jsonObject(with: output) as? [String: Any]
-        let installed = root?["installed"] as? [[String: Any]] ?? []
-        return Set(installed.compactMap { entry in
-            guard entry["enabled"] as? Bool == true else { return nil }
-            return entry["pluginId"] as? String
-        })
+        return root?["installed"] as? [[String: Any]] ?? []
     }
 
     private func hookMetadata() throws -> [CodexHookMetadata] {
@@ -359,7 +552,59 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     private func companionIsRegistered() -> Bool {
-        return (try? run(launchctlURL, ["print", launchTarget])) != nil
+        companionIsRegistered(target: launchTarget)
+    }
+
+    private func companionIsRegistered(target: String) -> Bool {
+        (try? run(launchctlURL, ["print", target])) != nil
+    }
+
+    private func companionProcessIsRunning() throws -> Bool {
+        let output = try run(processListURL, ["-axo", "command="])
+        return String(decoding: output, as: UTF8.self)
+            .split(separator: "\n")
+            .contains { $0.range(of: #"/keyphore companion(?:\s|$)"#, options: .regularExpression) != nil }
+    }
+
+    private func legacyLifecycleState() throws -> LegacyLifecycleState? {
+        guard fileManager.fileExists(atPath: legacyStateURL.path) else { return nil }
+        let state = try JSONDecoder().decode(
+            LegacyLifecycleState.self,
+            from: Data(contentsOf: legacyStateURL)
+        )
+        guard state.isKnownKeyphoreInstallation else {
+            throw SystemSetupError.unexpectedLegacyInstallation
+        }
+        return state
+    }
+
+    private func legacyHookMetadata(_ legacy: LegacyLifecycleState) throws -> [CodexHookMetadata] {
+        try CodexAppServer(codexURL: codexURL).hooks(in: legacy.pluginRoot)
+            .filter { $0.pluginID == legacy.pluginID }
+    }
+
+    private func knownLegacyHookMetadata() throws -> [CodexHookMetadata] {
+        try CodexAppServer(codexURL: codexURL).hooks(in: supportDirectory)
+            .filter { metadata in
+                metadata.pluginID.map(knownLegacyPluginIDs.contains) == true
+            }
+    }
+
+    private func migrationJournal() throws -> MigrationJournal? {
+        guard fileManager.fileExists(atPath: migrationJournalURL.path) else { return nil }
+        return try JSONDecoder().decode(
+            MigrationJournal.self,
+            from: Data(contentsOf: migrationJournalURL)
+        )
+    }
+
+    private func writeMigrationJournal(
+        _ phase: MigrationJournal.Phase,
+        components: Set<LegacyComponent>
+    ) throws {
+        try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(MigrationJournal(phase: phase, components: components))
+            .write(to: migrationJournalURL, options: .atomic)
     }
 
     private func managedStateIsCurrent(hooks: [CodexHookMetadata]) -> Bool {
@@ -524,6 +769,7 @@ private enum SystemSetupError: Error {
     case signalOffNotAcknowledged
     case runtimeMissing
     case unexpectedHookDefinition
+    case unexpectedLegacyInstallation
 }
 
 private final class CodexAppServer {

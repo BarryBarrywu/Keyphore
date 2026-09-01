@@ -188,11 +188,11 @@ public final class KeyphoreLifecycle {
 
     public func reopen() throws -> ReopenOutcome {
         try runtime.clearManagedRuntimeState()
-        try runtime.startCompanion()
-        try runtime.requestSignalOff()
         guard try runtime.enableOwnedHooksIfTrusted() else {
             return .renewedConsentRequired
         }
+        try runtime.startCompanion()
+        try runtime.requestSignalOff()
         try runtime.clearQuitGate()
         return .restored
     }

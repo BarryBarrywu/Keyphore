@@ -81,6 +81,10 @@ struct SignalSettingsView: View {
     @ViewBuilder
     private var previewSection: some View {
         Section(AppCopy.value(.previewTitle)) {
+            if state.migrationRequiresSignalPreview {
+                Text(AppCopy.value(.migrationPreviewDescription))
+                    .foregroundStyle(.secondary)
+            }
             Button(AppCopy.value(.previewStart), action: state.beginSignalPreview)
                 .disabled(state.menuState != .ready || previewIsRunning)
 

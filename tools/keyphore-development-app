@@ -1,0 +1,115 @@
+#!/bin/zsh
+set -eu
+
+repository_root=${0:A:h:h}
+applications_directory="$HOME/Applications"
+destination="$applications_directory/Keyphore Development.app"
+launchctl_bin=${KEYPHORE_LAUNCHCTL_BIN:-/bin/launchctl}
+open_bin=${KEYPHORE_OPEN_BIN:-/usr/bin/open}
+temp_guard=${KEYPHORE_TEMP_GUARD:-/Users/barry/.local/bin/codex-temp-guard}
+launch_domain="gui/$(/usr/bin/id -u)"
+current_target="$launch_domain/com.barrywu.keyphore.companion"
+legacy_target="$launch_domain/com.barrybarrywu.keyphore"
+
+usage() {
+  print 'Usage: tools/keyphore-development-app build-open | install <Keyphore.app> | preflight'
+}
+
+service_is_loaded() {
+  "$launchctl_bin" print "$1" >/dev/null 2>&1
+}
+
+preflight() {
+  /usr/bin/osascript -e 'tell application id "com.barrywu.keyphore" to quit' >/dev/null 2>&1 || true
+  for _ in {1..30}; do
+    if ! /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore($| )' >/dev/null; then
+      break
+    fi
+    /bin/sleep 0.1
+  done
+  if /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore($| )' >/dev/null; then
+    print -u2 'A Keyphore App is still running after safe quit.'
+    return 1
+  fi
+
+  "$launchctl_bin" bootout "$current_target" >/dev/null 2>&1 || true
+  "$launchctl_bin" bootout "$legacy_target" >/dev/null 2>&1 || true
+  if service_is_loaded "$current_target" || service_is_loaded "$legacy_target"; then
+    print -u2 'A Keyphore Companion is still registered; refusing a second HID owner.'
+    return 1
+  fi
+  if /usr/bin/pgrep -f '/keyphore companion($| )' >/dev/null; then
+    print -u2 'An unregistered Keyphore Companion is still running; stop it before continuing.'
+    return 1
+  fi
+}
+
+install_app() {
+  source_app=$1
+  if [[ ! -d "$source_app" || ! -x "$source_app/Contents/Helpers/keyphore" ]]; then
+    print -u2 'The build does not contain an executable Keyphore helper.'
+    return 1
+  fi
+  bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_app/Contents/Info.plist")
+  if [[ "$bundle_id" != 'com.barrywu.keyphore' ]]; then
+    print -u2 'The build has an unexpected bundle identifier.'
+    return 1
+  fi
+
+  preflight
+  /bin/mkdir -p "$applications_directory"
+  canonical_applications_directory=$(cd "$applications_directory" && /bin/pwd -P)
+  case "$canonical_applications_directory" in
+    /Users/*/Applications) ;;
+    *)
+      print -u2 'Refusing a development App destination outside a user Applications directory.'
+      return 1
+      ;;
+  esac
+  destination="$canonical_applications_directory/Keyphore Development.app"
+  staging="$canonical_applications_directory/.Keyphore Development.$$.app"
+  /usr/bin/ditto "$source_app" "$staging"
+  if [[ -e "$destination" ]]; then
+    previous="$HOME/.Trash/Keyphore Development.previous.$$.app"
+    /bin/mv "$destination" "$previous"
+  fi
+  /bin/mv "$staging" "$destination"
+  "$open_bin" "$destination"
+  print "$destination"
+}
+
+build_open() {
+  build_root=$($temp_guard create keyphore development-app)
+  trap '$temp_guard release "$build_root" >/dev/null 2>&1 || true' EXIT
+  /usr/bin/xcodebuild \
+    -project "$repository_root/Keyphore.xcodeproj" \
+    -scheme Keyphore \
+    -configuration Debug \
+    -derivedDataPath "$build_root/DerivedData" \
+    build
+  install_app "$build_root/DerivedData/Build/Products/Debug/Keyphore.app"
+  $temp_guard release "$build_root"
+  trap - EXIT
+}
+
+case ${1:-} in
+  build-open)
+    [[ $# -eq 1 ]] || { usage; exit 64; }
+    build_open
+    ;;
+  install)
+    [[ $# -eq 2 ]] || { usage; exit 64; }
+    install_app "$2"
+    ;;
+  preflight)
+    [[ $# -eq 1 ]] || { usage; exit 64; }
+    preflight
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    usage
+    exit 64
+    ;;
+esac

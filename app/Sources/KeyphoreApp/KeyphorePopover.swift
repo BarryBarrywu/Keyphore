@@ -20,6 +20,9 @@ struct KeyphorePopover: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if state.migrationRequiresSignalPreview {
+                    migrationPreviewReminder
+                }
                 Air65KeyboardView(signal: state.snapshot.currentSignal, profile: state.snapshot.profile)
                 statusGrid
             }
@@ -80,6 +83,21 @@ struct KeyphorePopover: View {
         .font(.callout)
     }
 
+    private var migrationPreviewReminder: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(AppCopy.value(.migrationPreviewRequired), systemImage: "eye")
+                .font(.subheadline.weight(.semibold))
+            Text(AppCopy.value(.migrationPreviewDescription))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if #available(macOS 14.0, *) {
+                SettingsLink {
+                    Text(AppCopy.value(.migrationPreviewAction))
+                }
+            }
+        }
+    }
+
     private var actions: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -124,6 +142,9 @@ private struct GuidedSetupView: View {
                 Label(AppCopy.value(.setupHostMissing), systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.secondary)
                 Button(AppCopy.value(.setupRepair), action: state.refresh)
+            } else if state.setupSnapshot.phase == .legacyMigrationReview
+                        || state.setupSnapshot.phase == .legacyMigrationRepair {
+                legacyMigration
             } else {
                 Label(AppCopy.value(.setupHostFound), systemImage: "checkmark.circle")
                 Text(hosts)
@@ -175,6 +196,54 @@ private struct GuidedSetupView: View {
         }
     }
 
+    private var legacyMigration: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(
+                AppCopy.value(
+                    state.setupSnapshot.phase == .legacyMigrationRepair
+                        ? .migrationRepairTitle : .migrationTitle
+                ),
+                systemImage: "arrow.triangle.2.circlepath"
+            )
+            .font(.headline)
+            Text(
+                AppCopy.value(
+                    state.setupSnapshot.phase == .legacyMigrationRepair
+                        ? .migrationRepairDescription : .migrationDescription
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            ForEach(
+                state.setupSnapshot.legacyMigrationStatus.components.sorted {
+                    $0.rawValue < $1.rawValue
+                },
+                id: \.rawValue
+            ) { component in
+                Label(AppCopy.value(component.copyKey), systemImage: "checkmark.circle")
+                    .font(.caption)
+            }
+            Text(AppCopy.value(.migrationFreshConsent))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if state.setupFailed {
+                Text(AppCopy.value(.migrationError))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            Button(
+                state.setupIsWorking
+                    ? AppCopy.value(.setupWorking)
+                    : AppCopy.value(
+                        state.setupSnapshot.phase == .legacyMigrationRepair
+                            ? .migrationRepairAction : .migrationConfirm
+                    ),
+                action: state.migrateLegacyAfterReview
+            )
+            .disabled(state.setupIsWorking)
+        }
+    }
+
     private func fields(_ hook: HookDefinition) -> String {
         hook.allowedFields.map(\.rawValue).sorted().joined(separator: ", ")
     }
@@ -186,6 +255,17 @@ private struct GuidedSetupView: View {
                 AppCopy.value(host == .desktopApp ? .setupDesktopHost : .setupCommandLineHost)
             }
             .joined(separator: ", ")
+    }
+}
+
+private extension LegacyComponent {
+    var copyKey: AppCopyKey {
+        switch self {
+        case .plugin: .migrationComponentPlugin
+        case .hooks: .migrationComponentHooks
+        case .companionRegistration: .migrationComponentCompanion
+        case .managedRuntimeState: .migrationComponentRuntimeState
+        }
     }
 }
 

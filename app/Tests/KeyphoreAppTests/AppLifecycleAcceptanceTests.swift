@@ -31,7 +31,7 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(try state.reopenIfNeeded(), .restored)
         XCTAssertEqual(
             Array(runtime.actions.suffix(5)),
-            [.clearState, .start, .signalOff, .enableTrustedHooks, .clearGate]
+            [.clearState, .enableTrustedHooks, .start, .signalOff, .clearGate]
         )
     }
 
