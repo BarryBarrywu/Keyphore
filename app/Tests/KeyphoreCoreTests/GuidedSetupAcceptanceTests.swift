@@ -3,6 +3,30 @@ import KeyphoreCore
 
 @MainActor
 final class GuidedSetupAcceptanceTests: XCTestCase {
+    func testDiagnosticSnapshotUsesOnlyReviewedHealthFacts() throws {
+        let health = SetupIntegrationHealth(
+            pluginInstalled: true,
+            hooksTrusted: false,
+            companionRegistered: true,
+            managedStatePresent: true
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: RecordingSetupIntegration(health: health),
+            keyboard: FixedSetupKeyboard(.connected(protocolHealthy: false))
+        )
+
+        let snapshot = setup.diagnosticSnapshot(
+            appVersion: "0.1.0 (1)",
+            macOSVersion: "macOS 15.6.1"
+        )
+
+        XCTAssertEqual(snapshot.codexHosts, [.desktopApp])
+        XCTAssertEqual(snapshot.integration, health)
+        XCTAssertEqual(snapshot.keyboard, .connected(protocolHealthy: false))
+        XCTAssertFalse(snapshot.collectionFailed)
+    }
+
     func testAppServerMetadataDecodesThePluginIdField() throws {
         let data = Data(
             """

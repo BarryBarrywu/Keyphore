@@ -138,7 +138,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     func health() throws -> SetupIntegrationHealth {
-        let pluginInstalled = try installedPluginIDs().contains(Self.pluginID)
+        let pluginInstalled = try allInstalledPluginIDs().contains(Self.pluginID)
         let hooks = pluginInstalled ? try hookMetadata() : []
         let actual = Dictionary(uniqueKeysWithValues: hooks.compactMap { metadata in
             metadata.event.map { ($0, metadata.currentHash) }
@@ -346,6 +346,48 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         SMAppService.mainApp.status == .enabled
     }
 
+    func companionIsRunningForDiagnostics() throws -> Bool {
+        let process = Process()
+        let outputURL = fileManager.temporaryDirectory
+            .appending(path: "keyphore-launchctl-output-\(UUID().uuidString)")
+        let errorURL = fileManager.temporaryDirectory
+            .appending(path: "keyphore-launchctl-error-\(UUID().uuidString)")
+        guard fileManager.createFile(atPath: outputURL.path, contents: nil),
+              fileManager.createFile(atPath: errorURL.path, contents: nil)
+        else {
+            try? fileManager.removeItem(at: outputURL)
+            try? fileManager.removeItem(at: errorURL)
+            throw SystemSetupError.commandFailed
+        }
+        let outputHandle = try FileHandle(forWritingTo: outputURL)
+        let errorHandle = try FileHandle(forWritingTo: errorURL)
+        defer {
+            try? outputHandle.close()
+            try? errorHandle.close()
+            try? fileManager.removeItem(at: outputURL)
+            try? fileManager.removeItem(at: errorURL)
+        }
+        process.executableURL = launchctlURL
+        process.arguments = ["print", launchTarget]
+        process.standardOutput = outputHandle
+        process.standardError = errorHandle
+        try process.run()
+        try waitForExit(process)
+        try outputHandle.close()
+        try errorHandle.close()
+        let output = try Data(contentsOf: outputURL)
+        let error = try Data(contentsOf: errorURL)
+        if process.terminationStatus == 113,
+           String(decoding: error, as: UTF8.self).contains("Could not find service")
+        {
+            return false
+        }
+        guard process.terminationStatus == 0 else {
+            throw SystemSetupError.commandFailed
+        }
+        return String(decoding: output, as: UTF8.self).contains("state = running")
+    }
+
     var isQuitGateActive: Bool { quitGate.isActive }
 
     func activateQuitGate() throws {
@@ -475,15 +517,6 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         let root = try JSONSerialization.jsonObject(with: output) as? [String: Any]
         let marketplaces = root?["marketplaces"] as? [[String: Any]] ?? []
         return marketplaces.contains { $0["name"] as? String == "keyphore-app" }
-    }
-
-    private func installedPluginIDs() throws -> Set<String> {
-        try pluginEntries().reduce(into: []) { result, entry in
-            guard entry["enabled"] as? Bool == true, let id = entry["pluginId"] as? String else {
-                return
-            }
-            result.insert(id)
-        }
     }
 
     private func allInstalledPluginIDs() throws -> Set<String> {
@@ -691,12 +724,24 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         process.standardOutput = outputHandle
         process.standardError = FileHandle.nullDevice
         try process.run()
-        process.waitUntilExit()
+        try waitForExit(process)
         try outputHandle.close()
         guard process.terminationStatus == 0 else {
             throw SystemSetupError.commandFailed
         }
         return try Data(contentsOf: outputURL)
+    }
+
+    private func waitForExit(_ process: Process, timeout: TimeInterval = 5) throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        guard !process.isRunning else {
+            process.terminate()
+            throw SystemSetupError.commandFailed
+        }
+        process.waitUntilExit()
     }
 
     private var companionPlist: String {
@@ -925,6 +970,7 @@ private struct SetupKeyboardAdapter: SetupKeyboardHealthProviding {
     private let store = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
 
     func currentKeyboardHealth() -> KeyboardHealth { store.load() }
+    func currentDiagnosticKeyboardHealth() -> KeyboardHealth { store.loadDiagnosticHealth() }
 }
 
 extension GuidedSetup {
@@ -953,7 +999,7 @@ extension GuidedSetup {
     }
 }
 
-private final class MissingHostIntegration: GuidedSetupIntegrating {
+final class MissingHostIntegration: GuidedSetupIntegrating {
     func health() throws -> SetupIntegrationHealth { .notConfigured }
     func stage(_ hooks: [HookDefinition]) throws { throw GuidedSetupError.codexHostMissing }
     func installedHookHashes() throws -> [HookEvent: String] { [:] }
@@ -962,4 +1008,7 @@ private final class MissingHostIntegration: GuidedSetupIntegrating {
     func registerCompanion() throws { throw GuidedSetupError.codexHostMissing }
     func persistConfigured() throws { throw GuidedSetupError.codexHostMissing }
     func setLoginLaunchEnabled(_ enabled: Bool) throws { throw GuidedSetupError.codexHostMissing }
+    func companionIsRunningForDiagnostics() throws -> Bool {
+        throw GuidedSetupError.codexHostMissing
+    }
 }

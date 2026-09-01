@@ -35,6 +35,14 @@ public final class KeyboardHealthStore: @unchecked Sendable {
     }
 
     public func load(at now: StatusTimestamp = .now) -> KeyboardHealth {
+        loadFreshHealth(at: now) ?? .disconnected
+    }
+
+    public func loadDiagnosticHealth(at now: StatusTimestamp = .now) -> KeyboardHealth {
+        loadFreshHealth(at: now) ?? .unavailable
+    }
+
+    private func loadFreshHealth(at now: StatusTimestamp) -> KeyboardHealth? {
         guard
             let data = try? Data(contentsOf: url),
             let record = try? JSONDecoder().decode(Record.self, from: data),
@@ -42,7 +50,7 @@ public final class KeyboardHealthStore: @unchecked Sendable {
             now.millisecondsSince1970 - record.observedAt.millisecondsSince1970
                 <= UInt64(Self.maximumAge.components.seconds * 1_000)
         else {
-            return .disconnected
+            return nil
         }
         switch record.status {
         case .disconnected:

@@ -1,8 +1,8 @@
 import Foundation
 
-public enum AppLanguage: String, CaseIterable, Sendable {
+public enum AppLanguage: String, CaseIterable, Codable, Sendable {
     case english = "en"
-    case simplifiedChinese = "zh-hans"
+    case simplifiedChinese = "zh-Hans"
 }
 
 public enum AppCopyKey: String, CaseIterable, Sendable {
@@ -85,6 +85,48 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
     case previewRejected = "preview.rejected"
     case previewFailed = "preview.failed"
     case previewStateError = "preview.state_error"
+    case diagnosticFieldAppVersion = "diagnostic.field.app_version"
+    case diagnosticFieldMacOS = "diagnostic.field.macos"
+    case diagnosticFieldCodexHost = "diagnostic.field.codex_host"
+    case diagnosticFieldHook = "diagnostic.field.hook"
+    case diagnosticFieldCompanion = "diagnostic.field.companion"
+    case diagnosticFieldKeyboard = "diagnostic.field.keyboard"
+    case diagnosticFieldProtocol = "diagnostic.field.protocol"
+    case diagnosticFieldErrorHealth = "diagnostic.field.error_health"
+    case diagnosticHostBoth = "diagnostic.value.host_both"
+    case diagnosticTrusted = "diagnostic.value.trusted"
+    case diagnosticUntrusted = "diagnostic.value.untrusted"
+    case diagnosticRunning = "diagnostic.value.running"
+    case diagnosticNotRunning = "diagnostic.value.not_running"
+    case diagnosticConnected = "diagnostic.value.connected"
+    case diagnosticDisconnected = "diagnostic.value.disconnected"
+    case diagnosticAmbiguous = "diagnostic.value.ambiguous"
+    case diagnosticUnavailable = "diagnostic.value.unavailable"
+    case diagnosticHealthy = "diagnostic.value.healthy"
+    case diagnosticFailed = "diagnostic.value.failed"
+    case diagnosticNotAvailable = "diagnostic.value.not_available"
+    case diagnosticNotInstalled = "diagnostic.value.not_installed"
+    case diagnosticNoErrors = "diagnostic.error.none"
+    case diagnosticHealthUnavailable = "diagnostic.error.health_unavailable"
+    case diagnosticIssueHookMissing = "diagnostic.error.hook_missing"
+    case diagnosticIssueHookConsent = "diagnostic.error.hook_consent"
+    case diagnosticIssueCompanion = "diagnostic.error.companion"
+    case diagnosticIssueManagedState = "diagnostic.error.managed_state"
+    case diagnosticIssueDisconnected = "diagnostic.error.disconnected"
+    case diagnosticIssueKeyboardUnavailable = "diagnostic.error.keyboard_unavailable"
+    case diagnosticIssueAmbiguous = "diagnostic.error.ambiguous"
+    case diagnosticIssueProtocol = "diagnostic.error.protocol"
+    case diagnosticActionConfigure = "diagnostic.action.configure"
+    case diagnosticActionReviewHooks = "diagnostic.action.review_hooks"
+    case diagnosticActionRepair = "diagnostic.action.repair"
+    case diagnosticActionConnectKeyboard = "diagnostic.action.connect_keyboard"
+    case diagnosticActionOneKeyboard = "diagnostic.action.one_keyboard"
+    case diagnosticActionProtocol = "diagnostic.action.protocol"
+    case diagnosticActionInstallCodex = "diagnostic.action.install_codex"
+    case diagnosticPrivacyNotice = "diagnostic.privacy_notice"
+    case diagnosticCollecting = "diagnostic.collecting"
+    case diagnosticSave = "diagnostic.save"
+    case diagnosticSaveFailed = "diagnostic.save_failed"
 }
 
 public enum AppCopy {
@@ -96,8 +138,9 @@ public enum AppCopy {
     }
 
     public static func value(_ key: AppCopyKey, language: AppLanguage) -> String {
+        let resource = language == .simplifiedChinese ? "zh-hans" : language.rawValue
         guard
-            let path = Bundle.module.path(forResource: language.rawValue, ofType: "lproj"),
+            let path = Bundle.module.path(forResource: resource, ofType: "lproj"),
             let bundle = Bundle(path: path)
         else {
             return key.rawValue

@@ -1,24 +1,57 @@
+import AppKit
 import SwiftUI
 import KeyphoreCore
+import UniformTypeIdentifiers
 
 struct DiagnosticsView: View {
-    let snapshot: LifecycleSnapshot
-    let menuState: MenuState
+    @ObservedObject var state: KeyphoreAppState
+    @State private var saveFailed = false
 
     var body: some View {
         Form {
-            LabeledContent(AppCopy.value(.productName)) {
-                Text(AppCopy.value(menuState.copyKey))
+            ForEach(state.diagnosticReport.fields) { field in
+                LabeledContent(field.label) {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(field.value)
+                        if let action = field.action {
+                            Text(action)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .multilineTextAlignment(.trailing)
+                }
             }
-            LabeledContent(AppCopy.value(.deviceName)) {
-                Text(AppCopy.value(snapshot.keyboardHealth.copyKey))
+            Text(state.diagnosticReport.privacyNotice)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !state.diagnosticReportIsReady || state.diagnosticReportIsRefreshing {
+                ProgressView(AppCopy.value(.diagnosticCollecting))
             }
-            LabeledContent(AppCopy.value(.currentSignal)) {
-                Text(AppCopy.value(snapshot.currentSignal.presentation(in: snapshot.profile).copyKey))
+            Button(AppCopy.value(.diagnosticSave), action: save)
+                .disabled(!state.diagnosticReportIsReady || state.diagnosticReportIsRefreshing)
+            if saveFailed {
+                Text(AppCopy.value(.diagnosticSaveFailed))
+                    .foregroundStyle(.red)
             }
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear(perform: state.refreshDiagnosticReport)
+    }
+
+    private func save() {
+        let reviewedReport = state.diagnosticReport
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.zip]
+        panel.nameFieldStringValue = "Keyphore-Diagnostics.zip"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try DiagnosticReportExporter().export(reviewedReport, to: url)
+            saveFailed = false
+        } catch {
+            saveFailed = true
+        }
     }
 }
 

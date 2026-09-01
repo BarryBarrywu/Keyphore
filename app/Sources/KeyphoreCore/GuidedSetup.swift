@@ -294,6 +294,13 @@ public protocol CodexHostDetecting {
 
 public protocol SetupKeyboardHealthProviding {
     func currentKeyboardHealth() -> KeyboardHealth
+    func currentDiagnosticKeyboardHealth() -> KeyboardHealth
+}
+
+public extension SetupKeyboardHealthProviding {
+    func currentDiagnosticKeyboardHealth() -> KeyboardHealth {
+        currentKeyboardHealth()
+    }
 }
 
 public protocol GuidedSetupIntegrating: AnyObject {
@@ -316,6 +323,7 @@ public protocol GuidedSetupIntegrating: AnyObject {
     func setLoginLaunchEnabled(_ enabled: Bool) throws
     func loginLaunchEnabled() -> Bool
     func finishConfiguration() throws
+    func companionIsRunningForDiagnostics() throws -> Bool
 }
 
 public extension GuidedSetupIntegrating {
@@ -330,6 +338,9 @@ public extension GuidedSetupIntegrating {
     func completeLegacySignalPreview() throws { throw GuidedSetupError.legacyMigrationRequired }
     func loginLaunchEnabled() -> Bool { false }
     func finishConfiguration() throws {}
+    func companionIsRunningForDiagnostics() throws -> Bool {
+        try health().companionRegistered
+    }
 }
 
 public final class GuidedSetup: @unchecked Sendable {
@@ -500,6 +511,40 @@ public final class GuidedSetup: @unchecked Sendable {
 
     public func loginLaunchEnabled() -> Bool {
         integration.loginLaunchEnabled()
+    }
+
+    public func diagnosticSnapshot(
+        appVersion: String,
+        macOSVersion: String
+    ) -> DiagnosticSnapshot {
+        let detectedHosts: Set<CodexHost>?
+        let integrationHealth: SetupIntegrationHealth?
+        let companion: CompanionDiagnosticHealth
+        do {
+            detectedHosts = try hosts.detectHosts()
+        } catch {
+            detectedHosts = nil
+        }
+        do {
+            integrationHealth = try integration.health()
+        } catch {
+            integrationHealth = nil
+        }
+        do {
+            companion = try integration.companionIsRunningForDiagnostics()
+                ? .running
+                : .stopped
+        } catch {
+            companion = .unavailable
+        }
+        return DiagnosticSnapshot(
+            appVersion: appVersion,
+            macOSVersion: macOSVersion,
+            codexHosts: detectedHosts,
+            integration: integrationHealth,
+            companion: companion,
+            keyboard: keyboard.currentDiagnosticKeyboardHealth()
+        )
     }
 
     public func completeLegacySignalPreview(_ confirmation: VisualConfirmation) throws {

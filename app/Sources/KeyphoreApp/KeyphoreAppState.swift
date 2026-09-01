@@ -13,6 +13,9 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var previewStateFailed = false
     @Published private(set) var previewRecord: SignalPreviewRecord?
     @Published private(set) var quitFailed = false
+    @Published private(set) var diagnosticReport: DiagnosticReport
+    @Published private(set) var diagnosticReportIsReady = false
+    @Published private(set) var diagnosticReportIsRefreshing = false
     @Published var loginLaunchEnabled = true
 
     private let lifecycle: KeyphoreLifecycle
@@ -20,6 +23,8 @@ final class KeyphoreAppState: ObservableObject {
     private let systemHealth: SystemKeyphoreHealthAdapter?
     private let profileStore: LocalProfileStore?
     private let previewStore: SignalPreviewStore?
+    private let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
+    private let diagnosticLanguage: AppLanguage
     private var durableStatusTimer: Timer?
 
     init(
@@ -27,14 +32,30 @@ final class KeyphoreAppState: ObservableObject {
         guidedSetup: GuidedSetup? = nil,
         systemHealth: SystemKeyphoreHealthAdapter? = nil,
         profileStore: LocalProfileStore? = nil,
-        previewStore: SignalPreviewStore? = nil
+        previewStore: SignalPreviewStore? = nil,
+        diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)? = nil,
+        diagnosticLanguage: AppLanguage = .english
     ) {
         self.lifecycle = lifecycle
         self.systemHealth = systemHealth
         self.profileStore = profileStore
         self.previewStore = previewStore
+        self.diagnosticSnapshotProvider = diagnosticSnapshotProvider
+        self.diagnosticLanguage = diagnosticLanguage
+        diagnosticReportIsReady = diagnosticSnapshotProvider == nil
         let initialSnapshot = lifecycle.refresh()
         snapshot = initialSnapshot
+        let diagnosticSnapshot = DiagnosticSnapshot(
+            appVersion: "Keyphore",
+            macOSVersion: "macOS",
+            codexHosts: [],
+            integration: .notConfigured,
+            keyboard: initialSnapshot.keyboardHealth
+        )
+        diagnosticReport = DiagnosticReport(
+            snapshot: diagnosticSnapshot,
+            language: diagnosticLanguage
+        )
         self.guidedSetup = guidedSetup
         setupSnapshot = Self.initialSetupSnapshot(for: initialSnapshot)
         if let profileStore {
@@ -72,6 +93,7 @@ final class KeyphoreAppState: ObservableObject {
         let previewStore: SignalPreviewStore?
         let profiles: any LocalProfileProviding
         let runtime: any KeyphoreRuntimeManaging
+        let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             durableStatus = SystemDurableStatusAdapter()
             let services = GuidedSetup.systemServices()
@@ -86,6 +108,21 @@ final class KeyphoreAppState: ObservableObject {
             profileStore = storedProfile
             previewStore = storedPreview
             profiles = SystemProfileAdapter(store: storedProfile)
+            let appVersion = Self.appVersion()
+            let macOSVersion = Self.macOSVersion()
+            diagnosticSnapshotProvider = {
+                guidedSetup?.diagnosticSnapshot(
+                    appVersion: appVersion,
+                    macOSVersion: macOSVersion
+                ) ?? DiagnosticSnapshot(
+                    appVersion: appVersion,
+                    macOSVersion: macOSVersion,
+                    codexHosts: nil,
+                    integration: nil,
+                    companion: .unavailable,
+                    keyboard: .unavailable,
+                )
+            }
         } else {
             durableStatus = FixtureDurableStatusAdapter(outcome: fixture.outcome)
             health = FixtureHealthAdapter(health: fixture.health)
@@ -95,6 +132,17 @@ final class KeyphoreAppState: ObservableObject {
             previewStore = nil
             profiles = FixtureProfileAdapter()
             runtime = FixtureRuntimeAdapter()
+            let appVersion = Self.appVersion()
+            let macOSVersion = Self.macOSVersion()
+            diagnosticSnapshotProvider = {
+                DiagnosticSnapshot(
+                    appVersion: appVersion,
+                    macOSVersion: macOSVersion,
+                    codexHosts: [],
+                    integration: .notConfigured,
+                    keyboard: fixture.health.keyboard
+                )
+            }
         }
         let lifecycle = KeyphoreLifecycle(
             health: health,
@@ -111,13 +159,32 @@ final class KeyphoreAppState: ObservableObject {
             guidedSetup: guidedSetup,
             systemHealth: systemHealth,
             profileStore: profileStore,
-            previewStore: previewStore
+            previewStore: previewStore,
+            diagnosticSnapshotProvider: diagnosticSnapshotProvider,
+            diagnosticLanguage: Self.appLanguage()
         )
     }
 
     func refresh() {
         refreshSetupSnapshot()
         snapshot = lifecycle.refresh()
+    }
+
+    func refreshDiagnosticReport() {
+        guard !diagnosticReportIsRefreshing, let diagnosticSnapshotProvider else { return }
+        diagnosticReportIsRefreshing = true
+        let language = diagnosticLanguage
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let report = DiagnosticReport(
+                snapshot: diagnosticSnapshotProvider(),
+                language: language
+            )
+            DispatchQueue.main.async {
+                self?.diagnosticReport = report
+                self?.diagnosticReportIsReady = true
+                self?.diagnosticReportIsRefreshing = false
+            }
+        }
     }
 
     func configureAfterReview() {
@@ -136,6 +203,7 @@ final class KeyphoreAppState: ObservableObject {
                 apply(configured)
                 self.loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
                 snapshot = lifecycle.refresh()
+                refreshDiagnosticReport()
             } catch {
                 setupFailed = true
                 setupHooksChanged = (error as? GuidedSetupError) == .reviewedHooksChanged
@@ -156,6 +224,7 @@ final class KeyphoreAppState: ObservableObject {
                 }.value
                 apply(configured)
                 snapshot = lifecycle.refresh()
+                refreshDiagnosticReport()
             } catch {
                 setupFailed = true
                 setupHooksChanged = (error as? GuidedSetupError) == .reviewedHooksChanged
@@ -302,6 +371,26 @@ final class KeyphoreAppState: ObservableObject {
                 previewStateFailed = true
             }
         }
+    }
+
+    private static func appVersion(bundle: Bundle = .main) -> String {
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "0.1.0"
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "\(version) (\(build))"
+    }
+
+    private static func macOSVersion(
+        processInfo: ProcessInfo = .processInfo
+    ) -> String {
+        let version = processInfo.operatingSystemVersion
+        return "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+    }
+
+    private static func appLanguage() -> AppLanguage {
+        Locale.preferredLanguages.first?.lowercased().hasPrefix("zh-hans") == true
+            ? .simplifiedChinese
+            : .english
     }
 
     private static func initialSetupSnapshot(for snapshot: LifecycleSnapshot) -> GuidedSetupSnapshot {

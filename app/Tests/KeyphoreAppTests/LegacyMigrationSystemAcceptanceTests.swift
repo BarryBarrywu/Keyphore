@@ -3,6 +3,78 @@ import KeyphoreCore
 
 @MainActor
 final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
+    func testMissingCodexHostDoesNotGuessCompanionStopped() {
+        let setup = GuidedSetup(
+            hosts: MissingHostDetector(),
+            integration: MissingHostIntegration(),
+            keyboard: MissingHostKeyboardHealth()
+        )
+
+        let snapshot = setup.diagnosticSnapshot(
+            appVersion: "0.1.0 (1)",
+            macOSVersion: "macOS 15.6.1"
+        )
+
+        XCTAssertEqual(snapshot.companion, .unavailable)
+    }
+
+    func testCompanionDiagnosticsRequireARunningLaunchdJob() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper
+            )
+        )
+        try Data().write(to: fixture.currentService)
+
+        XCTAssertFalse(try integration.companionIsRunningForDiagnostics())
+
+        try integration.registerCompanion()
+
+        XCTAssertTrue(try integration.companionIsRunningForDiagnostics())
+
+        try Data().write(to: fixture.launchctlFailure)
+
+        XCTAssertThrowsError(try integration.companionIsRunningForDiagnostics())
+    }
+
+    func testOtherPluginIsNotReportedAsKeyphoreOwned() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try FileManager.default.removeItem(at: fixture.legacyState)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList
+            )
+        )
+
+        let health = try integration.health()
+
+        XCTAssertFalse(health.pluginInstalled)
+        XCTAssertFalse(health.hooksTrusted)
+        XCTAssertFalse(health.companionRegistered)
+        XCTAssertFalse(health.managedStatePresent)
+        XCTAssertEqual(try String(contentsOf: fixture.otherPluginState), "preserved")
+    }
+
     func testInspectionDetectsKnownLegacyOwnershipWithoutChangingEitherPlugin() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -160,6 +232,14 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
     }
 }
 
+private struct MissingHostDetector: CodexHostDetecting {
+    func detectHosts() -> Set<CodexHost> { [] }
+}
+
+private struct MissingHostKeyboardHealth: SetupKeyboardHealthProviding {
+    func currentKeyboardHealth() -> KeyboardHealth { .unavailable }
+}
+
 private struct LegacyMigrationFixture {
     let root: URL
     let home: URL
@@ -173,9 +253,11 @@ private struct LegacyMigrationFixture {
     let pluginState: URL
     let legacyService: URL
     let currentService: URL
+    let currentRunning: URL
     let overlapEvidence: URL
     let orphanProcess: URL
     let staleRemoval: URL
+    let launchctlFailure: URL
 
     init() throws {
         let fileManager = FileManager.default
@@ -190,9 +272,11 @@ private struct LegacyMigrationFixture {
         pluginState = root.appending(path: "plugins.txt")
         legacyService = root.appending(path: "legacy-service")
         currentService = root.appending(path: "current-service")
+        currentRunning = root.appending(path: "current-running")
         overlapEvidence = root.appending(path: "overlap")
         orphanProcess = root.appending(path: "orphan-process")
         staleRemoval = root.appending(path: "stale-removal")
+        launchctlFailure = root.appending(path: "launchctl-failure")
         let support = home.appending(path: "Library/Application Support/Keyphore")
         legacyState = support.appending(path: "lifecycle.json")
         let launchAgents = home.appending(path: "Library/LaunchAgents")
@@ -264,16 +348,30 @@ private struct LegacyMigrationFixture {
               *) marker='' ;;
             esac
             if [ "$command" = "print" ]; then
-              [ -n "$marker" ] && [ -e "$marker" ]
-              exit $?
+              if [ -e '\(launchctlFailure.path)' ]; then
+                printf '%s\n' 'Permission denied' >&2
+                exit 1
+              fi
+              if [ -n "$marker" ] && [ -e "$marker" ]; then
+                if [ "$marker" = "\(currentService.path)" ] && [ -e '\(currentRunning.path)' ]; then
+                  printf '%s\n' 'state = running'
+                else
+                  printf '%s\n' 'state = stopped'
+                fi
+                exit 0
+              fi
+              printf '%s\n' 'Could not find service' >&2
+              exit 113
             fi
             if [ "$command" = "bootout" ]; then
               [ -n "$marker" ] && /bin/rm -f "$marker"
-              exit 0
+              if [ "$marker" = "\(currentService.path)" ]; then /bin/rm -f '\(currentRunning.path)'; fi
+              exit $?
             fi
             if [ "$command" = "bootstrap" ]; then
               [ -e '\(legacyService.path)' ] && /usr/bin/touch '\(overlapEvidence.path)'
               /usr/bin/touch '\(currentService.path)'
+              /usr/bin/touch '\(currentRunning.path)'
               exit 0
             fi
             if [ "$command" = "kickstart" ]; then exit 0; fi

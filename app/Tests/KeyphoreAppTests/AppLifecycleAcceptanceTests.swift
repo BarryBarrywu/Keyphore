@@ -4,6 +4,51 @@ import KeyphoreCore
 
 @MainActor
 final class AppLifecycleAcceptanceTests: XCTestCase {
+    func testAppStateCollectsTheReviewedDiagnosticPreviewOnlyWhenRequested() async {
+        let diagnosticSnapshot = DiagnosticSnapshot(
+            appVersion: "0.1.0 (1)",
+            macOSVersion: "macOS 15.6.1",
+            codexHosts: [.desktopApp],
+            integration: .notConfigured,
+            keyboard: .disconnected
+        )
+        let collected = expectation(description: "diagnostics collected")
+        let provider = AppDiagnosticProvider(snapshot: diagnosticSnapshot) {
+            collected.fulfill()
+        }
+        let state = KeyphoreAppState(
+            lifecycle: KeyphoreLifecycle(
+                health: AppHealth(),
+                profiles: AppProfile(),
+                durableStatus: AppDurableStatus(),
+                lighting: AppLighting(),
+                runtime: AppRecordingRuntime()
+            ),
+            diagnosticSnapshotProvider: provider.snapshot,
+            diagnosticLanguage: .english
+        )
+
+        XCTAssertEqual(provider.callCount, 0)
+        XCTAssertFalse(state.diagnosticReportIsReady)
+
+        state.refresh()
+
+        XCTAssertEqual(provider.callCount, 0)
+
+        state.refreshDiagnosticReport()
+        XCTAssertTrue(state.diagnosticReportIsRefreshing)
+        await fulfillment(of: [collected], timeout: 1)
+        while state.diagnosticReport.fields.first?.value != "0.1.0 (1)" {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(provider.callCount, 1)
+        XCTAssertTrue(state.diagnosticReportIsReady)
+        XCTAssertFalse(state.diagnosticReportIsRefreshing)
+        XCTAssertEqual(state.diagnosticReport.fields.map(\.id), DiagnosticField.ID.allCases)
+        XCTAssertEqual(state.diagnosticReport.language, .english)
+    }
+
     func testQuitBlocksCachedHooksAndReopensThroughAppLifecycle() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "keyphore-app-lifecycle-\(UUID().uuidString)")
@@ -64,6 +109,28 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
             ),
             guidedSetup: guidedSetup
         )
+    }
+}
+
+private final class AppDiagnosticProvider: @unchecked Sendable {
+    private let lock = NSLock()
+    private let diagnosticSnapshot: DiagnosticSnapshot
+    private let onCollection: @Sendable () -> Void
+    private var calls = 0
+
+    init(snapshot: DiagnosticSnapshot, onCollection: @escaping @Sendable () -> Void) {
+        diagnosticSnapshot = snapshot
+        self.onCollection = onCollection
+    }
+
+    var callCount: Int {
+        lock.withLock { calls }
+    }
+
+    func snapshot() -> DiagnosticSnapshot {
+        lock.withLock { calls += 1 }
+        onCollection()
+        return diagnosticSnapshot
     }
 }
 
