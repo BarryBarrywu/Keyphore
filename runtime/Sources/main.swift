@@ -15,6 +15,13 @@ case "hook":
         exit(1)
     }
 case "companion":
+    guard
+        let lease = try? CompanionProcessLease.acquire(
+            url: KeyphoreRuntimePaths.supportDirectory().appending(path: "companion.lock")
+        )
+    else {
+        exit(1)
+    }
     let healthStore = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
     let lighting = NuPhyIOAdapter(discovery: SystemAir65TransportDiscovery())
     let companion = KeyphoreCompanion(
@@ -34,7 +41,7 @@ case "companion":
             try? recovery.healthCheck()
             lastHealthCheck = .now
         }
-        withExtendedLifetime(powerEvents) {
+        withExtendedLifetime((powerEvents, lease)) {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
     }

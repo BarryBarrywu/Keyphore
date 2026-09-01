@@ -181,6 +181,69 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         XCTAssertEqual(discovery.openCount, 2)
     }
 
+    func testUnavailableDeviceRecoversThroughValidationAndAggregateReplayWithoutPreview() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = DurableStatusStore(url: directory.appending(path: "status.json"))
+        let healthStore = KeyboardHealthStore(
+            url: directory.appending(path: "keyboard-health.json")
+        )
+        try store.recordSignal(
+            ownerID: SignalOwnerID(product: "codex", sessionID: "session", agentID: "main"),
+            turnID: "turn",
+            signal: .execution,
+            expiresAt: .milliseconds(3_600_000),
+            replacingSession: true,
+            lockBudget: .milliseconds(100)
+        )
+        let statusBeforeRecovery = try store.load()
+        let challenge = Array(repeating: UInt8(19), count: 56)
+        let key = NuPhySessionKey(0x31)
+        let rhythm: [UInt8] = [4, 60, 2, 1, 0, 255, 0, 0]
+        let transport = FakeReportTransport(
+            responses: [
+                sessionResponse(challenge: challenge, key: key),
+                response(
+                    command: 0xd5,
+                    length: 17,
+                    address: 0,
+                    key: key,
+                    payload: signalOff + rhythm
+                ),
+                response(command: 0xd6, length: 9, address: 0, key: key),
+                response(command: 0xd6, length: 1, address: 1, key: key),
+                response(
+                    command: 0xd5,
+                    length: 17,
+                    address: 0,
+                    key: key,
+                    payload: blue + rhythm
+                ),
+            ]
+        )
+        let discovery = FakeDiscovery(devices: [], transport: transport)
+        let companion = KeyphoreCompanion(
+            store: store,
+            profile: .default,
+            lighting: NuPhyIOAdapter(discovery: discovery, challenge: { challenge }),
+            keyboardHealthStore: healthStore
+        )
+        let recovery = CompanionRecoveryController(companion: companion)
+
+        XCTAssertThrowsError(try recovery.poll(at: .milliseconds(100)))
+        XCTAssertEqual(healthStore.load(at: .milliseconds(100)), .disconnected)
+        discovery.devices = [air65()]
+
+        try recovery.poll(at: .milliseconds(200))
+
+        XCTAssertEqual(try store.load(), statusBeforeRecovery)
+        XCTAssertEqual(healthStore.load(at: .milliseconds(200)), .connected(protocolHealthy: true))
+        XCTAssertEqual(discovery.openCount, 1)
+        XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd6, 0xd5])
+    }
+
     private let blue: [UInt8] = [3, 100, 3, 0, 1, 0, 0, 0, 255]
     private let signalOff: [UInt8] = [3, 0, 3, 0, 1, 0, 0, 0, 0]
 
@@ -228,7 +291,7 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
 }
 
 private final class FakeDiscovery: Air65TransportDiscovering {
-    let devices: [HIDDeviceDescriptor]
+    var devices: [HIDDeviceDescriptor]
     let transport: FakeReportTransport
     private(set) var openCount = 0
 

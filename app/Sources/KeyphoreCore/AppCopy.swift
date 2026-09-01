@@ -18,6 +18,7 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
     case attention = "signal.attention"
     case completion = "signal.completion"
     case keyboardDisconnected = "keyboard.disconnected"
+    case keyboardUnavailable = "keyboard.unavailable"
     case keyboardConnected = "keyboard.connected"
     case keyboardAmbiguous = "keyboard.ambiguous"
     case protocolHealthy = "keyboard.protocol_healthy"

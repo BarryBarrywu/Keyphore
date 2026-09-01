@@ -223,6 +223,38 @@ final class TransportLifecycleAcceptanceTests: XCTestCase {
             [.signal(LocalProfile.default.attention)]
         )
     }
+
+    func testProtocolCorruptionDoesNotClaimTheKeyboardDisconnected() throws {
+        let fixture = try TransportFixture()
+        let companion = KeyphoreCompanion(
+            store: fixture.statusStore,
+            profile: .default,
+            lighting: FailingLightingBoundary(
+                error: SystemAir65HIDError.unexpectedReportLength(63)
+            ),
+            keyboardHealthStore: fixture.healthStore
+        )
+
+        XCTAssertThrowsError(try companion.sync(at: .milliseconds(100)))
+
+        XCTAssertEqual(
+            fixture.healthStore.load(at: .milliseconds(100)),
+            .connected(protocolHealthy: false)
+        )
+    }
+
+    func testOnlyOneCompanionProcessCanOwnRecovery() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let leaseURL = directory.appending(path: "companion.lock")
+
+        let first = try CompanionProcessLease.acquire(url: leaseURL)
+        XCTAssertThrowsError(try CompanionProcessLease.acquire(url: leaseURL))
+
+        withExtendedLifetime(first) {}
+    }
 }
 
 private struct PersistedHealthProvider: KeyphoreHealthProviding {
