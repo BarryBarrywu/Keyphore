@@ -419,6 +419,42 @@ public protocol CompanionLightingVerifying: AnyObject {
     func displays(_ behavior: LightingBehavior) throws -> Bool
 }
 
+public protocol CompanionLightingRecovering: AnyObject {
+    func invalidateTransport()
+}
+
+public enum CompanionPowerEvent: Equatable, Sendable {
+    case willSleep
+    case didWake
+}
+
+public final class CompanionRecoveryController {
+    private let companion: KeyphoreCompanion
+    private var isAwake = true
+
+    public init(companion: KeyphoreCompanion) {
+        self.companion = companion
+    }
+
+    public func poll(at now: StatusTimestamp = .now) throws {
+        guard isAwake else { return }
+        try companion.sync(at: now)
+    }
+
+    public func healthCheck(at now: StatusTimestamp = .now) throws {
+        guard isAwake else { return }
+        try companion.healthCheck(at: now)
+    }
+
+    public func handle(
+        _ event: CompanionPowerEvent,
+        at now: StatusTimestamp = .now
+    ) throws {
+        isAwake = event == .didWake
+        try companion.transportInterrupted(at: now)
+    }
+}
+
 public final class KeyphoreCompanion {
     private let store: DurableStatusStore
     private let profile: LocalProfile
@@ -485,10 +521,24 @@ public final class KeyphoreCompanion {
         try sync(at: now)
     }
 
+    public func transportInterrupted(at now: StatusTimestamp = .now) throws {
+        applied = nil
+        (lighting as? any CompanionLightingRecovering)?.invalidateTransport()
+        try keyboardHealthStore?.save(.disconnected, at: now)
+    }
+
     private static func health(for error: Error) -> KeyboardHealth {
-        if let selectionError = error as? Air65DeviceSelectionError,
-            selectionError == .notFound
-        {
+        if let selectionError = error as? Air65DeviceSelectionError {
+            switch selectionError {
+            case .notFound:
+                return .disconnected
+            case .ambiguous:
+                return .ambiguous
+            case .unsupported:
+                return .connected(protocolHealthy: false)
+            }
+        }
+        if error is SystemAir65HIDError {
             return .disconnected
         }
         return .connected(protocolHealthy: false)

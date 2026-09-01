@@ -32,7 +32,9 @@ public enum NuPhyIOAdapterError: Error, Equatable, Sendable {
     case rhythmLightChanged
 }
 
-public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingVerifying {
+public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingVerifying,
+    CompanionLightingRecovering
+{
     public static let responseTimeout: TimeInterval = 1
 
     private let discovery: any Air65TransportDiscovering
@@ -117,6 +119,10 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
             ownedTransport = nil
             throw error
         }
+    }
+
+    public func invalidateTransport() {
+        ownedTransport = nil
     }
 
     private func acquireTransport() throws -> any Air65ReportTransport {

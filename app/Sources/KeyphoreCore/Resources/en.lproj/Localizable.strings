@@ -11,6 +11,7 @@
 "signal.completion" = "Completion";
 "keyboard.disconnected" = "Air65 V3 disconnected";
 "keyboard.connected" = "Air65 V3 connected";
+"keyboard.ambiguous" = "Multiple Air65 V3 keyboards found. Leave only the target connected.";
 "keyboard.protocol_healthy" = "Lighting protocol healthy";
 "action.settings" = "Signal settings";
 "action.diagnostics" = "Diagnostics";

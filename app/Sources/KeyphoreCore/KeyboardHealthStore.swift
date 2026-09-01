@@ -18,6 +18,8 @@ public final class KeyboardHealthStore: @unchecked Sendable {
         switch health {
         case .disconnected:
             record = Record(status: .disconnected, protocolHealthy: false, observedAt: timestamp)
+        case .ambiguous:
+            record = Record(status: .ambiguous, protocolHealthy: false, observedAt: timestamp)
         case .connected(let protocolHealthy):
             record = Record(
                 status: .connected,
@@ -43,6 +45,8 @@ public final class KeyboardHealthStore: @unchecked Sendable {
         switch record.status {
         case .disconnected:
             return .disconnected
+        case .ambiguous:
+            return .ambiguous
         case .connected:
             return .connected(protocolHealthy: record.protocolHealthy)
         }
@@ -51,6 +55,7 @@ public final class KeyboardHealthStore: @unchecked Sendable {
     private struct Record: Codable {
         enum Status: String, Codable {
             case disconnected
+            case ambiguous
             case connected
         }
 

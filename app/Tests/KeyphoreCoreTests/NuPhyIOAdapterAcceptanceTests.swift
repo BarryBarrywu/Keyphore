@@ -149,6 +149,38 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         }
     }
 
+    func testRecoveryInvalidatesTheOwnedTransportBeforeRediscovery() throws {
+        let challenge = Array(repeating: UInt8(17), count: 56)
+        let key = NuPhySessionKey(0x47)
+        let rhythm: [UInt8] = [4, 60, 2, 1, 0, 255, 0, 0]
+        let successfulExchange = [
+            sessionResponse(challenge: challenge, key: key),
+            response(
+                command: 0xd5,
+                length: 17,
+                address: 0,
+                key: key,
+                payload: signalOff + rhythm
+            ),
+            response(
+                command: 0xd5,
+                length: 17,
+                address: 0,
+                key: key,
+                payload: signalOff + rhythm
+            ),
+        ]
+        let transport = FakeReportTransport(responses: successfulExchange + successfulExchange)
+        let discovery = FakeDiscovery(devices: [air65()], transport: transport)
+        let adapter = NuPhyIOAdapter(discovery: discovery, challenge: { challenge })
+
+        try adapter.apply(.off)
+        adapter.invalidateTransport()
+        try adapter.apply(.off)
+
+        XCTAssertEqual(discovery.openCount, 2)
+    }
+
     private let blue: [UInt8] = [3, 100, 3, 0, 1, 0, 0, 0, 255]
     private let signalOff: [UInt8] = [3, 0, 3, 0, 1, 0, 0, 0, 0]
 

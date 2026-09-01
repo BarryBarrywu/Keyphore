@@ -23,14 +23,20 @@ case "companion":
         lighting: lighting,
         keyboardHealthStore: healthStore
     )
+    let recovery = CompanionRecoveryController(companion: companion)
+    let powerEvents = SystemPowerEventMonitor { event in
+        try? recovery.handle(event)
+    }
     var lastHealthCheck = ContinuousClock.now
     while true {
-        try? companion.sync()
+        try? recovery.poll()
         if lastHealthCheck.duration(to: .now) >= .seconds(1) {
-            try? companion.healthCheck()
+            try? recovery.healthCheck()
             lastHealthCheck = .now
         }
-        Thread.sleep(forTimeInterval: 0.1)
+        withExtendedLifetime(powerEvents) {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
     }
 default:
     exit(64)

@@ -36,6 +36,7 @@ extension KeyboardHealth {
     var copyKey: AppCopyKey {
         switch self {
         case .disconnected: .keyboardDisconnected
+        case .ambiguous: .keyboardAmbiguous
         case .connected(let protocolHealthy):
             protocolHealthy ? .protocolHealthy : .keyboardConnected
         }

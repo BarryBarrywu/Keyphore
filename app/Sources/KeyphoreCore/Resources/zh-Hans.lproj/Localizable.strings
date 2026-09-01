@@ -11,6 +11,7 @@
 "signal.completion" = "已完成";
 "keyboard.disconnected" = "Air65 V3 未连接";
 "keyboard.connected" = "Air65 V3 已连接";
+"keyboard.ambiguous" = "检测到多把 Air65 V3，请只保留目标键盘连接。";
 "keyboard.protocol_healthy" = "灯光协议正常";
 "action.settings" = "信号设置";
 "action.diagnostics" = "诊断";
