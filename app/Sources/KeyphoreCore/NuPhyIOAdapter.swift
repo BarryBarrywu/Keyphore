@@ -70,7 +70,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
         let key = try startTemporarySession(transport, challenge: challenge)
         let initial = try readLightState(transport, key: key)
 
-        if Array(initial.prefix(9)) != expected {
+        if !mainStateMatches(initial, expected: expected) {
             try exchange(
                 transport,
                 request: .write(address: 0, payload: expected),
@@ -84,7 +84,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
         }
 
         let verified = try readLightState(transport, key: key)
-        guard Array(verified.prefix(9)) == expected else {
+        guard mainStateMatches(verified, expected: expected) else {
             throw NuPhyIOAdapterError.mainBacklightReadbackMismatch
         }
         let rhythmBefore = Array(initial.suffix(8))
@@ -112,7 +112,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
             let challenge = makeChallenge()
             let key = try startTemporarySession(transport, challenge: challenge)
             let current = try readLightState(transport, key: key)
-            return Array(current.prefix(9)) == expected
+            return mainStateMatches(current, expected: expected)
         } catch {
             ownedTransport = nil
             throw error
@@ -205,6 +205,14 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
                 appearance.color.blue,
             ]
         }
+    }
+
+    private func mainStateMatches(_ state: [UInt8], expected: [UInt8]) -> Bool {
+        guard state.count >= 9, expected.count == 9 else { return false }
+        if expected[1] == 0 {
+            return state[1] == 0
+        }
+        return Array(state.prefix(9)) == expected
     }
 
     private static func randomChallenge() -> [UInt8] {

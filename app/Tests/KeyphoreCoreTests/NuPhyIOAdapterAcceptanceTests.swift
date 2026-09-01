@@ -69,6 +69,34 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         XCTAssertEqual(evidence.rhythmAfter, rhythm)
     }
 
+    func testSignalOffAcceptsHardwareCanonicalizationWhenBrightnessIsZero() throws {
+        let challenge = Array(repeating: UInt8(13), count: 56)
+        let key = NuPhySessionKey(0x6b)
+        let rhythm: [UInt8] = [4, 0, 2, 1, 0, 255, 0, 0]
+        let canonicalOff: [UInt8] = [0, 0, 3, 0, 0, 0, 0, 0, 0]
+        let transport = FakeReportTransport(
+            responses: [
+                sessionResponse(challenge: challenge, key: key),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: canonicalOff + rhythm),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: canonicalOff + rhythm),
+                sessionResponse(challenge: challenge, key: key),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: canonicalOff + rhythm),
+            ]
+        )
+        let adapter = NuPhyIOAdapter(
+            discovery: FakeDiscovery(devices: [air65()], transport: transport),
+            challenge: { challenge }
+        )
+
+        let evidence = try adapter.applyAndVerify(.off)
+
+        XCTAssertEqual(evidence.mainState, signalOff)
+        XCTAssertEqual(evidence.rhythmBefore, rhythm)
+        XCTAssertEqual(evidence.rhythmAfter, rhythm)
+        XCTAssertTrue(try adapter.displays(.off))
+        XCTAssertFalse(transport.sent.contains { $0[1] == 0xd6 })
+    }
+
     func testNeverOpensOrWritesAnUnsupportedOrAmbiguousDevice() {
         var bluetooth = air65()
         bluetooth.bus = .bluetooth
