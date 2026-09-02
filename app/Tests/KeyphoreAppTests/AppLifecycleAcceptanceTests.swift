@@ -132,6 +132,21 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(state.removalSnapshot.status, .repairRequired)
     }
 
+    func testManagedRemovalFinishDismissesTheSheetBeforeRequestingTermination() async {
+        var events: [String] = []
+        let action = ManagedRemovalFinishAction {
+            events.append("terminate")
+        }
+
+        action.perform {
+            events.append("dismiss")
+        }
+
+        XCTAssertEqual(events, ["dismiss"])
+        await Task.yield()
+        XCTAssertEqual(events, ["dismiss", "terminate"])
+    }
+
     private func makeState(
         runtime: AppRecordingRuntime,
         guidedSetup: GuidedSetup? = nil,

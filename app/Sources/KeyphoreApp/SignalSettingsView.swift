@@ -239,7 +239,9 @@ private struct ManagedRemovalView: View {
                 HStack {
                     Spacer()
                     Button(AppCopy.value(.removalFinish)) {
-                        NSApp.terminate(nil)
+                        ManagedRemovalFinishAction.live.perform {
+                            state.removalIsPresented = false
+                        }
                     }
                     .keyboardShortcut(.defaultAction)
                 }

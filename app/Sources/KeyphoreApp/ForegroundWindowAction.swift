@@ -21,3 +21,23 @@ struct ForegroundWindowAction {
         presentation()
     }
 }
+
+@MainActor
+struct ManagedRemovalFinishAction {
+    private let terminateApplication: @MainActor @Sendable () -> Void
+
+    init(terminateApplication: @escaping @MainActor @Sendable () -> Void) {
+        self.terminateApplication = terminateApplication
+    }
+
+    static let live = ManagedRemovalFinishAction {
+        NSApp.terminate(nil)
+    }
+
+    func perform(dismiss: () -> Void) {
+        dismiss()
+        DispatchQueue.main.async {
+            terminateApplication()
+        }
+    }
+}
