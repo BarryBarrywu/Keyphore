@@ -16,6 +16,10 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var diagnosticReport: DiagnosticReport
     @Published private(set) var diagnosticReportIsReady = false
     @Published private(set) var diagnosticReportIsRefreshing = false
+    @Published private(set) var removalSnapshot = ManagedRemovalSnapshot(status: .reviewRequired)
+    @Published var removalIsPresented = false
+    @Published private(set) var removalIsWorking = false
+    @Published private(set) var removalFailed = false
     @Published var loginLaunchEnabled = true
 
     private let lifecycle: KeyphoreLifecycle
@@ -25,6 +29,7 @@ final class KeyphoreAppState: ObservableObject {
     private let previewStore: SignalPreviewStore?
     private let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
     private let diagnosticLanguage: AppLanguage
+    private let managedRemoval: ManagedRemoval?
     private var durableStatusTimer: Timer?
 
     init(
@@ -33,6 +38,7 @@ final class KeyphoreAppState: ObservableObject {
         systemHealth: SystemKeyphoreHealthAdapter? = nil,
         profileStore: LocalProfileStore? = nil,
         previewStore: SignalPreviewStore? = nil,
+        managedRemoval: ManagedRemoval? = nil,
         diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)? = nil,
         diagnosticLanguage: AppLanguage = .english
     ) {
@@ -40,6 +46,7 @@ final class KeyphoreAppState: ObservableObject {
         self.systemHealth = systemHealth
         self.profileStore = profileStore
         self.previewStore = previewStore
+        self.managedRemoval = managedRemoval
         self.diagnosticSnapshotProvider = diagnosticSnapshotProvider
         self.diagnosticLanguage = diagnosticLanguage
         diagnosticReportIsReady = diagnosticSnapshotProvider == nil
@@ -75,6 +82,10 @@ final class KeyphoreAppState: ObservableObject {
                 loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
             }
         }
+        if let removal = try? managedRemoval?.inspect() {
+            removalSnapshot = removal
+            removalIsPresented = removal.status == .repairRequired
+        }
         durableStatusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
@@ -94,11 +105,13 @@ final class KeyphoreAppState: ObservableObject {
         let profiles: any LocalProfileProviding
         let runtime: any KeyphoreRuntimeManaging
         let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
+        let managedRemoval: ManagedRemoval?
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             durableStatus = SystemDurableStatusAdapter()
             let services = GuidedSetup.systemServices()
             guidedSetup = services.setup
             runtime = services.runtime ?? FixtureRuntimeAdapter()
+            managedRemoval = services.removal
             let configured = guidedSetup.flatMap { try? $0.inspect() }?.phase.isConfigured ?? false
             let adapter = SystemKeyphoreHealthAdapter(isConfigured: configured)
             systemHealth = adapter
@@ -132,6 +145,7 @@ final class KeyphoreAppState: ObservableObject {
             previewStore = nil
             profiles = FixtureProfileAdapter()
             runtime = FixtureRuntimeAdapter()
+            managedRemoval = nil
             let appVersion = Self.appVersion()
             let macOSVersion = Self.macOSVersion()
             diagnosticSnapshotProvider = {
@@ -161,6 +175,7 @@ final class KeyphoreAppState: ObservableObject {
             systemHealth: systemHealth,
             profileStore: profileStore,
             previewStore: previewStore,
+            managedRemoval: managedRemoval,
             diagnosticSnapshotProvider: diagnosticSnapshotProvider,
             diagnosticLanguage: Self.appLanguage()
         )
@@ -236,6 +251,9 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func prepareToQuit() -> Bool {
+        if removalSnapshot.status == .completed {
+            return true
+        }
         do {
             try lifecycle.quit()
             quitFailed = false
@@ -245,6 +263,36 @@ final class KeyphoreAppState: ObservableObject {
             return false
         }
     }
+
+    func presentManagedRemoval() {
+        guard let managedRemoval else { return }
+        if let inspected = try? managedRemoval.inspect() {
+            removalSnapshot = inspected
+        }
+        removalIsPresented = true
+    }
+
+    func confirmManagedRemoval() {
+        guard let managedRemoval, !removalIsWorking else { return }
+        removalIsWorking = true
+        removalFailed = false
+        Task {
+            do {
+                let removed = try await Task.detached {
+                    try managedRemoval.removeAfterConfirmation()
+                }.value
+                removalSnapshot = removed
+            } catch {
+                removalFailed = true
+                if let inspected = try? managedRemoval.inspect() {
+                    removalSnapshot = inspected
+                }
+            }
+            removalIsWorking = false
+        }
+    }
+
+    var canManageRemoval: Bool { managedRemoval != nil }
 
     func reopenIfNeeded() throws -> ReopenOutcome? {
         try lifecycle.reopenIfNeeded()

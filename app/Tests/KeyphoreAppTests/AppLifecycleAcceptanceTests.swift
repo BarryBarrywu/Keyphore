@@ -95,9 +95,47 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(integration.loginLaunchSelections, [false])
     }
 
+    func testAppStateRequiresConfirmationThenCompletesManagedRemoval() async {
+        let integration = AppManagedRemovalIntegration()
+        let state = makeState(
+            runtime: AppRecordingRuntime(),
+            managedRemoval: ManagedRemoval(integration: integration)
+        )
+
+        state.presentManagedRemoval()
+
+        XCTAssertTrue(state.removalIsPresented)
+        XCTAssertEqual(state.removalSnapshot.components, Set(ManagedRemovalComponent.allCases))
+        XCTAssertTrue(integration.actions.isEmpty)
+
+        state.confirmManagedRemoval()
+        while state.removalIsWorking {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(state.removalSnapshot.status, .completed)
+        XCTAssertFalse(state.removalFailed)
+        XCTAssertEqual(integration.actions.first, .begin)
+        XCTAssertEqual(integration.actions.last, .complete)
+        XCTAssertTrue(state.prepareToQuit())
+    }
+
+    func testInterruptedManagedRemovalIsPresentedForRepairOnLaunch() {
+        let integration = AppManagedRemovalIntegration(status: .repairRequired)
+
+        let state = makeState(
+            runtime: AppRecordingRuntime(),
+            managedRemoval: ManagedRemoval(integration: integration)
+        )
+
+        XCTAssertTrue(state.removalIsPresented)
+        XCTAssertEqual(state.removalSnapshot.status, .repairRequired)
+    }
+
     private func makeState(
         runtime: AppRecordingRuntime,
-        guidedSetup: GuidedSetup? = nil
+        guidedSetup: GuidedSetup? = nil,
+        managedRemoval: ManagedRemoval? = nil
     ) -> KeyphoreAppState {
         KeyphoreAppState(
             lifecycle: KeyphoreLifecycle(
@@ -107,7 +145,8 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
                 lighting: AppLighting(),
                 runtime: runtime
             ),
-            guidedSetup: guidedSetup
+            guidedSetup: guidedSetup,
+            managedRemoval: managedRemoval
         )
     }
 }
@@ -200,4 +239,25 @@ private final class AppSetupIntegration: GuidedSetupIntegrating {
         loginLaunchSelections.append(enabled)
     }
     func loginLaunchEnabled() -> Bool { loginLaunch }
+}
+
+private final class AppManagedRemovalIntegration: ManagedRemovalIntegrating {
+    enum Action: Equatable { case begin, signalOff, disableHooks, companion, plugin, state, verify, complete }
+
+    private(set) var actions: [Action] = []
+    private var status: ManagedRemovalStatus
+
+    init(status: ManagedRemovalStatus = .reviewRequired) {
+        self.status = status
+    }
+
+    func inspectManagedRemoval() -> ManagedRemovalStatus { status }
+    func beginManagedRemoval() { actions.append(.begin); status = .repairRequired }
+    func requestSignalOffForRemoval() { actions.append(.signalOff) }
+    func disableOwnedHooksForRemoval() { actions.append(.disableHooks) }
+    func removeCompanionAndBackgroundRegistration() { actions.append(.companion) }
+    func removePluginAndHooks() { actions.append(.plugin) }
+    func removeLocalProfileAndManagedRuntimeState() { actions.append(.state) }
+    func verifyManagedRemoval() -> Bool { actions.append(.verify); return true }
+    func completeManagedRemoval() { actions.append(.complete); status = .completed }
 }

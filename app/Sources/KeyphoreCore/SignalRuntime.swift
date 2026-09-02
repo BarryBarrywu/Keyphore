@@ -38,6 +38,12 @@ public enum KeyphoreRuntimePaths {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "quit-gate")
     }
 
+    public static func configuredStateURL(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "setup.json")
+    }
+
     public static func signalOffAcknowledgementURL(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> URL {
@@ -411,6 +417,7 @@ public final class ProductionHookHandler: @unchecked Sendable {
 
     private let store: DurableStatusStore
     private let quitGate: QuitGateStore?
+    private let configuredStateURL: URL?
     private let lockBudget: Duration
     private let profileProvider: () throws -> LocalProfile
 
@@ -418,12 +425,14 @@ public final class ProductionHookHandler: @unchecked Sendable {
         store: DurableStatusStore,
         lockBudget: Duration = .milliseconds(100),
         quitGate: QuitGateStore? = nil,
+        configuredStateURL: URL? = nil,
         profile: LocalProfile = .default
     ) {
         self.init(
             store: store,
             lockBudget: lockBudget,
             quitGate: quitGate,
+            configuredStateURL: configuredStateURL,
             profileProvider: { profile }
         )
     }
@@ -432,16 +441,23 @@ public final class ProductionHookHandler: @unchecked Sendable {
         store: DurableStatusStore,
         lockBudget: Duration = .milliseconds(100),
         quitGate: QuitGateStore? = nil,
+        configuredStateURL: URL? = nil,
         profileProvider: @escaping () throws -> LocalProfile
     ) {
         self.store = store
         self.quitGate = quitGate
+        self.configuredStateURL = configuredStateURL
         self.lockBudget = lockBudget
         self.profileProvider = profileProvider
     }
 
     public func handle(_ input: Data, receivedAt: StatusTimestamp = .now) throws {
         guard quitGate?.isActive != true else { return }
+        if let configuredStateURL,
+           !FileManager.default.fileExists(atPath: configuredStateURL.path)
+        {
+            return
+        }
         let record = try PrivacyAllowedHookRecord(
             jsonData: input,
             receivedAt: String(receivedAt.millisecondsSince1970)

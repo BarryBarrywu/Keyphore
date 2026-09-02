@@ -23,6 +23,14 @@ struct SignalSettingsView: View {
 
             previewSection
 
+            if state.canManageRemoval {
+                Section {
+                    Button(AppCopy.value(.removalAction), role: .destructive) {
+                        state.presentManagedRemoval()
+                    }
+                }
+            }
+
             if state.settingsFailed {
                 Text(AppCopy.value(.settingsSaveError))
                     .foregroundStyle(.red)
@@ -40,6 +48,9 @@ struct SignalSettingsView: View {
         .frame(width: 480, height: 640)
         .navigationTitle(AppCopy.value(.settings))
         .onAppear(perform: state.refresh)
+        .sheet(isPresented: $state.removalIsPresented) {
+            ManagedRemovalView(state: state)
+        }
     }
 
     @ViewBuilder
@@ -212,6 +223,74 @@ struct SignalSettingsView: View {
             ),
             for: signal
         )
+    }
+}
+
+private struct ManagedRemovalView: View {
+    @ObservedObject var state: KeyphoreAppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if state.removalSnapshot.status == .completed {
+                Label(AppCopy.value(.removalCompleted), systemImage: "checkmark.circle")
+                    .font(.headline)
+                Text(AppCopy.value(.removalTrashInstructions))
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button(AppCopy.value(.removalFinish)) {
+                        NSApp.terminate(nil)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            } else if state.removalIsWorking {
+                ProgressView(AppCopy.value(.removalWorking))
+            } else {
+                Text(AppCopy.value(
+                    state.removalSnapshot.status == .repairRequired
+                        ? .removalRepairTitle : .removalTitle
+                ))
+                .font(.headline)
+                Text(AppCopy.value(
+                    state.removalSnapshot.status == .repairRequired
+                        ? .removalRepairDescription : .removalDescription
+                ))
+                .foregroundStyle(.secondary)
+                ForEach(
+                    state.removalSnapshot.components.sorted { $0.rawValue < $1.rawValue },
+                    id: \.rawValue
+                ) { component in
+                    Label(AppCopy.value(component.copyKey), systemImage: "minus.circle")
+                }
+                if state.removalFailed {
+                    Text(AppCopy.value(.removalFailed))
+                        .foregroundStyle(.red)
+                }
+                HStack {
+                    Spacer()
+                    Button(AppCopy.value(.removalConfirm), role: .destructive) {
+                        state.confirmManagedRemoval()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+        .interactiveDismissDisabled(state.removalIsWorking || state.removalSnapshot.status == .completed)
+    }
+}
+
+private extension ManagedRemovalComponent {
+    var copyKey: AppCopyKey {
+        switch self {
+        case .plugin: .removalComponentPlugin
+        case .hooks: .removalComponentHooks
+        case .companion: .removalComponentCompanion
+        case .backgroundRegistration: .removalComponentBackgroundRegistration
+        case .localProfile: .removalComponentLocalProfile
+        case .managedRuntimeState: .removalComponentManagedRuntimeState
+        }
     }
 }
 

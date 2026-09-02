@@ -305,6 +305,52 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         XCTAssertTrue(commands.contains("plugin add keyphore@keyphore-app"))
     }
 
+    func testManagedRemovalDeletesOnlyCurrentKeyphoreOwnershipAndCanNoLongerInvokeCachedHook() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try fixture.prepareCurrentInstallation()
+        let unrelatedUserFile = fixture.home.appending(path: "Documents/preserved.txt")
+        try FileManager.default.createDirectory(
+            at: unrelatedUserFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "preserved".write(to: unrelatedUserFile, atomically: true, encoding: .utf8)
+        let loginLaunch = RemovalLoginLaunchState()
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper,
+                loginLaunchDisabler: { loginLaunch.isEnabled = false },
+                loginLaunchIsEnabled: { loginLaunch.isEnabled }
+            )
+        )
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+            try? Data().write(to: fixture.signalOffAcknowledgement)
+        }
+
+        let snapshot = try ManagedRemoval(integration: integration).removeAfterConfirmation()
+
+        XCTAssertEqual(snapshot.status, .completed)
+        XCTAssertFalse(loginLaunch.isEnabled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.currentService.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.currentLaunchAgent.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.support.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.cachedHelper.path))
+        XCTAssertEqual(try String(contentsOf: unrelatedUserFile), "preserved")
+        XCTAssertEqual(try String(contentsOf: fixture.otherPluginState), "preserved")
+        let plugins = try String(contentsOf: fixture.pluginState)
+        XCTAssertFalse(plugins.contains("keyphore@keyphore-app"))
+        XCTAssertTrue(plugins.contains("other@product"))
+    }
+
     func testInspectionDetectsKnownLegacyOwnershipWithoutChangingEitherPlugin() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -498,6 +544,7 @@ private struct LegacyMigrationFixture {
     let root: URL
     let appBundleURL: URL
     let home: URL
+    let support: URL
     let bin: URL
     let launchctl: URL
     let processList: URL
@@ -511,6 +558,7 @@ private struct LegacyMigrationFixture {
     let pluginState: URL
     let legacyService: URL
     let currentService: URL
+    let currentLaunchAgent: URL
     let currentRunning: URL
     let overlapEvidence: URL
     let orphanProcess: URL
@@ -518,6 +566,8 @@ private struct LegacyMigrationFixture {
     let staleRemoval: URL
     let launchctlFailure: URL
     let kickstartFailure: URL
+    let signalOffAcknowledgement: URL
+    let hooksDisabled: URL
 
     init() throws {
         let fileManager = FileManager.default
@@ -545,9 +595,12 @@ private struct LegacyMigrationFixture {
         staleRemoval = root.appending(path: "stale-removal")
         launchctlFailure = root.appending(path: "launchctl-failure")
         kickstartFailure = root.appending(path: "kickstart-failure")
-        let support = home.appending(path: "Library/Application Support/Keyphore")
+        support = home.appending(path: "Library/Application Support/Keyphore")
         legacyState = support.appending(path: "lifecycle.json")
         let launchAgents = home.appending(path: "Library/LaunchAgents")
+        currentLaunchAgent = launchAgents.appending(path: "com.barrywu.keyphore.companion.plist")
+        signalOffAcknowledgement = support.appending(path: "signal-off-ack")
+        hooksDisabled = root.appending(path: "hooks-disabled")
         let legacyPlugin = root.appending(path: "legacy-plugin")
         for directory in [
             bin,
@@ -624,6 +677,9 @@ private struct LegacyMigrationFixture {
               [ -e '\(staleRemoval.path)' ] && exit 0
               /usr/bin/grep -Fvx "$3" '\(pluginState.path)' > '\(pluginState.path).tmp'
               /bin/mv '\(pluginState.path).tmp' '\(pluginState.path)'
+              if [ "$3" = "keyphore@keyphore-app" ]; then
+                /bin/rm -rf '\(cachedPlugin.path)'
+              fi
               exit 0
             fi
             if [ "$1" = "plugin" ] && [ "$2" = "add" ]; then
@@ -636,8 +692,14 @@ private struct LegacyMigrationFixture {
               printf '%s\\n' '{"id":1,"result":{"userAgent":"test"}}'
               read initialized
               read request
+              if printf '%s' "$request" | /usr/bin/grep -q 'config/batchWrite'; then
+                /usr/bin/touch '\(hooksDisabled.path)'
+                printf '%s\\n' '{"id":2,"result":{}}'
+                exit 0
+              fi
               if /usr/bin/grep -Fxq 'keyphore@keyphore-app' '\(pluginState.path)'; then
-                printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"current","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":true,"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
+                if [ -e '\(hooksDisabled.path)' ]; then enabled=false; else enabled=true; fi
+                printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"current","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
               elif /usr/bin/grep -Fxq 'keyphore@keyphore' '\(pluginState.path)'; then
                 printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"legacy","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"legacy","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(legacyPlugin.path)/hooks/hooks.json","pluginId":"keyphore@keyphore","enabled":true,"isManaged":false,"currentHash":"sha256:legacy","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
               else
@@ -712,8 +774,38 @@ private struct LegacyMigrationFixture {
 
     var appBundle: Bundle { Bundle(url: appBundleURL)! }
 
+    func prepareCurrentInstallation() throws {
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: legacyState.path) {
+            try fileManager.removeItem(at: legacyState)
+        }
+        try "keyphore@keyphore-app\nother@product\n".write(
+            to: pluginState,
+            atomically: true,
+            encoding: .utf8
+        )
+        try fileManager.copyItem(at: helper, to: cachedHelper)
+        try Data().write(to: currentService)
+        try Data().write(to: currentLaunchAgent)
+        for name in [
+            "setup.json",
+            "profile.json",
+            "keyboard-health.json",
+            "signal-preview.json",
+            "hardware-health.json",
+        ] {
+            try Data("managed".utf8).write(to: support.appending(path: name))
+        }
+        try DurableStatusStore(url: support.appending(path: "status.json"))
+            .reset(lockBudget: .seconds(1))
+    }
+
     private static func writeExecutable(to url: URL, contents: String) throws {
         try contents.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
+}
+
+private final class RemovalLoginLaunchState: @unchecked Sendable {
+    var isEnabled = true
 }

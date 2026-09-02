@@ -102,7 +102,7 @@ private struct MigrationJournal: Codable {
     let components: Set<LegacyComponent>
 }
 
-final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
+final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemovalIntegrating {
     private static let appBundleIdentifier = "com.barrywu.keyphore"
     private static let pluginID = "keyphore@keyphore-app"
     private static let launchLabel = "com.barrywu.keyphore.companion"
@@ -116,6 +116,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private let launchAgentsDirectory: URL
     private let launchctlURL: URL
     private let processListURL: URL
+    private let loginLaunchDisabler: () throws -> Void
+    private let loginLaunchIsEnabled: () -> Bool
 
     init?(
         detector: SystemCodexHostDetector,
@@ -125,7 +127,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         launchctlURL: URL = URL(fileURLWithPath: "/bin/launchctl"),
         processListURL: URL = URL(fileURLWithPath: "/bin/ps"),
         helperURL: URL? = nil,
-        companionExecutableURL: URL? = nil
+        companionExecutableURL: URL? = nil,
+        loginLaunchDisabler: (() throws -> Void)? = nil,
+        loginLaunchIsEnabled: (() -> Bool)? = nil
     ) {
         guard let codexURL = detector.preferredCodexURL else {
             return nil
@@ -143,6 +147,15 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         launchAgentsDirectory = homeDirectory.appending(path: "Library/LaunchAgents")
         self.launchctlURL = launchctlURL
         self.processListURL = processListURL
+        self.loginLaunchDisabler = loginLaunchDisabler ?? {
+            let service = SMAppService.mainApp
+            if service.status != .notRegistered {
+                try service.unregister()
+            }
+        }
+        self.loginLaunchIsEnabled = loginLaunchIsEnabled ?? {
+            SMAppService.mainApp.status != .notRegistered
+        }
     }
 
     func health() throws -> SetupIntegrationHealth {
@@ -514,11 +527,95 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         try clearQuitGate()
     }
 
+    func inspectManagedRemoval() throws -> ManagedRemovalStatus {
+        if fileManager.fileExists(atPath: removalJournalURL.path) {
+            return .repairRequired
+        }
+        let pluginIsInstalled = try allInstalledPluginIDs().contains(Self.pluginID)
+        let hasManagedFiles = managedRemovalURLs.contains {
+            fileManager.fileExists(atPath: $0.path)
+        }
+        return pluginIsInstalled || companionIsRegistered() || loginLaunchIsEnabled()
+            || hasManagedFiles ? .reviewRequired : .completed
+    }
+
+    func beginManagedRemoval() throws {
+        try quitGate.activate()
+        try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
+        try Data().write(to: removalJournalURL, options: .atomic)
+    }
+
+    func requestSignalOffForRemoval() throws {
+        if !companionIsRegistered(), try !companionProcessIsRunning() {
+            return
+        }
+        try requestSignalOff()
+    }
+
+    func disableOwnedHooksForRemoval() throws {
+        guard try allInstalledPluginIDs().contains(Self.pluginID) else { return }
+        let metadata = try hookMetadata()
+        guard !metadata.isEmpty else { return }
+        try CodexAppServer(codexURL: codexURL).setEnabled(metadata, enabled: false)
+        guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
+            throw SystemSetupError.codexRejectedHookState
+        }
+    }
+
+    func removeCompanionAndBackgroundRegistration() throws {
+        try stopCompanion()
+        try loginLaunchDisabler()
+    }
+
+    func removePluginAndHooks() throws {
+        if try allInstalledPluginIDs().contains(Self.pluginID) {
+            _ = try runCodex(["plugin", "remove", Self.pluginID, "--json"])
+        }
+        guard try !allInstalledPluginIDs().contains(Self.pluginID), try hookMetadata().isEmpty else {
+            throw ManagedRemovalError.incomplete
+        }
+        if fileManager.fileExists(atPath: marketplaceRoot.path) {
+            try fileManager.removeItem(at: marketplaceRoot)
+        }
+    }
+
+    func removeLocalProfileAndManagedRuntimeState() throws {
+        for url in managedRemovalURLs where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
+    func verifyManagedRemoval() throws -> Bool {
+        let managedFilesRemain = managedRemovalURLs.contains {
+            fileManager.fileExists(atPath: $0.path)
+        }
+        return try !allInstalledPluginIDs().contains(Self.pluginID)
+            && hookMetadata().isEmpty
+            && !companionIsRegistered()
+            && !loginLaunchIsEnabled()
+            && !managedFilesRemain
+            && !companionProcessIsRunning()
+    }
+
+    func completeManagedRemoval() throws {
+        for url in [removalJournalURL, quitGateURL]
+            where fileManager.fileExists(atPath: url.path)
+        {
+            try fileManager.removeItem(at: url)
+        }
+        if fileManager.fileExists(atPath: supportDirectory.path),
+           try fileManager.contentsOfDirectory(atPath: supportDirectory.path).isEmpty
+        {
+            try fileManager.removeItem(at: supportDirectory)
+        }
+    }
+
     private var marketplaceRoot: URL { supportDirectory.appending(path: "Marketplace") }
     private var pluginRoot: URL { marketplaceRoot.appending(path: "plugin") }
     private var stateURL: URL { supportDirectory.appending(path: "setup.json") }
     private var legacyStateURL: URL { supportDirectory.appending(path: "lifecycle.json") }
     private var migrationJournalURL: URL { supportDirectory.appending(path: "migration.json") }
+    private var removalJournalURL: URL { supportDirectory.appending(path: "removal.json") }
     private var quitGate: QuitGateStore {
         QuitGateStore(url: quitGateURL)
     }
@@ -538,6 +635,25 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private var launchDomain: String { "gui/\(geteuid())" }
     private var launchTarget: String { "\(launchDomain)/\(Self.launchLabel)" }
     private var legacyLaunchTarget: String { "\(launchDomain)/\(Self.legacyLaunchLabel)" }
+    private var managedRemovalURLs: [URL] {
+        [
+            marketplaceRoot,
+            stateURL,
+            legacyStateURL,
+            migrationJournalURL,
+            durableStatusURL,
+            durableStatusURL.deletingPathExtension().appendingPathExtension("lock"),
+            keyboardHealthURL,
+            signalPreviewURL,
+            signalOffAcknowledgementURL,
+            supportDirectory.appending(path: "profile.json"),
+            supportDirectory.appending(path: "hook-events.jsonl"),
+            supportDirectory.appending(path: "companion.stdout.log"),
+            supportDirectory.appending(path: "companion.stderr.log"),
+            supportDirectory.appending(path: "hardware-health.json"),
+            supportDirectory.appending(path: "companion.lock"),
+        ]
+    }
 
     private func marketplaceIsInstalled() throws -> Bool {
         let output = try runCodex(["plugin", "marketplace", "list", "--json"])
@@ -1052,7 +1168,11 @@ extension GuidedSetup {
     }
 
     @MainActor
-    static func systemServices() -> (setup: GuidedSetup, runtime: (any KeyphoreRuntimeManaging)?) {
+    static func systemServices() -> (
+        setup: GuidedSetup,
+        runtime: (any KeyphoreRuntimeManaging)?,
+        removal: ManagedRemoval?
+    ) {
         let detector = SystemCodexHostDetector()
         guard let integration = SystemGuidedSetupIntegration(detector: detector) else {
             return (
@@ -1061,12 +1181,14 @@ extension GuidedSetup {
                     integration: MissingHostIntegration(),
                     keyboard: SetupKeyboardAdapter()
                 ),
+                nil,
                 nil
             )
         }
         return (
             GuidedSetup(hosts: detector, integration: integration, keyboard: SetupKeyboardAdapter()),
-            SystemKeyphoreRuntimeAdapter(integration: integration)
+            SystemKeyphoreRuntimeAdapter(integration: integration),
+            ManagedRemoval(integration: integration)
         )
     }
 }

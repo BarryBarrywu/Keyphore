@@ -16,6 +16,7 @@ case "hook":
         (try? ProductionHookHandler(
             store: store,
             quitGate: QuitGateStore(url: KeyphoreRuntimePaths.quitGateURL()),
+            configuredStateURL: KeyphoreRuntimePaths.configuredStateURL(),
             profileProvider: { profileStore.loadOrDefault() }
         ).handle(input)) != nil
     else {

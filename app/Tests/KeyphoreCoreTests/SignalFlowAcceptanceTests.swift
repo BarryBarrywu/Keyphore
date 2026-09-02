@@ -583,6 +583,23 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertTrue(try fixture.store.load().owners.isEmpty)
     }
 
+    func testCachedHookInvocationAfterManagedRemovalReturnsWithoutRecreatingState() throws {
+        let fixture = try SignalFixture()
+        let hook = ProductionHookHandler(
+            store: fixture.store,
+            configuredStateURL: fixture.directory.appending(path: "setup.json"),
+            profile: fixture.profile
+        )
+        let input = Data(
+            #"{"hook_event_name":"UserPromptSubmit","session_id":"cached","turn_id":"turn-1"}"#.utf8
+        )
+
+        try hook.handle(input, receivedAt: .milliseconds(0))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.statusURL.path))
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+    }
+
     func testConcurrentHooksRemainAtomicWithinTheProductionLockBudget() throws {
         let fixture = try SignalFixture()
         let statusURL = fixture.statusURL
