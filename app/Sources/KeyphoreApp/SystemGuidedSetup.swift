@@ -14,6 +14,7 @@ struct SystemCodexHostDetector: CodexHostDetecting {
     let environment: [String: String]
     let homeDirectory: URL
     let registeredDesktopAppURL: URL?
+    let desktopAppURLs: [URL]
 
     init(
         fileManager: FileManager = .default,
@@ -21,12 +22,17 @@ struct SystemCodexHostDetector: CodexHostDetecting {
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         registeredDesktopAppURL: URL? = NSWorkspace.shared.urlForApplication(
             withBundleIdentifier: "com.openai.codex"
-        )
+        ),
+        desktopAppURLs: [URL]? = nil
     ) {
         self.fileManager = fileManager
         self.environment = environment
         self.homeDirectory = homeDirectory
         self.registeredDesktopAppURL = registeredDesktopAppURL
+        self.desktopAppURLs = desktopAppURLs ?? [
+            URL(fileURLWithPath: "/Applications/Codex.app"),
+            homeDirectory.appending(path: "Applications/Codex.app"),
+        ]
     }
 
     func detectHosts() throws -> Set<CodexHost> {
@@ -50,9 +56,7 @@ struct SystemCodexHostDetector: CodexHostDetecting {
     private var desktopCodexURL: URL? {
         let applications = [
             registeredDesktopAppURL,
-            URL(fileURLWithPath: "/Applications/Codex.app"),
-            homeDirectory.appending(path: "Applications/Codex.app"),
-        ].compactMap { $0 }
+        ].compactMap { $0 } + desktopAppURLs
         return applications
             .map { $0.appending(path: "Contents/Resources/codex") }
             .first(where: isExecutable)
@@ -112,6 +116,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     private let codexURL: URL?
     private let helperURL: URL
     private let companionExecutableURL: URL
+    private let homeDirectory: URL
     private let supportDirectory: URL
     private let stateURL: URL
     private let launchAgentsDirectory: URL
@@ -141,6 +146,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
             ?? bundle.bundleURL.appending(
                 path: "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"
             )
+        self.homeDirectory = homeDirectory
         supportDirectory = homeDirectory.appending(path: "Library/Application Support/Keyphore")
         stateURL = KeyphoreRuntimePaths.configuredStateURL(homeDirectory: homeDirectory)
         launchAgentsDirectory = homeDirectory.appending(path: "Library/LaunchAgents")
@@ -423,15 +429,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
 
     func disableOwnedHooks() throws {
         let metadata = try hookMetadata()
-        guard metadata.count == HookDefinition.reviewedRelease.count,
-              Set(metadata.compactMap(\.event)).count == HookDefinition.reviewedRelease.count
-        else {
-            throw SystemSetupError.unexpectedHookDefinition
-        }
-        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(metadata, enabled: false)
-        guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
-            throw SystemSetupError.codexRejectedHookState
-        }
+        try disableOwnedHooks(metadata, requiringReviewedRelease: true)
     }
 
     func stopCompanion() throws {
@@ -555,17 +553,10 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func disableOwnedHooksForRemoval() throws {
+        guard codexURL != nil else { return }
         guard try allInstalledPluginIDs().contains(Self.pluginID) else { return }
         let metadata = try hookMetadata()
-        guard metadata.count == HookDefinition.reviewedRelease.count,
-              Set(metadata.compactMap(\.event)).count == HookDefinition.reviewedRelease.count
-        else {
-            throw SystemSetupError.unexpectedHookDefinition
-        }
-        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(metadata, enabled: false)
-        guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
-            throw SystemSetupError.codexRejectedHookState
-        }
+        try disableOwnedHooks(metadata, requiringReviewedRelease: false)
     }
 
     func removeCompanionAndBackgroundRegistration() throws {
@@ -574,14 +565,23 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func removePluginAndHooks() throws {
-        if try allInstalledPluginIDs().contains(Self.pluginID) {
-            _ = try runCodex(["plugin", "remove", Self.pluginID, "--json"])
+        if codexURL != nil {
+            if try allInstalledPluginIDs().contains(Self.pluginID) {
+                _ = try runCodex(["plugin", "remove", Self.pluginID, "--json"])
+            }
+            if try marketplaceIsInstalled() {
+                _ = try runCodex([
+                    "plugin", "marketplace", "remove", "keyphore-app", "--json",
+                ])
+            }
+            guard try !allInstalledPluginIDs().contains(Self.pluginID),
+                  try currentManagedHookMetadata().isEmpty,
+                  try !marketplaceIsInstalled()
+            else {
+                throw ManagedRemovalError.incomplete
+            }
         }
-        guard try !allInstalledPluginIDs().contains(Self.pluginID),
-              try currentManagedHookMetadata().isEmpty
-        else {
-            throw ManagedRemovalError.incomplete
-        }
+        try removeOwnedCodexConfiguration()
         if fileManager.fileExists(atPath: marketplaceRoot.path) {
             try fileManager.removeItem(at: marketplaceRoot)
         }
@@ -597,8 +597,14 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         let managedFilesRemain = managedRemovalURLs.contains {
             fileManager.fileExists(atPath: $0.path)
         }
-        return try !allInstalledPluginIDs().contains(Self.pluginID)
-            && currentManagedHookMetadata().isEmpty
+        let codexComponentsAreRemoved = if codexURL != nil {
+            try !allInstalledPluginIDs().contains(Self.pluginID)
+                && currentManagedHookMetadata().isEmpty
+                && !marketplaceIsInstalled()
+        } else {
+            !ownedCodexConfigurationRemains()
+        }
+        return try codexComponentsAreRemoved
             && !companionIsRegistered()
             && !loginLaunchIsEnabled()
             && !managedFilesRemain
@@ -620,6 +626,13 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
 
     private var marketplaceRoot: URL { supportDirectory.appending(path: "Marketplace") }
     private var pluginRoot: URL { marketplaceRoot.appending(path: "plugin") }
+    private var codexConfigurationURL: URL {
+        homeDirectory.appending(path: ".codex/config.toml")
+    }
+    private var codexPluginCacheRoot: URL {
+        codexConfigurationURL.deletingLastPathComponent()
+            .appending(path: "plugins/cache/keyphore-app")
+    }
     private var legacyStateURL: URL { supportDirectory.appending(path: "lifecycle.json") }
     private var migrationJournalURL: URL { supportDirectory.appending(path: "migration.json") }
     private var removalJournalURL: URL { supportDirectory.appending(path: "removal.json") }
@@ -704,6 +717,109 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     private func hookMetadata() throws -> [CodexHookMetadata] {
         try CodexAppServer(codexURL: requireCodexURL()).hooks(in: pluginRoot)
             .filter { $0.pluginID == Self.pluginID }
+    }
+
+    private func removeOwnedCodexConfiguration() throws {
+        if fileManager.fileExists(atPath: codexConfigurationURL.path) {
+            let original = try String(contentsOf: codexConfigurationURL, encoding: .utf8)
+            let filtered = original
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .reduce(into: (lines: [Substring](), dropping: false)) { result, line in
+                    if let table = codexTableHeader(String(line)) {
+                        result.dropping = isOwnedCodexTable(table)
+                    }
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if !result.dropping || trimmed.isEmpty || trimmed.hasPrefix("#") {
+                        result.lines.append(line)
+                    }
+                }
+                .lines
+                .joined(separator: "\n")
+            if filtered != original {
+                try filtered.write(to: codexConfigurationURL, atomically: true, encoding: .utf8)
+            }
+        }
+        if fileManager.fileExists(atPath: codexPluginCacheRoot.path) {
+            try fileManager.removeItem(at: codexPluginCacheRoot)
+        }
+    }
+
+    private func ownedCodexConfigurationRemains() -> Bool {
+        if fileManager.fileExists(atPath: codexPluginCacheRoot.path) {
+            return true
+        }
+        guard let configuration = try? String(
+            contentsOf: codexConfigurationURL,
+            encoding: .utf8
+        ) else {
+            return false
+        }
+        return configuration
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { codexTableHeader(String($0)) }
+            .contains(where: isOwnedCodexTable)
+    }
+
+    private func codexTableHeader(_ line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("[") else { return nil }
+        let isArrayTable = trimmed.hasPrefix("[[")
+        var quote: Character?
+        var escaped = false
+        for index in trimmed.indices.dropFirst() {
+            let character = trimmed[index]
+            if character == "\\", quote == "\"", !escaped {
+                escaped = true
+                continue
+            }
+            if let currentQuote = quote {
+                if character == currentQuote, !escaped {
+                    quote = nil
+                }
+            } else if character == "\"" || character == "'" {
+                quote = character
+            }
+            escaped = false
+            guard character == "]", quote == nil else { continue }
+            var endIndex = index
+            if isArrayTable {
+                let nextIndex = trimmed.index(after: index)
+                guard nextIndex < trimmed.endIndex, trimmed[nextIndex] == "]" else { return nil }
+                endIndex = nextIndex
+            }
+            let suffix = trimmed[trimmed.index(after: endIndex)...]
+                .trimmingCharacters(in: .whitespaces)
+            guard suffix.isEmpty || suffix.hasPrefix("#") else { return nil }
+            return String(trimmed[...endIndex])
+        }
+        return nil
+    }
+
+    private func isOwnedCodexTable(_ table: String) -> Bool {
+        table == "[marketplaces.keyphore-app]"
+            || table.hasPrefix("[marketplaces.keyphore-app.")
+            || table == "[marketplaces.\"keyphore-app\"]"
+            || table.hasPrefix("[marketplaces.\"keyphore-app\".")
+            || table == "[plugins.\"\(Self.pluginID)\"]"
+            || table.hasPrefix("[plugins.\"\(Self.pluginID)\".")
+    }
+
+    private func disableOwnedHooks(
+        _ metadata: [CodexHookMetadata],
+        requiringReviewedRelease: Bool
+    ) throws {
+        if requiringReviewedRelease {
+            guard metadata.count == HookDefinition.reviewedRelease.count,
+                  Set(metadata.compactMap(\.event)).count == HookDefinition.reviewedRelease.count
+            else {
+                throw SystemSetupError.unexpectedHookDefinition
+            }
+        }
+        guard !metadata.isEmpty else { return }
+        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(metadata, enabled: false)
+        guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
+            throw SystemSetupError.codexRejectedHookState
+        }
     }
 
     private func currentManagedHookMetadata() throws -> [CodexHookMetadata] {

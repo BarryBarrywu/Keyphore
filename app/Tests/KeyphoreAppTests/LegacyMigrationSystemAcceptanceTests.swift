@@ -356,29 +356,40 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         XCTAssertTrue(plugins.contains("other@product"))
     }
 
-    func testInterruptedRemovalRemainsRepairableWithoutACodexHost() throws {
+    func testInterruptedRemovalCompletesWithoutReinstallingACodexHost() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try fixture.prepareCurrentInstallation()
+        try FileManager.default.removeItem(at: fixture.currentService)
+        try FileManager.default.removeItem(at: fixture.currentLaunchAgent)
         try Data().write(to: fixture.support.appending(path: "quit-gate"))
         let detector = SystemCodexHostDetector(
             environment: ["PATH": fixture.root.appending(path: "missing-bin").path],
             homeDirectory: fixture.home,
-            registeredDesktopAppURL: nil
+            registeredDesktopAppURL: nil,
+            desktopAppURLs: []
         )
+        let loginLaunch = RemovalLoginLaunchState()
         let integration = SystemGuidedSetupIntegration(
             detector: detector,
             homeDirectory: fixture.home,
             launchctlURL: fixture.launchctl,
-            processListURL: fixture.processList
+            processListURL: fixture.processList,
+            loginLaunchDisabler: { loginLaunch.isEnabled = false },
+            loginLaunchIsEnabled: { loginLaunch.isEnabled }
         )
 
-        XCTAssertEqual(
-            try ManagedRemoval(integration: integration).inspect().status,
-            .repairRequired
-        )
+        let removal = ManagedRemoval(integration: integration)
+        XCTAssertEqual(try removal.inspect().status, .repairRequired)
+        XCTAssertEqual(try removal.removeAfterConfirmation().status, .completed)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.support.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.cachedHelper.path))
+        let codexConfiguration = try String(contentsOf: fixture.codexConfiguration)
+        XCTAssertFalse(codexConfiguration.contains("keyphore"))
+        XCTAssertTrue(codexConfiguration.contains("other@product"))
     }
 
-    func testManagedRemovalRefusesToTreatAPartialHookSetAsTheEightOwnedHooks() throws {
+    func testManagedRemovalRepairsAPartialHookSetAfterDisablingTheHooksThatRemain() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         try fixture.prepareCurrentInstallation()
@@ -388,16 +399,31 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
             homeDirectory: fixture.home,
             registeredDesktopAppURL: nil
         )
+        let loginLaunch = RemovalLoginLaunchState()
         let integration = SystemGuidedSetupIntegration(
             detector: detector,
             homeDirectory: fixture.home,
             launchctlURL: fixture.launchctl,
             processListURL: fixture.processList,
-            helperURL: fixture.helper
+            helperURL: fixture.helper,
+            loginLaunchDisabler: { loginLaunch.isEnabled = false },
+            loginLaunchIsEnabled: { loginLaunch.isEnabled }
         )
+        let currentService = fixture.currentService
+        let signalOffAcknowledgement = fixture.signalOffAcknowledgement
+        DispatchQueue.global().async {
+            while FileManager.default.fileExists(atPath: currentService.path) {
+                try? Data().write(to: signalOffAcknowledgement)
+                Thread.sleep(forTimeInterval: 0.02)
+            }
+        }
 
-        XCTAssertThrowsError(try integration.disableOwnedHooksForRemoval())
-        XCTAssertTrue(try String(contentsOf: fixture.pluginState).contains("keyphore@keyphore-app"))
+        XCTAssertEqual(
+            try ManagedRemoval(integration: integration).removeAfterConfirmation().status,
+            .completed
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.hooksDisabled.path))
+        XCTAssertFalse(try String(contentsOf: fixture.pluginState).contains("keyphore@keyphore-app"))
     }
 
     func testInspectionDetectsKnownLegacyOwnershipWithoutChangingEitherPlugin() throws {
@@ -605,6 +631,7 @@ private struct LegacyMigrationFixture {
     let otherPluginState: URL
     let legacyState: URL
     let pluginState: URL
+    let codexConfiguration: URL
     let legacyService: URL
     let currentService: URL
     let currentLaunchAgent: URL
@@ -631,11 +658,12 @@ private struct LegacyMigrationFixture {
         companionExecutable = appBundleURL.appending(
             path: "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"
         )
-        cachedPlugin = root.appending(path: "codex-cache/keyphore")
+        cachedPlugin = home.appending(path: ".codex/plugins/cache/keyphore-app/keyphore")
         cachedHelper = cachedPlugin.appending(path: "bin/keyphore")
         commandLog = root.appending(path: "commands.log")
         otherPluginState = root.appending(path: "other-plugin-state")
         pluginState = root.appending(path: "plugins.txt")
+        codexConfiguration = home.appending(path: ".codex/config.toml")
         legacyService = root.appending(path: "legacy-service")
         currentService = root.appending(path: "current-service")
         currentRunning = root.appending(path: "current-running")
@@ -662,6 +690,7 @@ private struct LegacyMigrationFixture {
             legacyPlugin.appending(path: "hooks"),
             cachedPlugin.appending(path: "hooks"),
             cachedPlugin.appending(path: "bin"),
+            codexConfiguration.deletingLastPathComponent(),
         ] {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
@@ -841,6 +870,20 @@ private struct LegacyMigrationFixture {
             encoding: .utf8
         )
         try fileManager.copyItem(at: helper, to: cachedHelper)
+        try """
+          [marketplaces.keyphore-app] # managed marketplace
+        source_type = "local"
+        source = "managed"
+
+        # Preserve this user comment.
+
+        [plugins."keyphore@keyphore-app"]
+        enabled = true
+
+          [plugins.'other]product'] # unrelated plugin
+        enabled = true
+        label = "other@product"
+        """.write(to: codexConfiguration, atomically: true, encoding: .utf8)
         try Data().write(to: currentService)
         try Data().write(to: currentLaunchAgent)
         try Data().write(to: fullCurrentHooks)
