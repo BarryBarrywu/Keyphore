@@ -43,17 +43,10 @@ final class ManagedUpdateController {
             return
         }
         guard let updaterController else {
-            presentChannelUnavailable()
+            delegate.presentChannelUnavailable()
             return
         }
         updaterController.checkForUpdates(nil)
-    }
-
-    private func presentChannelUnavailable() {
-        let alert = NSAlert()
-        alert.messageText = AppCopy.value(.productName)
-        alert.informativeText = AppCopy.value(.updateChannelUnavailable)
-        alert.runModal()
     }
 
     private static func hasSignedFeedConfiguration(bundle: Bundle) -> Bool {
@@ -157,6 +150,10 @@ private final class ManagedUpdateDelegate: NSObject, SPUUpdaterDelegate {
             presentPreparationStateErrorIfNeeded()
         }
         return retried
+    }
+
+    func presentChannelUnavailable() {
+        presentError(AppCopy.value(.updateChannelUnavailable))
     }
 
     private func presentPreparationStateErrorIfNeeded() {

@@ -20,10 +20,12 @@ final class KeyphoreAppDelegate: NSObject, NSApplicationDelegate {
             try recover()
         },
         presentError: { message in
-            let alert = NSAlert()
-            alert.messageText = AppCopy.value(.productName)
-            alert.informativeText = message
-            alert.runModal()
+            ForegroundWindowAction.live.open {
+                let alert = NSAlert()
+                alert.messageText = AppCopy.value(.productName)
+                alert.informativeText = message
+                alert.runModal()
+            }
         }
     )
 
