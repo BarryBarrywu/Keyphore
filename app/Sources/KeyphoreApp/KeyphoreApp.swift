@@ -9,7 +9,10 @@ struct KeyphoreApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            KeyphorePopover(state: state)
+            KeyphorePopover(
+                state: state,
+                checkForUpdates: appDelegate.checkForUpdates
+            )
         } label: {
             Image(nsImage: state.currentSignalPresentation.menuBarImage)
                 .accessibilityLabel(AppCopy.value(.productName))

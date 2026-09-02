@@ -6,13 +6,16 @@ struct KeyphorePopover: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var state: KeyphoreAppState
     private let foregroundWindowAction: ForegroundWindowAction
+    private let checkForUpdates: () -> Void
 
     init(
         state: KeyphoreAppState,
-        foregroundWindowAction: ForegroundWindowAction = .live
+        foregroundWindowAction: ForegroundWindowAction = .live,
+        checkForUpdates: @escaping () -> Void
     ) {
         self.state = state
         self.foregroundWindowAction = foregroundWindowAction
+        self.checkForUpdates = checkForUpdates
     }
 
     var body: some View {
@@ -135,7 +138,7 @@ struct KeyphorePopover: View {
                     }
                 }
                 Button(AppCopy.value(.checkForUpdates)) {
-                    (NSApp.delegate as? KeyphoreAppDelegate)?.checkForUpdates()
+                    checkForUpdates()
                 }
                 Spacer()
                 Button(AppCopy.value(.quit)) {
