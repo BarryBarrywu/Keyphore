@@ -464,6 +464,43 @@ public final class GuidedSetup: @unchecked Sendable {
         )
     }
 
+    public func repairTrustedInstallationIfNeeded() throws -> GuidedSetupSnapshot? {
+        let detectedHosts = try hosts.detectHosts()
+        guard !detectedHosts.isEmpty, try integration.inspectLegacyMigration() == .none else {
+            return nil
+        }
+        var health = try integration.health()
+        guard
+            health.pluginInstalled,
+            health.hooksTrusted,
+            !health.isConfigured,
+            try integration.installedHookHashes() == HookDefinition.reviewedHashes
+        else {
+            return nil
+        }
+        if !health.managedStatePresent {
+            try integration.stage(HookDefinition.reviewedRelease)
+            health = try integration.health()
+            guard health.pluginInstalled, health.hooksTrusted else { return nil }
+            try integration.resetRuntimeState()
+            try integration.registerCompanion()
+            try integration.persistConfigured()
+        } else if !health.companionRegistered {
+            try integration.registerCompanion()
+        }
+        guard try integration.health().isConfigured else {
+            throw GuidedSetupError.configurationIncomplete
+        }
+        try integration.finishConfiguration()
+        let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
+            == .connected(protocolHealthy: true) ? .ready : .configured
+        return GuidedSetupSnapshot(
+            phase: phase,
+            detectedHosts: detectedHosts,
+            hooks: HookDefinition.reviewedRelease
+        )
+    }
+
     public func migrateLegacyAfterReview() throws -> GuidedSetupSnapshot {
         let detectedHosts = try hosts.detectHosts()
         guard !detectedHosts.isEmpty else {

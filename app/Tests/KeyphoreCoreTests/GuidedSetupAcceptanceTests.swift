@@ -502,6 +502,56 @@ final class GuidedSetupAcceptanceTests: XCTestCase {
         )
     }
 
+    func testTrustedInstallationRepairsAChangedManagedRuntimeWithoutNewConsent() throws {
+        let integration = RecordingSetupIntegration(
+            health: SetupIntegrationHealth(
+                pluginInstalled: true,
+                hooksTrusted: true,
+                companionRegistered: true,
+                managedStatePresent: false
+            )
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        let repaired = try setup.repairTrustedInstallationIfNeeded()
+
+        XCTAssertEqual(repaired?.phase, .configured)
+        XCTAssertEqual(
+            integration.actions,
+            [
+                .readHookHashes,
+                .stage,
+                .resetRuntimeState,
+                .registerCompanion,
+                .persistConfigured,
+                .finishConfiguration,
+            ]
+        )
+    }
+
+    func testUntrustedInstallationStillRequiresReviewedConsent() throws {
+        let integration = RecordingSetupIntegration(
+            health: SetupIntegrationHealth(
+                pluginInstalled: true,
+                hooksTrusted: false,
+                companionRegistered: true,
+                managedStatePresent: false
+            )
+        )
+        let setup = GuidedSetup(
+            hosts: FixedCodexHostDetector([.desktopApp]),
+            integration: integration,
+            keyboard: FixedSetupKeyboard(.disconnected)
+        )
+
+        XCTAssertNil(try setup.repairTrustedInstallationIfNeeded())
+        XCTAssertEqual(integration.actions, [])
+    }
+
     func testCurrentManagedRuntimePreservesOwnersWhenOnlyCompanionRegistrationIsMissing() throws {
         let integration = RecordingSetupIntegration(
             health: SetupIntegrationHealth(

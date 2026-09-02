@@ -138,9 +138,18 @@ public enum AppCopy {
     }
 
     public static func value(_ key: AppCopyKey, language: AppLanguage) -> String {
-        let resource = language == .simplifiedChinese ? "zh-hans" : language.rawValue
-        guard
-            let path = Bundle.module.path(forResource: resource, ofType: "lproj"),
+        value(key, language: language, resources: .module)
+    }
+
+    static func value(
+        _ key: AppCopyKey,
+        language: AppLanguage,
+        resources: Bundle
+    ) -> String {
+        let resourceNames = [language.rawValue, language.rawValue.lowercased()]
+        guard let path = resourceNames.lazy.compactMap({ resource in
+            resources.path(forResource: resource, ofType: "lproj")
+        }).first,
             let bundle = Bundle(path: path)
         else {
             return key.rawValue

@@ -3,7 +3,9 @@ set -eu
 
 repository_root=${0:A:h:h}
 applications_directory="$HOME/Applications"
-destination="$applications_directory/Keyphore Development.app"
+destination="$applications_directory/Keyphore.app"
+legacy_destination="$applications_directory/Keyphore Development.app"
+quit_gate="$HOME/Library/Application Support/Keyphore/quit-gate"
 launchctl_bin=${KEYPHORE_LAUNCHCTL_BIN:-/bin/launchctl}
 open_bin=${KEYPHORE_OPEN_BIN:-/usr/bin/open}
 temp_guard=${KEYPHORE_TEMP_GUARD:-/Users/barry/.local/bin/codex-temp-guard}
@@ -13,7 +15,7 @@ legacy_target="$launch_domain/com.barrybarrywu.keyphore"
 development_team=${KEYPHORE_DEVELOPMENT_TEAM:-RFW398ARA9}
 
 usage() {
-  print 'Usage: tools/keyphore-development-app build-open | install <Keyphore.app> | preflight'
+  print 'Usage: tools/keyphore-development-app build-open | install <Keyphore.app> | verify <Keyphore.app> | preflight'
 }
 
 service_is_loaded() {
@@ -21,16 +23,31 @@ service_is_loaded() {
 }
 
 preflight() {
-  for app_pid in $(/usr/bin/pgrep -f "^$destination/Contents/MacOS/Keyphore$"); do
-    /bin/kill "$app_pid"
-  done
+  if /usr/bin/pgrep -f "^($destination|$legacy_destination)/Contents/MacOS/Keyphore$" >/dev/null; then
+    /usr/bin/osascript -e 'tell application id "com.barrywu.keyphore" to quit' >/dev/null 2>&1 || true
+    for _ in {1..30}; do
+      if ! /usr/bin/pgrep -f "^($destination|$legacy_destination)/Contents/MacOS/Keyphore$" >/dev/null; then
+        break
+      fi
+      /bin/sleep 0.1
+    done
+    if /usr/bin/pgrep -f "^($destination|$legacy_destination)/Contents/MacOS/Keyphore$" >/dev/null; then
+      if [[ ! -f "$quit_gate" ]]; then
+        print -u2 'Keyphore cancelled quit before establishing its recovery gate.'
+        return 1
+      fi
+      for app_pid in $(/usr/bin/pgrep -f "^($destination|$legacy_destination)/Contents/MacOS/Keyphore$"); do
+        /bin/kill "$app_pid"
+      done
+    fi
+  fi
   for _ in {1..30}; do
-    if ! /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore($| )' >/dev/null; then
+    if ! /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore$' >/dev/null; then
       break
     fi
     /bin/sleep 0.1
   done
-  if /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore($| )' >/dev/null; then
+  if /usr/bin/pgrep -f '/Keyphore[^/]*/Contents/MacOS/Keyphore$' >/dev/null; then
     print -u2 'A Keyphore App is still running after safe quit.'
     return 1
   fi
@@ -41,29 +58,56 @@ preflight() {
     print -u2 'A Keyphore Companion is still registered; refusing a second HID owner.'
     return 1
   fi
-  if /usr/bin/pgrep -f '/keyphore companion($| )' >/dev/null; then
+  if /usr/bin/pgrep -f '/(keyphore|Keyphore Companion) companion($| )' >/dev/null; then
     print -u2 'An unregistered Keyphore Companion is still running; stop it before continuing.'
     return 1
   fi
 }
 
-install_app() {
+verify_app() {
   source_app=$1
+  companion_app="$source_app/Contents/Library/LoginItems/Keyphore Companion.app"
+  companion_executable="$companion_app/Contents/MacOS/Keyphore Companion"
   if [[ ! -d "$source_app" || ! -x "$source_app/Contents/Helpers/keyphore" ]]; then
     print -u2 'The build does not contain an executable Keyphore helper.'
     return 1
   fi
+  if [[ ! -x "$companion_executable" || ! -f "$companion_app/Contents/Resources/AppIcon.icns" ]]; then
+    print -u2 'The build does not contain the branded Keyphore Companion App.'
+    return 1
+  fi
   bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_app/Contents/Info.plist")
-  if [[ "$bundle_id" != 'com.barrywu.keyphore' ]]; then
+  companion_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$companion_app/Contents/Info.plist")
+  companion_display_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$companion_app/Contents/Info.plist")
+  companion_icon=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$companion_app/Contents/Info.plist")
+  if [[ "$bundle_id" != 'com.barrywu.keyphore' || "$companion_bundle_id" != 'com.barrywu.keyphore.companion' ]]; then
     print -u2 'The build has an unexpected bundle identifier.'
+    return 1
+  fi
+  if [[ "$companion_display_name" != 'Keyphore' || "$companion_icon" != 'AppIcon' ]]; then
+    print -u2 'The Companion App does not carry the Keyphore name and icon.'
     return 1
   fi
   app_team=$(/usr/bin/codesign -dv --verbose=4 "$source_app" 2>&1 | /usr/bin/awk -F= '/^TeamIdentifier=/{print $2}')
   helper_team=$(/usr/bin/codesign -dv --verbose=4 "$source_app/Contents/Helpers/keyphore" 2>&1 | /usr/bin/awk -F= '/^TeamIdentifier=/{print $2}')
-  if [[ "$app_team" != "$development_team" || "$helper_team" != "$development_team" ]]; then
+  companion_team=$(/usr/bin/codesign -dv --verbose=4 "$companion_app" 2>&1 | /usr/bin/awk -F= '/^TeamIdentifier=/{print $2}')
+  app_authority=$(/usr/bin/codesign -dv --verbose=4 "$source_app" 2>&1 | /usr/bin/awk -F= '/^Authority=/{print $2; exit}')
+  helper_authority=$(/usr/bin/codesign -dv --verbose=4 "$source_app/Contents/Helpers/keyphore" 2>&1 | /usr/bin/awk -F= '/^Authority=/{print $2; exit}')
+  companion_authority=$(/usr/bin/codesign -dv --verbose=4 "$companion_app" 2>&1 | /usr/bin/awk -F= '/^Authority=/{print $2; exit}')
+  if [[ "$app_team" != "$development_team" || "$helper_team" != "$development_team" || "$companion_team" != "$development_team" ]]; then
     print -u2 'The development App and Companion must use the stable development team signature.'
     return 1
   fi
+  if [[ "$app_authority" != Developer\ ID\ Application:* || "$helper_authority" != Developer\ ID\ Application:* || "$companion_authority" != Developer\ ID\ Application:* ]]; then
+    print -u2 'The development App and Companion must use the stable Developer ID identity.'
+    return 1
+  fi
+  /usr/bin/codesign --verify --deep --strict "$source_app"
+}
+
+install_app() {
+  source_app=$1
+  verify_app "$source_app"
 
   preflight
   /bin/mkdir -p "$applications_directory"
@@ -75,12 +119,17 @@ install_app() {
       return 1
       ;;
   esac
-  destination="$canonical_applications_directory/Keyphore Development.app"
-  staging="$canonical_applications_directory/.Keyphore Development.$$.app"
+  destination="$canonical_applications_directory/Keyphore.app"
+  legacy_destination="$canonical_applications_directory/Keyphore Development.app"
+  staging="$canonical_applications_directory/.Keyphore.$$.app"
   /usr/bin/ditto "$source_app" "$staging"
   if [[ -e "$destination" ]]; then
-    previous="$HOME/.Trash/Keyphore Development.previous.$$.app"
+    previous="$HOME/.Trash/Keyphore.previous.$$.app"
     /bin/mv "$destination" "$previous"
+  fi
+  if [[ -e "$legacy_destination" ]]; then
+    legacy_previous="$HOME/.Trash/Keyphore Development.previous.$$.app"
+    /bin/mv "$legacy_destination" "$legacy_previous"
   fi
   /bin/mv "$staging" "$destination"
   "$open_bin" "$destination"
@@ -97,7 +146,8 @@ build_open() {
     -derivedDataPath "$build_root/DerivedData" \
     DEVELOPMENT_TEAM="$development_team" \
     CODE_SIGN_STYLE=Manual \
-    CODE_SIGN_IDENTITY='Apple Development' \
+    CODE_SIGN_IDENTITY='Developer ID Application' \
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
     build
   install_app "$build_root/DerivedData/Build/Products/Debug/Keyphore.app"
   $temp_guard release "$build_root"
@@ -112,6 +162,10 @@ case ${1:-} in
   install)
     [[ $# -eq 2 ]] || { usage; exit 64; }
     install_app "$2"
+    ;;
+  verify)
+    [[ $# -eq 2 ]] || { usage; exit 64; }
+    verify_app "$2"
     ;;
   preflight)
     [[ $# -eq 1 ]] || { usage; exit 64; }

@@ -153,6 +153,7 @@ final class KeyphoreAppState: ObservableObject {
         )
         if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
             _ = try? lifecycle.reopenIfNeeded()
+            _ = try? guidedSetup?.repairTrustedInstallationIfNeeded()
         }
         self.init(
             lifecycle: lifecycle,

@@ -72,6 +72,140 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         XCTAssertTrue(try integration.companionIsRunningForDiagnostics())
     }
 
+    func testRegisteredCompanionIsAssociatedWithTheKeyphoreApp() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper
+            )
+        )
+
+        try integration.registerCompanion()
+
+        let launchAgent = fixture.home.appending(
+            path: "Library/LaunchAgents/com.barrywu.keyphore.companion.plist"
+        )
+        let propertyList = try XCTUnwrap(
+            try PropertyListSerialization.propertyList(
+                from: Data(contentsOf: launchAgent),
+                format: nil
+            ) as? [String: Any]
+        )
+        XCTAssertEqual(
+            propertyList["AssociatedBundleIdentifiers"] as? [String],
+            ["com.barrywu.keyphore"]
+        )
+    }
+
+    func testRegisteredCompanionLaunchesTheBundledCompanionApp() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                bundle: fixture.appBundle,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList
+            )
+        )
+
+        try integration.registerCompanion()
+
+        let launchAgent = fixture.home.appending(
+            path: "Library/LaunchAgents/com.barrywu.keyphore.companion.plist"
+        )
+        let propertyList = try XCTUnwrap(
+            try PropertyListSerialization.propertyList(
+                from: Data(contentsOf: launchAgent),
+                format: nil
+            ) as? [String: Any]
+        )
+        XCTAssertEqual(
+            propertyList["ProgramArguments"] as? [String],
+            [fixture.companionExecutable.path, "companion"]
+        )
+    }
+
+    func testOldBareCompanionRegistrationIsNotCurrent() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try Data().write(to: fixture.currentService)
+        let launchAgent = fixture.home.appending(
+            path: "Library/LaunchAgents/com.barrywu.keyphore.companion.plist"
+        )
+        try PropertyListSerialization.data(
+            fromPropertyList: [
+                "Label": "com.barrywu.keyphore.companion",
+                "ProgramArguments": [fixture.helper.path, "companion"],
+            ],
+            format: .xml,
+            options: 0
+        ).write(to: launchAgent)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper,
+                companionExecutableURL: fixture.companionExecutable
+            )
+        )
+
+        XCTAssertFalse(try integration.health().companionRegistered)
+    }
+
+    func testConfigurationClearsQuitGateWhenSignalOffCannotBeAcknowledged() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper
+            )
+        )
+
+        try integration.activateQuitGate()
+
+        XCTAssertNoThrow(try integration.finishConfiguration())
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: fixture.home.appending(
+                    path: "Library/Application Support/Keyphore/quit-gate"
+                ).path
+            )
+        )
+    }
+
     func testOtherPluginIsNotReportedAsKeyphoreOwned() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -279,6 +413,30 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.overlapEvidence.path))
     }
 
+    func testOrphanedBundledCompanionProcessBlocksASecondCompanion() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try Data().write(to: fixture.bundledOrphanProcess)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = try XCTUnwrap(
+            SystemGuidedSetupIntegration(
+                detector: detector,
+                homeDirectory: fixture.home,
+                launchctlURL: fixture.launchctl,
+                processListURL: fixture.processList,
+                helperURL: fixture.helper,
+                companionExecutableURL: fixture.companionExecutable
+            )
+        )
+
+        XCTAssertThrowsError(try integration.stopLegacyCompanion())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.currentService.path))
+    }
+
     func testRemovalFailsClosedWhenCodexClaimsSuccessWithoutRemovingLegacyPlugin() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
@@ -338,11 +496,13 @@ private struct MissingHostKeyboardHealth: SetupKeyboardHealthProviding {
 
 private struct LegacyMigrationFixture {
     let root: URL
+    let appBundleURL: URL
     let home: URL
     let bin: URL
     let launchctl: URL
     let processList: URL
     let helper: URL
+    let companionExecutable: URL
     let cachedPlugin: URL
     let cachedHelper: URL
     let commandLog: URL
@@ -354,6 +514,7 @@ private struct LegacyMigrationFixture {
     let currentRunning: URL
     let overlapEvidence: URL
     let orphanProcess: URL
+    let bundledOrphanProcess: URL
     let staleRemoval: URL
     let launchctlFailure: URL
     let kickstartFailure: URL
@@ -361,11 +522,15 @@ private struct LegacyMigrationFixture {
     init() throws {
         let fileManager = FileManager.default
         root = fileManager.temporaryDirectory.appending(path: "keyphore-migration-\(UUID().uuidString)")
+        appBundleURL = root.appending(path: "Keyphore.app")
         home = root.appending(path: "home")
         bin = root.appending(path: "bin")
         launchctl = bin.appending(path: "launchctl")
         processList = bin.appending(path: "ps")
-        helper = root.appending(path: "current-keyphore")
+        helper = appBundleURL.appending(path: "Contents/Helpers/keyphore")
+        companionExecutable = appBundleURL.appending(
+            path: "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"
+        )
         cachedPlugin = root.appending(path: "codex-cache/keyphore")
         cachedHelper = cachedPlugin.appending(path: "bin/keyphore")
         commandLog = root.appending(path: "commands.log")
@@ -376,6 +541,7 @@ private struct LegacyMigrationFixture {
         currentRunning = root.appending(path: "current-running")
         overlapEvidence = root.appending(path: "overlap")
         orphanProcess = root.appending(path: "orphan-process")
+        bundledOrphanProcess = root.appending(path: "bundled-orphan-process")
         staleRemoval = root.appending(path: "stale-removal")
         launchctlFailure = root.appending(path: "launchctl-failure")
         kickstartFailure = root.appending(path: "kickstart-failure")
@@ -387,6 +553,8 @@ private struct LegacyMigrationFixture {
             bin,
             support,
             launchAgents,
+            helper.deletingLastPathComponent(),
+            companionExecutable.deletingLastPathComponent(),
             legacyPlugin.appending(path: "hooks"),
             cachedPlugin.appending(path: "hooks"),
             cachedPlugin.appending(path: "bin"),
@@ -401,6 +569,29 @@ private struct LegacyMigrationFixture {
         )
         try Data().write(to: legacyService)
         try Self.writeExecutable(to: helper, contents: "#!/bin/sh\nexit 0\n")
+        try Self.writeExecutable(to: companionExecutable, contents: "#!/bin/sh\nexit 0\n")
+        try PropertyListSerialization.data(
+            fromPropertyList: [
+                "CFBundleExecutable": "Keyphore",
+                "CFBundleIdentifier": "com.barrywu.keyphore.fixture.\(UUID().uuidString)",
+                "CFBundlePackageType": "APPL",
+            ],
+            format: .xml,
+            options: 0
+        ).write(to: appBundleURL.appending(path: "Contents/Info.plist"))
+        let companionInfoURL = companionExecutable
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: "Info.plist")
+        try PropertyListSerialization.data(
+            fromPropertyList: [
+                "CFBundleExecutable": "Keyphore Companion",
+                "CFBundleIdentifier": "com.barrywu.keyphore.companion",
+                "CFBundlePackageType": "APPL",
+            ],
+            format: .xml,
+            options: 0
+        ).write(to: companionInfoURL)
         let lifecycle = try JSONSerialization.data(withJSONObject: [
             "plugin_id": "keyphore@keyphore",
             "plugin_root": legacyPlugin.path,
@@ -511,10 +702,15 @@ private struct LegacyMigrationFixture {
             if [ -e '\(orphanProcess.path)' ]; then
               printf '%s\\n' '/legacy/bin/keyphore companion'
             fi
+            if [ -e '\(bundledOrphanProcess.path)' ]; then
+              printf '%s\\n' '/Applications/Keyphore.app/Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion companion'
+            fi
             exit 0
             """
         )
     }
+
+    var appBundle: Bundle { Bundle(url: appBundleURL)! }
 
     private static func writeExecutable(to url: URL, contents: String) throws {
         try contents.write(to: url, atomically: true, encoding: .utf8)

@@ -20,6 +20,37 @@ targets:
         PRODUCT_NAME: keyphore
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_VERSION: 6.0
+  KeyphoreCompanion:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    info:
+      path: runtime/Resources/Companion-Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: Keyphore
+        CFBundleIconFile: AppIcon
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+    sources:
+      - path: runtime/Sources
+      - path: app/Resources/Assets.xcassets
+    dependencies:
+      - package: KeyphoreAppModules
+        product: KeyphoreCore
+    settings:
+      base:
+        ARCHS: arm64
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_HARDENED_RUNTIME: true
+        MARKETING_VERSION: 0.1.0
+        PRODUCT_BUNDLE_IDENTIFIER: com.barrywu.keyphore.companion
+        PRODUCT_NAME: Keyphore Companion
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_VERSION: 6.0
   Keyphore:
     type: application
     platform: macOS
@@ -41,6 +72,10 @@ targets:
       - path: app/Resources/Assets.xcassets
     dependencies:
       - target: KeyphoreRuntime
+      - target: KeyphoreCompanion
+        copy: false
+        embed: false
+        link: false
       - package: KeyphoreAppModules
         product: KeyphoreCore
     postBuildScripts:
@@ -50,10 +85,19 @@ targets:
           helper_dir="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
           /bin/mkdir -p "$helper_dir"
           /usr/bin/install -m 755 "$BUILT_PRODUCTS_DIR/keyphore" "$helper_dir/keyphore"
+          companion_dir="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LoginItems"
+          companion_app="$companion_dir/Keyphore Companion.app"
+          /bin/mkdir -p "$companion_dir"
+          if [[ -e "$companion_app" ]]; then
+            /usr/bin/find "$companion_app" -depth -delete
+          fi
+          /usr/bin/ditto "$BUILT_PRODUCTS_DIR/Keyphore Companion.app" "$companion_app"
         inputFiles:
           - $(BUILT_PRODUCTS_DIR)/keyphore
+          - $(BUILT_PRODUCTS_DIR)/Keyphore Companion.app
         outputFiles:
           - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/keyphore
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LoginItems/Keyphore Companion.app/Contents/Info.plist
     settings:
       base:
         ARCHS: arm64
@@ -77,6 +121,7 @@ targets:
       - path: app/Sources/KeyphoreApp/KeyphoreAppState.swift
       - path: app/Sources/KeyphoreApp/SignalColor+SwiftUI.swift
       - path: app/Sources/KeyphoreApp/SystemGuidedSetup.swift
+      - path: app/Sources/KeyphoreApp/ForegroundWindowAction.swift
     dependencies:
       - package: KeyphoreAppModules
         product: KeyphoreCore

@@ -103,6 +103,7 @@ private struct MigrationJournal: Codable {
 }
 
 final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
+    private static let appBundleIdentifier = "com.barrywu.keyphore"
     private static let pluginID = "keyphore@keyphore-app"
     private static let launchLabel = "com.barrywu.keyphore.companion"
     private static let legacyLaunchLabel = "com.barrybarrywu.keyphore"
@@ -110,6 +111,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private let fileManager: FileManager
     private let codexURL: URL
     private let helperURL: URL
+    private let companionExecutableURL: URL
     private let supportDirectory: URL
     private let launchAgentsDirectory: URL
     private let launchctlURL: URL
@@ -122,7 +124,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         launchctlURL: URL = URL(fileURLWithPath: "/bin/launchctl"),
         processListURL: URL = URL(fileURLWithPath: "/bin/ps"),
-        helperURL: URL? = nil
+        helperURL: URL? = nil,
+        companionExecutableURL: URL? = nil
     ) {
         guard let codexURL = detector.preferredCodexURL else {
             return nil
@@ -131,6 +134,11 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         self.codexURL = codexURL
         self.helperURL = helperURL
             ?? bundle.bundleURL.appending(path: "Contents/Helpers/keyphore")
+        self.companionExecutableURL = companionExecutableURL
+            ?? helperURL
+            ?? bundle.bundleURL.appending(
+                path: "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"
+            )
         supportDirectory = homeDirectory.appending(path: "Library/Application Support/Keyphore")
         launchAgentsDirectory = homeDirectory.appending(path: "Library/LaunchAgents")
         self.launchctlURL = launchctlURL
@@ -149,7 +157,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         return SetupIntegrationHealth(
             pluginInstalled: pluginInstalled,
             hooksTrusted: hooksTrusted,
-            companionRegistered: companionIsRegistered(),
+            companionRegistered: companionRegistrationIsCurrent(),
             managedStatePresent: managedStateIsCurrent(hooks: hooks)
         )
     }
@@ -295,12 +303,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     }
 
     func resetRuntimeState() throws {
-        try DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL())
+        try DurableStatusStore(url: durableStatusURL)
             .reset(lockBudget: .seconds(1))
     }
 
     func registerCompanion() throws {
-        guard fileManager.isExecutableFile(atPath: helperURL.path) else {
+        guard fileManager.isExecutableFile(atPath: companionExecutableURL.path) else {
             throw SystemSetupError.runtimeMissing
         }
         try fileManager.createDirectory(at: launchAgentsDirectory, withIntermediateDirectories: true)
@@ -427,9 +435,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     func clearManagedRuntimeState() throws {
         try resetRuntimeState()
         for url in [
-            KeyphoreRuntimePaths.keyboardHealthURL(),
-            KeyphoreRuntimePaths.signalPreviewURL(),
-            KeyphoreRuntimePaths.signalOffAcknowledgementURL(),
+            keyboardHealthURL,
+            signalPreviewURL,
+            signalOffAcknowledgementURL,
         ] where fileManager.fileExists(atPath: url.path) {
             try fileManager.removeItem(at: url)
         }
@@ -437,10 +445,10 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
 
     func requestSignalOff() throws {
         let acknowledgement = SignalOffAcknowledgementStore(
-            url: KeyphoreRuntimePaths.signalOffAcknowledgementURL()
+            url: signalOffAcknowledgementURL
         )
         try acknowledgement.clear()
-        let healthURL = KeyphoreRuntimePaths.keyboardHealthURL()
+        let healthURL = keyboardHealthURL
         if fileManager.fileExists(atPath: healthURL.path) {
             try fileManager.removeItem(at: healthURL)
         }
@@ -497,7 +505,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     func finishConfiguration() throws {
         guard quitGate.isActive else { return }
         try clearManagedRuntimeState()
-        try requestSignalOff()
+        do {
+            try requestSignalOff()
+        } catch SystemSetupError.signalOffNotAcknowledged {
+            try clearQuitGate()
+            return
+        }
         try clearQuitGate()
     }
 
@@ -507,7 +520,14 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
     private var legacyStateURL: URL { supportDirectory.appending(path: "lifecycle.json") }
     private var migrationJournalURL: URL { supportDirectory.appending(path: "migration.json") }
     private var quitGate: QuitGateStore {
-        QuitGateStore(url: KeyphoreRuntimePaths.quitGateURL())
+        QuitGateStore(url: quitGateURL)
+    }
+    private var durableStatusURL: URL { supportDirectory.appending(path: "status.json") }
+    private var keyboardHealthURL: URL { supportDirectory.appending(path: "keyboard-health.json") }
+    private var signalPreviewURL: URL { supportDirectory.appending(path: "signal-preview.json") }
+    private var quitGateURL: URL { supportDirectory.appending(path: "quit-gate") }
+    private var signalOffAcknowledgementURL: URL {
+        supportDirectory.appending(path: "signal-off-ack")
     }
     private var launchAgentURL: URL {
         launchAgentsDirectory.appending(path: "\(Self.launchLabel).plist")
@@ -595,6 +615,21 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         companionIsRegistered(target: launchTarget)
     }
 
+    private func companionRegistrationIsCurrent() -> Bool {
+        guard
+            companionIsRegistered(),
+            let data = try? Data(contentsOf: launchAgentURL),
+            let propertyList = try? PropertyListSerialization.propertyList(
+                from: data,
+                format: nil
+            ) as? [String: Any],
+            let arguments = propertyList["ProgramArguments"] as? [String]
+        else {
+            return false
+        }
+        return arguments.first == companionExecutableURL.path
+    }
+
     private func companionIsRegistered(target: String) -> Bool {
         (try? run(launchctlURL, ["print", target])) != nil
     }
@@ -603,7 +638,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         let output = try run(processListURL, ["-axo", "command="])
         return String(decoding: output, as: UTF8.self)
             .split(separator: "\n")
-            .contains { $0.range(of: #"/keyphore companion(?:\s|$)"#, options: .regularExpression) != nil }
+            .contains {
+                $0.range(
+                    of: #"/(?:keyphore|Keyphore Companion) companion(?:\s|$)"#,
+                    options: .regularExpression
+                ) != nil
+            }
     }
 
     private func legacyLifecycleState() throws -> LegacyLifecycleState? {
@@ -781,7 +821,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating {
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0"><dict>
         <key>Label</key><string>\(Self.launchLabel)</string>
-        <key>ProgramArguments</key><array><string>\(xml(helperURL.path))</string><string>companion</string></array>
+        <key>AssociatedBundleIdentifiers</key><array><string>\(Self.appBundleIdentifier)</string></array>
+        <key>ProgramArguments</key><array><string>\(xml(companionExecutableURL.path))</string><string>companion</string></array>
         <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
         </dict></plist>
         """

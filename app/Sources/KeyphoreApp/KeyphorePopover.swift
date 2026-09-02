@@ -5,6 +5,15 @@ import KeyphoreCore
 struct KeyphorePopover: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var state: KeyphoreAppState
+    private let foregroundWindowAction: ForegroundWindowAction
+
+    init(
+        state: KeyphoreAppState,
+        foregroundWindowAction: ForegroundWindowAction = .live
+    ) {
+        self.state = state
+        self.foregroundWindowAction = foregroundWindowAction
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -91,9 +100,10 @@ struct KeyphorePopover: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if #available(macOS 14.0, *) {
-                SettingsLink {
-                    Text(AppCopy.value(.migrationPreviewAction))
-                }
+                ForegroundSettingsButton(
+                    title: AppCopy.value(.migrationPreviewAction),
+                    foregroundWindowAction: foregroundWindowAction
+                )
             }
         }
     }
@@ -103,17 +113,26 @@ struct KeyphorePopover: View {
             HStack {
                 if state.menuState != .configurationRequired {
                     if #available(macOS 14.0, *) {
-                        SettingsLink {
-                            Text(AppCopy.value(.settings))
-                        }
+                        ForegroundSettingsButton(
+                            title: AppCopy.value(.settings),
+                            foregroundWindowAction: foregroundWindowAction
+                        )
                     } else {
                         Button(AppCopy.value(.settings)) {
-                            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                            foregroundWindowAction.open {
+                                NSApp.sendAction(
+                                    Selector(("showSettingsWindow:")),
+                                    to: nil,
+                                    from: nil
+                                )
+                            }
                         }
                     }
                 }
                 Button(AppCopy.value(.diagnostics)) {
-                    openWindow(id: "diagnostics")
+                    foregroundWindowAction.open {
+                        openWindow(id: "diagnostics")
+                    }
                 }
                 Spacer()
                 Button(AppCopy.value(.quit)) {
@@ -125,6 +144,21 @@ struct KeyphorePopover: View {
                 Text(AppCopy.value(.quitError))
                     .font(.caption)
                     .foregroundStyle(.red)
+            }
+        }
+    }
+}
+
+@available(macOS 14.0, *)
+private struct ForegroundSettingsButton: View {
+    @Environment(\.openSettings) private var openSettings
+    let title: String
+    let foregroundWindowAction: ForegroundWindowAction
+
+    var body: some View {
+        Button(title) {
+            foregroundWindowAction.open {
+                openSettings()
             }
         }
     }
