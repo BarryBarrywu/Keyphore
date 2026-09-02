@@ -17,14 +17,12 @@ public enum ManagedRemovalStatus: Equatable, Sendable {
 
 public struct ManagedRemovalSnapshot: Equatable, Sendable {
     public let status: ManagedRemovalStatus
-    public let components: Set<ManagedRemovalComponent>
+    public var components: Set<ManagedRemovalComponent> {
+        Set(ManagedRemovalComponent.allCases)
+    }
 
-    public init(
-        status: ManagedRemovalStatus,
-        components: Set<ManagedRemovalComponent> = Set(ManagedRemovalComponent.allCases)
-    ) {
+    public init(status: ManagedRemovalStatus) {
         self.status = status
-        self.components = components
     }
 }
 

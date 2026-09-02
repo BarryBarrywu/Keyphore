@@ -332,8 +332,13 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
                 loginLaunchIsEnabled: { loginLaunch.isEnabled }
             )
         )
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
-            try? Data().write(to: fixture.signalOffAcknowledgement)
+        let currentService = fixture.currentService
+        let signalOffAcknowledgement = fixture.signalOffAcknowledgement
+        DispatchQueue.global().async {
+            while FileManager.default.fileExists(atPath: currentService.path) {
+                try? Data().write(to: signalOffAcknowledgement)
+                Thread.sleep(forTimeInterval: 0.02)
+            }
         }
 
         let snapshot = try ManagedRemoval(integration: integration).removeAfterConfirmation()
@@ -349,6 +354,50 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         let plugins = try String(contentsOf: fixture.pluginState)
         XCTAssertFalse(plugins.contains("keyphore@keyphore-app"))
         XCTAssertTrue(plugins.contains("other@product"))
+    }
+
+    func testInterruptedRemovalRemainsRepairableWithoutACodexHost() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try Data().write(to: fixture.support.appending(path: "quit-gate"))
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.root.appending(path: "missing-bin").path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = SystemGuidedSetupIntegration(
+            detector: detector,
+            homeDirectory: fixture.home,
+            launchctlURL: fixture.launchctl,
+            processListURL: fixture.processList
+        )
+
+        XCTAssertEqual(
+            try ManagedRemoval(integration: integration).inspect().status,
+            .repairRequired
+        )
+    }
+
+    func testManagedRemovalRefusesToTreatAPartialHookSetAsTheEightOwnedHooks() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try fixture.prepareCurrentInstallation()
+        try FileManager.default.removeItem(at: fixture.fullCurrentHooks)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil
+        )
+        let integration = SystemGuidedSetupIntegration(
+            detector: detector,
+            homeDirectory: fixture.home,
+            launchctlURL: fixture.launchctl,
+            processListURL: fixture.processList,
+            helperURL: fixture.helper
+        )
+
+        XCTAssertThrowsError(try integration.disableOwnedHooksForRemoval())
+        XCTAssertTrue(try String(contentsOf: fixture.pluginState).contains("keyphore@keyphore-app"))
     }
 
     func testInspectionDetectsKnownLegacyOwnershipWithoutChangingEitherPlugin() throws {
@@ -568,6 +617,7 @@ private struct LegacyMigrationFixture {
     let kickstartFailure: URL
     let signalOffAcknowledgement: URL
     let hooksDisabled: URL
+    let fullCurrentHooks: URL
 
     init() throws {
         let fileManager = FileManager.default
@@ -601,6 +651,7 @@ private struct LegacyMigrationFixture {
         currentLaunchAgent = launchAgents.appending(path: "com.barrywu.keyphore.companion.plist")
         signalOffAcknowledgement = support.appending(path: "signal-off-ack")
         hooksDisabled = root.appending(path: "hooks-disabled")
+        fullCurrentHooks = root.appending(path: "full-current-hooks")
         let legacyPlugin = root.appending(path: "legacy-plugin")
         for directory in [
             bin,
@@ -684,6 +735,7 @@ private struct LegacyMigrationFixture {
             fi
             if [ "$1" = "plugin" ] && [ "$2" = "add" ]; then
               /usr/bin/grep -Fxq "$3" '\(pluginState.path)' || printf '%s\\n' "$3" >> '\(pluginState.path)'
+              /bin/mkdir -p '\(cachedHelper.deletingLastPathComponent().path)'
               /bin/cp '\(support.appending(path: "Marketplace/plugin/bin/keyphore").path)' '\(cachedHelper.path)'
               exit 0
             fi
@@ -699,7 +751,11 @@ private struct LegacyMigrationFixture {
               fi
               if /usr/bin/grep -Fxq 'keyphore@keyphore-app' '\(pluginState.path)'; then
                 if [ -e '\(hooksDisabled.path)' ]; then enabled=false; else enabled=true; fi
-                printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"current","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
+                if [ -e '\(fullCurrentHooks.path)' ]; then
+                  printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"permission","eventName":"permissionRequest","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"post","eventName":"postToolUse","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"session-end","eventName":"sessionEnd","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"session-start","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"stop","eventName":"stop","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"subagent-start","eventName":"subagentStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"subagent-stop","eventName":"subagentStop","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"},{"key":"prompt","eventName":"userPromptSubmit","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
+                else
+                  printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"current","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"current","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(cachedPlugin.appending(path: "hooks/hooks.json").path)","pluginId":"keyphore@keyphore-app","enabled":'"$enabled"',"isManaged":false,"currentHash":"sha256:current","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
+                fi
               elif /usr/bin/grep -Fxq 'keyphore@keyphore' '\(pluginState.path)'; then
                 printf '%s\\n' '{"id":2,"result":{"data":[{"cwd":"fixture","hooks":[{"key":"legacy","eventName":"sessionStart","handlerType":"command","executionMode":"sync","matcher":null,"command":"legacy","timeoutSec":1,"statusMessage":null,"additionalContextLimit":null,"sourcePath":"\(legacyPlugin.path)/hooks/hooks.json","pluginId":"keyphore@keyphore","enabled":true,"isManaged":false,"currentHash":"sha256:legacy","trustStatus":"trusted"}],"warnings":[],"errors":[]}]}}'
               else
@@ -787,6 +843,7 @@ private struct LegacyMigrationFixture {
         try fileManager.copyItem(at: helper, to: cachedHelper)
         try Data().write(to: currentService)
         try Data().write(to: currentLaunchAgent)
+        try Data().write(to: fullCurrentHooks)
         for name in [
             "setup.json",
             "profile.json",

@@ -109,17 +109,18 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     private static let legacyLaunchLabel = "com.barrybarrywu.keyphore"
 
     private let fileManager: FileManager
-    private let codexURL: URL
+    private let codexURL: URL?
     private let helperURL: URL
     private let companionExecutableURL: URL
     private let supportDirectory: URL
+    private let stateURL: URL
     private let launchAgentsDirectory: URL
     private let launchctlURL: URL
     private let processListURL: URL
     private let loginLaunchDisabler: () throws -> Void
     private let loginLaunchIsEnabled: () -> Bool
 
-    init?(
+    init(
         detector: SystemCodexHostDetector,
         bundle: Bundle = .main,
         fileManager: FileManager = .default,
@@ -131,11 +132,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         loginLaunchDisabler: (() throws -> Void)? = nil,
         loginLaunchIsEnabled: (() -> Bool)? = nil
     ) {
-        guard let codexURL = detector.preferredCodexURL else {
-            return nil
-        }
         self.fileManager = fileManager
-        self.codexURL = codexURL
+        codexURL = detector.preferredCodexURL
         self.helperURL = helperURL
             ?? bundle.bundleURL.appending(path: "Contents/Helpers/keyphore")
         self.companionExecutableURL = companionExecutableURL
@@ -144,6 +142,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
                 path: "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"
             )
         supportDirectory = homeDirectory.appending(path: "Library/Application Support/Keyphore")
+        stateURL = KeyphoreRuntimePaths.configuredStateURL(homeDirectory: homeDirectory)
         launchAgentsDirectory = homeDirectory.appending(path: "Library/LaunchAgents")
         self.launchctlURL = launchctlURL
         self.processListURL = processListURL
@@ -226,7 +225,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         guard let legacy = try? legacyLifecycleState() else { return }
         let hooks = try legacyHookMetadata(legacy)
         guard !hooks.isEmpty else { return }
-        try CodexAppServer(codexURL: codexURL).setEnabled(hooks, enabled: false)
+        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(hooks, enabled: false)
         guard try legacyHookMetadata(legacy).allSatisfy({ !$0.enabled }) else {
             throw SystemSetupError.codexRejectedHookState
         }
@@ -308,7 +307,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         guard hashes == HookDefinition.reviewedHashes else {
             throw GuidedSetupError.reviewedHooksChanged
         }
-        try CodexAppServer(codexURL: codexURL).trustAndEnable(metadata)
+        try CodexAppServer(codexURL: requireCodexURL()).trustAndEnable(metadata)
         let trusted = try hookMetadata()
         guard trusted.allSatisfy({ $0.enabled && $0.trustStatus == "trusted" }) else {
             throw SystemSetupError.codexRejectedHookConsent
@@ -429,7 +428,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         else {
             throw SystemSetupError.unexpectedHookDefinition
         }
-        try CodexAppServer(codexURL: codexURL).setEnabled(metadata, enabled: false)
+        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(metadata, enabled: false)
         guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
             throw SystemSetupError.codexRejectedHookState
         }
@@ -496,7 +495,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         else {
             return false
         }
-        try CodexAppServer(codexURL: codexURL).setEnabled(metadata, enabled: true)
+        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(metadata, enabled: true)
         let enabled = try hookMetadata()
         guard enabled.allSatisfy({ $0.enabled && $0.trustStatus == "trusted" }) else {
             throw SystemSetupError.codexRejectedHookState
@@ -528,10 +527,13 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func inspectManagedRemoval() throws -> ManagedRemovalStatus {
-        if fileManager.fileExists(atPath: removalJournalURL.path) {
+        if fileManager.fileExists(atPath: removalJournalURL.path)
+            || fileManager.fileExists(atPath: quitGateURL.path)
+        {
             return .repairRequired
         }
-        let pluginIsInstalled = try allInstalledPluginIDs().contains(Self.pluginID)
+        let pluginIsInstalled = (try? allInstalledPluginIDs().contains(Self.pluginID))
+            ?? fileManager.fileExists(atPath: stateURL.path)
         let hasManagedFiles = managedRemovalURLs.contains {
             fileManager.fileExists(atPath: $0.path)
         }
@@ -555,8 +557,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     func disableOwnedHooksForRemoval() throws {
         guard try allInstalledPluginIDs().contains(Self.pluginID) else { return }
         let metadata = try hookMetadata()
-        guard !metadata.isEmpty else { return }
-        try CodexAppServer(codexURL: codexURL).setEnabled(metadata, enabled: false)
+        guard metadata.count == HookDefinition.reviewedRelease.count,
+              Set(metadata.compactMap(\.event)).count == HookDefinition.reviewedRelease.count
+        else {
+            throw SystemSetupError.unexpectedHookDefinition
+        }
+        try CodexAppServer(codexURL: requireCodexURL()).setEnabled(metadata, enabled: false)
         guard try hookMetadata().allSatisfy({ !$0.enabled }) else {
             throw SystemSetupError.codexRejectedHookState
         }
@@ -571,7 +577,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         if try allInstalledPluginIDs().contains(Self.pluginID) {
             _ = try runCodex(["plugin", "remove", Self.pluginID, "--json"])
         }
-        guard try !allInstalledPluginIDs().contains(Self.pluginID), try hookMetadata().isEmpty else {
+        guard try !allInstalledPluginIDs().contains(Self.pluginID),
+              try currentManagedHookMetadata().isEmpty
+        else {
             throw ManagedRemovalError.incomplete
         }
         if fileManager.fileExists(atPath: marketplaceRoot.path) {
@@ -590,7 +598,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
             fileManager.fileExists(atPath: $0.path)
         }
         return try !allInstalledPluginIDs().contains(Self.pluginID)
-            && hookMetadata().isEmpty
+            && currentManagedHookMetadata().isEmpty
             && !companionIsRegistered()
             && !loginLaunchIsEnabled()
             && !managedFilesRemain
@@ -598,7 +606,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func completeManagedRemoval() throws {
-        for url in [removalJournalURL, quitGateURL]
+        for url in [quitGateURL, removalJournalURL]
             where fileManager.fileExists(atPath: url.path)
         {
             try fileManager.removeItem(at: url)
@@ -612,7 +620,6 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
 
     private var marketplaceRoot: URL { supportDirectory.appending(path: "Marketplace") }
     private var pluginRoot: URL { marketplaceRoot.appending(path: "plugin") }
-    private var stateURL: URL { supportDirectory.appending(path: "setup.json") }
     private var legacyStateURL: URL { supportDirectory.appending(path: "lifecycle.json") }
     private var migrationJournalURL: URL { supportDirectory.appending(path: "migration.json") }
     private var removalJournalURL: URL { supportDirectory.appending(path: "removal.json") }
@@ -695,7 +702,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     private func hookMetadata() throws -> [CodexHookMetadata] {
-        try CodexAppServer(codexURL: codexURL).hooks(in: pluginRoot)
+        try CodexAppServer(codexURL: requireCodexURL()).hooks(in: pluginRoot)
+            .filter { $0.pluginID == Self.pluginID }
+    }
+
+    private func currentManagedHookMetadata() throws -> [CodexHookMetadata] {
+        try CodexAppServer(codexURL: requireCodexURL()).hooks(in: supportDirectory)
             .filter { $0.pluginID == Self.pluginID }
     }
 
@@ -775,12 +787,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     private func legacyHookMetadata(_ legacy: LegacyLifecycleState) throws -> [CodexHookMetadata] {
-        try CodexAppServer(codexURL: codexURL).hooks(in: legacy.pluginRoot)
+        try CodexAppServer(codexURL: requireCodexURL()).hooks(in: legacy.pluginRoot)
             .filter { $0.pluginID == legacy.pluginID }
     }
 
     private func knownLegacyHookMetadata() throws -> [CodexHookMetadata] {
-        try CodexAppServer(codexURL: codexURL).hooks(in: supportDirectory)
+        try CodexAppServer(codexURL: requireCodexURL()).hooks(in: supportDirectory)
             .filter { metadata in
                 metadata.pluginID.map(knownLegacyPluginIDs.contains) == true
             }
@@ -891,7 +903,12 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     private func runCodex(_ arguments: [String]) throws -> Data {
-        try run(codexURL, arguments)
+        try run(requireCodexURL(), arguments)
+    }
+
+    private func requireCodexURL() throws -> URL {
+        guard let codexURL else { throw GuidedSetupError.codexHostMissing }
+        return codexURL
     }
 
     private func run(_ executable: URL, _ arguments: [String]) throws -> Data {
@@ -1174,17 +1191,7 @@ extension GuidedSetup {
         removal: ManagedRemoval?
     ) {
         let detector = SystemCodexHostDetector()
-        guard let integration = SystemGuidedSetupIntegration(detector: detector) else {
-            return (
-                GuidedSetup(
-                    hosts: detector,
-                    integration: MissingHostIntegration(),
-                    keyboard: SetupKeyboardAdapter()
-                ),
-                nil,
-                nil
-            )
-        }
+        let integration = SystemGuidedSetupIntegration(detector: detector)
         return (
             GuidedSetup(hosts: detector, integration: integration, keyboard: SetupKeyboardAdapter()),
             SystemKeyphoreRuntimeAdapter(integration: integration),
