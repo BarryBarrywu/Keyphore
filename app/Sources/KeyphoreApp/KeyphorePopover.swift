@@ -134,6 +134,9 @@ struct KeyphorePopover: View {
                         openWindow(id: "diagnostics")
                     }
                 }
+                Button(AppCopy.value(.checkForUpdates)) {
+                    (NSApp.delegate as? KeyphoreAppDelegate)?.checkForUpdates()
+                }
                 Spacer()
                 Button(AppCopy.value(.quit)) {
                     NSApp.terminate(nil)

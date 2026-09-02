@@ -95,6 +95,24 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(integration.loginLaunchSelections, [false])
     }
 
+    func testChangedHookUpdatePreparationUsesQuitGateAndCanRecoverTrustedHooks() throws {
+        let runtime = AppRecordingRuntime()
+        let state = makeState(runtime: runtime)
+
+        try state.prepareForChangedHookUpdate()
+
+        XCTAssertTrue(runtime.isQuitGateActive)
+        XCTAssertEqual(runtime.actions, [.activateGate, .disableHooks])
+
+        try state.recoverFromFailedChangedHookUpdate()
+
+        XCTAssertFalse(runtime.isQuitGateActive)
+        XCTAssertEqual(
+            runtime.actions,
+            [.activateGate, .disableHooks, .enableTrustedHooks, .clearGate]
+        )
+    }
+
     func testAppStateRequiresConfirmationThenCompletesManagedRemoval() async {
         let integration = AppManagedRemovalIntegration()
         let state = makeState(
@@ -161,7 +179,8 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
                 runtime: runtime
             ),
             guidedSetup: guidedSetup,
-            managedRemoval: managedRemoval
+            managedRemoval: managedRemoval,
+            updateRuntime: runtime
         )
     }
 }

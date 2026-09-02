@@ -17,6 +17,13 @@
 "action.settings" = "Signal settings";
 "action.diagnostics" = "Diagnostics";
 "action.quit" = "Quit Keyphore";
+"update.check" = "Check for Updates…";
+"update.invalid_metadata" = "This update is missing trusted Keyphore release metadata.";
+"update.unsupported" = "This update is not a signed, supported Keyphore build for this Mac.";
+"update.untrusted" = "Keyphore rejected this update because its signed feed could not be trusted.";
+"update.hook_preparation_failed" = "Installation is paused because Keyphore could not safely disable its Hooks. Resolve the problem, then choose Check for Updates again to retry.";
+"update.hook_recovery_failed" = "Keyphore could not restore its trusted Hooks after the update stopped. The Hooks remain safely blocked. Resolve the problem, then choose Check for Updates again to retry recovery.";
+"update.channel_unavailable" = "The signed Keyphore update channel is not configured in this build.";
 "keyboard.rhythm_light_unchanged" = "Rhythm lights stay unchanged";
 "setup.title" = "Guided setup";
 "setup.host_found" = "Codex host detected";

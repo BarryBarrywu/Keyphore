@@ -17,6 +17,13 @@
 "action.settings" = "信号设置";
 "action.diagnostics" = "诊断";
 "action.quit" = "退出 Keyphore";
+"update.check" = "检查更新…";
+"update.invalid_metadata" = "此更新缺少可信的 Keyphore 发行元数据。";
+"update.unsupported" = "此更新不是适用于这台 Mac 的 Keyphore 签名支持版本。";
+"update.untrusted" = "Keyphore 无法信任此更新的签名更新源，因此已拒绝该更新。";
+"update.hook_preparation_failed" = "Keyphore 无法安全停用自己的 Hook，因此安装已暂停。请解决问题后再次选择“检查更新”重试。";
+"update.hook_recovery_failed" = "更新停止后，Keyphore 无法恢复已信任的 Hook；这些 Hook 会继续被安全阻止。请解决问题后再次选择“检查更新”重试恢复。";
+"update.channel_unavailable" = "此版本尚未配置 Keyphore 签名更新渠道。";
 "keyboard.rhythm_light_unchanged" = "节奏灯保持不变";
 "setup.title" = "引导设置";
 "setup.host_found" = "已检测到 Codex 主机";

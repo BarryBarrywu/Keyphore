@@ -12,7 +12,10 @@
 		13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = C1DDCFEE9542DF769377C699 /* KeyphoreCore */; };
 		30114C1BEC1957CFB834EE9B /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = 89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */; };
 		393429007627070B268A8E7E /* MenuBarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7472A4A1E98B2F5861E50E3 /* MenuBarImageTests.swift */; };
+		3CE169B4802BEDEEE3DEA530 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C3DC8CB73E9C7ECA2DBFD453 /* Sparkle */; };
 		45948C3A8E769B19E7D2AECD /* SignalSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BDDF4944884C170A0CF8D2 /* SignalSettingsView.swift */; };
+		4FF408F8337FF68D480912A5 /* ManagedUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C393D00FD0BD33BB4DE23E /* ManagedUpdateController.swift */; };
+		592E1E720FE6F256CF51D908 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AED54CB55122355A7910093D /* Sparkle */; };
 		5A3973645ECD5BA2BE9B0A73 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6704F8D3192EF419FC41D0AC /* main.swift */; };
 		5A8B6135118149895EAC94E7 /* ForegroundWindowActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A418CD6D9D3A9DAB5EA4356 /* ForegroundWindowActionTests.swift */; };
 		5E3950DB0CB43C0F1A32062E /* KeyphorePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */; };
@@ -33,6 +36,7 @@
 		D3C0814D593D1C40C25513E2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */; };
 		DE9A2FAED40577FF13629D3A /* KeyphoreAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5007C934BB3F0A9607548DC0 /* KeyphoreAppState.swift */; };
 		E1C6A2FF576FE6A233D14037 /* ForegroundWindowAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A079ACB24E25C8801341DB1 /* ForegroundWindowAction.swift */; };
+		E58D3EAEEF380466932D90F4 /* ManagedUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C393D00FD0BD33BB4DE23E /* ManagedUpdateController.swift */; };
 		E9023C4F1A9563D1F7618D04 /* KeyphoreAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5007C934BB3F0A9607548DC0 /* KeyphoreAppState.swift */; };
 		F19A71F9BA23D9ED02CC3DD5 /* SystemGuidedSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EA601A7391D49F787A9328 /* SystemGuidedSetup.swift */; };
 		F416EBAFDBF91FAC72F940AF /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7231315E09E2E55FE92E8F /* KeyphoreCore */; };
@@ -57,6 +61,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		01C393D00FD0BD33BB4DE23E /* ManagedUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedUpdateController.swift; sourceTree = "<group>"; };
 		0A079ACB24E25C8801341DB1 /* ForegroundWindowAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundWindowAction.swift; sourceTree = "<group>"; };
 		30D76DBB7A493C660BA9BAB5 /* KeyphoreAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyphoreAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AggregateSignal+Presentation.swift"; sourceTree = "<group>"; };
@@ -87,6 +92,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */,
+				592E1E720FE6F256CF51D908 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -95,6 +101,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				880AE71730E18EB2EE0E8473 /* KeyphoreCore in Frameworks */,
+				3CE169B4802BEDEEE3DEA530 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +187,7 @@
 				4F25FE58FB3629F85604D70E /* KeyphoreAppDelegate.swift */,
 				5007C934BB3F0A9607548DC0 /* KeyphoreAppState.swift */,
 				C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */,
+				01C393D00FD0BD33BB4DE23E /* ManagedUpdateController.swift */,
 				E7B04CCBFF0D5602D2A465F9 /* SignalColor+SwiftUI.swift */,
 				88BDDF4944884C170A0CF8D2 /* SignalSettingsView.swift */,
 				97EA601A7391D49F787A9328 /* SystemGuidedSetup.swift */,
@@ -257,6 +265,7 @@
 			name = Keyphore;
 			packageProductDependencies = (
 				C1DDCFEE9542DF769377C699 /* KeyphoreCore */,
+				AED54CB55122355A7910093D /* Sparkle */,
 			);
 			productName = Keyphore;
 			productReference = 7515AD190EACC41BCB8D903F /* Keyphore.app */;
@@ -276,6 +285,7 @@
 			name = KeyphoreAppTests;
 			packageProductDependencies = (
 				E17A454D967C3A36343DE747 /* KeyphoreCore */,
+				C3DC8CB73E9C7ECA2DBFD453 /* Sparkle */,
 			);
 			productName = KeyphoreAppTests;
 			productReference = 30D76DBB7A493C660BA9BAB5 /* KeyphoreAppTests.xctest */;
@@ -308,6 +318,7 @@
 			mainGroup = A10CB14EB0CF87A1E58734C8;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				2B5722317C31AB0B471791C0 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				4C1D86D93CEB6F539FCDC3CE /* XCLocalSwiftPackageReference "app" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -389,6 +400,7 @@
 				B3786713107DFD9E74B0D9E9 /* KeyphoreAppDelegate.swift in Sources */,
 				DE9A2FAED40577FF13629D3A /* KeyphoreAppState.swift in Sources */,
 				5E3950DB0CB43C0F1A32062E /* KeyphorePopover.swift in Sources */,
+				E58D3EAEEF380466932D90F4 /* ManagedUpdateController.swift in Sources */,
 				6B340F207A25F5B70C2E9787 /* SignalColor+SwiftUI.swift in Sources */,
 				45948C3A8E769B19E7D2AECD /* SignalSettingsView.swift in Sources */,
 				F19A71F9BA23D9ED02CC3DD5 /* SystemGuidedSetup.swift in Sources */,
@@ -406,6 +418,7 @@
 				0282DEA7495D3DFDE9D7BA27 /* KeyphoreAppDelegate.swift in Sources */,
 				E9023C4F1A9563D1F7618D04 /* KeyphoreAppState.swift in Sources */,
 				F51848C6801D298DC8909C48 /* LegacyMigrationSystemAcceptanceTests.swift in Sources */,
+				4FF408F8337FF68D480912A5 /* ManagedUpdateController.swift in Sources */,
 				393429007627070B268A8E7E /* MenuBarImageTests.swift in Sources */,
 				672CD80BBD2103D410D38E84 /* SignalColor+SwiftUI.swift in Sources */,
 				BB155FB00ADBA16225774BE8 /* SystemGuidedSetup.swift in Sources */,
@@ -776,10 +789,26 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		2B5722317C31AB0B471791C0 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeyphoreCore;
+		};
+		AED54CB55122355A7910093D /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2B5722317C31AB0B471791C0 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		BE7231315E09E2E55FE92E8F /* KeyphoreCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -788,6 +817,11 @@
 		C1DDCFEE9542DF769377C699 /* KeyphoreCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeyphoreCore;
+		};
+		C3DC8CB73E9C7ECA2DBFD453 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2B5722317C31AB0B471791C0 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		E17A454D967C3A36343DE747 /* KeyphoreCore */ = {
 			isa = XCSwiftPackageProductDependency;

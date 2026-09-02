@@ -4,6 +4,9 @@ options:
 packages:
   KeyphoreAppModules:
     path: app
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.6
 targets:
   KeyphoreRuntime:
     type: tool
@@ -67,6 +70,12 @@ targets:
           - zh-Hans
         LSApplicationCategoryType: public.app-category.utilities
         LSUIElement: true
+        SUAllowsAutomaticUpdates: false
+        SUAutomaticallyUpdate: false
+        SUEnableAutomaticChecks: true
+        SUFeedURL: $(KEYPHORE_UPDATE_FEED_URL)
+        SUPublicEDKey: $(KEYPHORE_UPDATE_PUBLIC_ED_KEY)
+        SURequireSignedFeed: true
     sources:
       - path: app/Sources/KeyphoreApp
       - path: app/Resources/Assets.xcassets
@@ -78,6 +87,8 @@ targets:
         link: false
       - package: KeyphoreAppModules
         product: KeyphoreCore
+      - package: Sparkle
+        product: Sparkle
     postBuildScripts:
       - name: Embed Keyphore Runtime
         script: |
@@ -119,12 +130,15 @@ targets:
       - path: app/Sources/KeyphoreApp/AggregateSignal+Presentation.swift
       - path: app/Sources/KeyphoreApp/KeyphoreAppDelegate.swift
       - path: app/Sources/KeyphoreApp/KeyphoreAppState.swift
+      - path: app/Sources/KeyphoreApp/ManagedUpdateController.swift
       - path: app/Sources/KeyphoreApp/SignalColor+SwiftUI.swift
       - path: app/Sources/KeyphoreApp/SystemGuidedSetup.swift
       - path: app/Sources/KeyphoreApp/ForegroundWindowAction.swift
     dependencies:
       - package: KeyphoreAppModules
         product: KeyphoreCore
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         GENERATE_INFOPLIST_FILE: true

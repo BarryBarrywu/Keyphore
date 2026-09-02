@@ -29,5 +29,17 @@
 	<string>public.app-category.utilities</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>$(KEYPHORE_UPDATE_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>$(KEYPHORE_UPDATE_PUBLIC_ED_KEY)</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
 </dict>
 </plist>

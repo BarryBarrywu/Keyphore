@@ -30,6 +30,7 @@ final class KeyphoreAppState: ObservableObject {
     private let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
     private let diagnosticLanguage: AppLanguage
     private let managedRemoval: ManagedRemoval?
+    private let updateRuntime: (any KeyphoreRuntimeManaging)?
     private var durableStatusTimer: Timer?
 
     init(
@@ -39,6 +40,7 @@ final class KeyphoreAppState: ObservableObject {
         profileStore: LocalProfileStore? = nil,
         previewStore: SignalPreviewStore? = nil,
         managedRemoval: ManagedRemoval? = nil,
+        updateRuntime: (any KeyphoreRuntimeManaging)? = nil,
         diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)? = nil,
         diagnosticLanguage: AppLanguage = .english
     ) {
@@ -47,6 +49,7 @@ final class KeyphoreAppState: ObservableObject {
         self.profileStore = profileStore
         self.previewStore = previewStore
         self.managedRemoval = managedRemoval
+        self.updateRuntime = updateRuntime
         self.diagnosticSnapshotProvider = diagnosticSnapshotProvider
         self.diagnosticLanguage = diagnosticLanguage
         diagnosticReportIsReady = diagnosticSnapshotProvider == nil
@@ -176,6 +179,7 @@ final class KeyphoreAppState: ObservableObject {
             profileStore: profileStore,
             previewStore: previewStore,
             managedRemoval: managedRemoval,
+            updateRuntime: runtime,
             diagnosticSnapshotProvider: diagnosticSnapshotProvider,
             diagnosticLanguage: Self.appLanguage()
         )
@@ -262,6 +266,24 @@ final class KeyphoreAppState: ObservableObject {
             quitFailed = true
             return false
         }
+    }
+
+    func prepareForChangedHookUpdate() throws {
+        guard let updateRuntime else {
+            throw ManagedUpdateRuntimeError.unavailable
+        }
+        try updateRuntime.activateQuitGate()
+        try updateRuntime.disableOwnedHooks()
+    }
+
+    func recoverFromFailedChangedHookUpdate() throws {
+        guard let updateRuntime else {
+            throw ManagedUpdateRuntimeError.unavailable
+        }
+        guard try updateRuntime.enableOwnedHooksIfTrusted() else {
+            throw ManagedUpdateRuntimeError.changedHooks
+        }
+        try updateRuntime.clearQuitGate()
     }
 
     func presentManagedRemoval() {
@@ -455,6 +477,11 @@ final class KeyphoreAppState: ObservableObject {
             hooks: HookDefinition.reviewedRelease
         )
     }
+}
+
+private enum ManagedUpdateRuntimeError: Error {
+    case unavailable
+    case changedHooks
 }
 
 private struct AcceptanceFixture {

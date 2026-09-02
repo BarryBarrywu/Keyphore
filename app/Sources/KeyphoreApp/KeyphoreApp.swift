@@ -15,6 +15,9 @@ struct KeyphoreApp: App {
                 .accessibilityLabel(AppCopy.value(.productName))
                 .onAppear {
                     appDelegate.prepareToQuit = state.prepareToQuit
+                    appDelegate.prepareForChangedHookUpdate = state.prepareForChangedHookUpdate
+                    appDelegate.recoverFromFailedChangedHookUpdate =
+                        state.recoverFromFailedChangedHookUpdate
                 }
         }
         .menuBarExtraStyle(.window)
