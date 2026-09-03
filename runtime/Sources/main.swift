@@ -7,6 +7,8 @@ private let profileStore = LocalProfileStore(url: KeyphoreRuntimePaths.localProf
 private let previewStore = SignalPreviewStore(url: KeyphoreRuntimePaths.signalPreviewURL())
 
 switch arguments.first {
+case "release-hook-digest":
+    print(HookDefinition.reviewedReleaseDigest)
 case "hook":
     let input = FileHandle.standardInput.readDataToEndOfFile()
     guard input.count <= 1_048_576 else {

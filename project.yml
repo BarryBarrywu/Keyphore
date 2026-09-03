@@ -76,6 +76,7 @@ targets:
         SUFeedURL: $(KEYPHORE_UPDATE_FEED_URL)
         SUPublicEDKey: $(KEYPHORE_UPDATE_PUBLIC_ED_KEY)
         SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
     sources:
       - path: app/Sources/KeyphoreApp
       - path: app/Resources/Assets.xcassets

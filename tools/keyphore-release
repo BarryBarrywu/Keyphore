@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""Prepare a local Keyphore release. Publishing requires separate authorization.
+
+build: create a signed App and ZIP for Apple submission.
+notarize: explicitly upload to Apple, staple App, create and notarize DMG.
+stage: verify notarized artifacts, sign appcast, and stage a static public site.
+Only the output/public directory is intended for publication after approval.
+"""
+
+import argparse
+import base64
+import hashlib
+import html
+import json
+import os
+from pathlib import Path
+import plistlib
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.parse
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parent.parent
+SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+ET.register_namespace("sparkle", SPARKLE)
+ET.register_namespace("keyphore", "https://keyphore.app/xml-namespaces/keyphore")
+
+
+def run(*arguments):
+    return subprocess.check_output([str(arg) for arg in arguments], cwd=ROOT,
+                                   text=True, stderr=subprocess.STDOUT).strip()
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def https_base(value):
+    url = urllib.parse.urlsplit(value)
+    require(url.scheme == "https" and url.hostname and not url.username and not url.password
+            and not url.query and not url.fragment and not any(c.isspace() for c in value),
+            "Public base URL must be HTTPS without credentials, query or fragment")
+    require(url.hostname not in {"github.com", "api.github.com", "raw.githubusercontent.com"},
+            "Use the public product host, not the private GitHub repository")
+    return value.rstrip("/") + "/"
+
+
+def read_info(app):
+    return plistlib.loads((app / "Contents/Info.plist").read_bytes())
+
+
+def require_production_channel(manifest):
+    host = urllib.parse.urlsplit(https_base(manifest["base_url"])).hostname
+    require(host not in {"localhost", "example.com", "example.org", "example.net"}
+            and not host.endswith((".invalid", ".test", ".example", ".localhost"))
+            and base64.b64decode(manifest["public_key"], validate=True) != bytes(32),
+            "Replace the validation-only URL and key before notarization or channel staging")
+
+
+def save(output, manifest):
+    (output / "release.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+def signing_identity(app):
+    return re.search(r"^Authority=(Developer ID Application: .+)$",
+                     run("codesign", "-dv", "--verbose=4", app), re.MULTILINE).group(1)
+
+
+def sign_components(app):
+    identity = signing_identity(app)
+    paths = [path for path in app.rglob("*") if not path.is_symlink()]
+    executables = [path for path in paths if path.is_file() and "Mach-O" in run("file", "-b", path)]
+    bundles = [path for path in paths if path.is_dir() and path.suffix in {".app", ".xpc", ".framework"}]
+    for path in executables + sorted(bundles, key=lambda path: len(path.parts), reverse=True) + [app]:
+        run("codesign", "--force", "--sign", identity, "--options", "runtime", "--timestamp",
+            "--preserve-metadata=identifier,entitlements", path)
+
+
+def audit(app, manifest):
+    info = read_info(app)
+    require(info.get("CFBundleIdentifier") == "com.barrywu.keyphore", "Unexpected App identifier")
+    for key, expected in {
+        "CFBundleShortVersionString": manifest["version"], "CFBundleVersion": manifest["build"],
+        "SUFeedURL": manifest["base_url"] + "appcast.xml", "SUPublicEDKey": manifest["public_key"],
+        "SURequireSignedFeed": True, "SUVerifyUpdateBeforeExtraction": True,
+        "SUAllowsAutomaticUpdates": False,
+        "SUAutomaticallyUpdate": False, "SUEnableAutomaticChecks": True,
+    }.items():
+        require(info.get(key) == expected, "Incorrect release setting: " + key)
+    run("codesign", "--verify", "--deep", "--strict", app)
+    required = ["Contents/MacOS/Keyphore", "Contents/Helpers/keyphore",
+                "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"]
+    for relative in required:
+        require((app / relative).is_file(), "Missing executable: " + relative)
+    components = []
+    for path in sorted(app.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        kind = run("file", "-b", path)
+        relative = str(path.relative_to(app))
+        if "Mach-O" not in kind:
+            require(not os.access(path, os.X_OK), "Unexpected executable: " + relative)
+            continue
+        run("codesign", "--verify", "--strict", path)
+        signature = run("codesign", "-dv", "--verbose=4", path)
+        require("Authority=Developer ID Application:" in signature and "Timestamp=" in signature,
+                "Executable lacks timestamped Developer ID signature: " + relative)
+        if relative in required:
+            require("TeamIdentifier=" + manifest["team"] in signature,
+                    "First-party Team ID mismatch: " + relative)
+            require(run("lipo", "-archs", path) == "arm64", "First-party binary must be arm64 only")
+            require("runtime" in signature, "Missing hardened runtime: " + relative)
+        require(not re.search(rb"rust_eh_personality|__rust_alloc|/rustc/|nuphyctl", path.read_bytes()),
+                "Unexpected legacy runtime: " + relative)
+        dependencies = run("otool", "-arch", "arm64", "-L", path).splitlines()[1:]
+        for dependency in dependencies:
+            name = dependency.strip().split(" (", 1)[0]
+            require(name.startswith(("/System/Library/", "/usr/lib/")) or
+                    (name == "@rpath/Sparkle.framework/Versions/B/Sparkle" and
+                     (app / "Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle").is_file()),
+                    "External runtime dependency: " + name)
+        components.append({"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    notices = list(app.rglob("NUPHYIO-NOTICE.txt"))
+    expected_notice = (ROOT / "LICENSES/NUPHYIO-NOTICE.txt").read_bytes()
+    require(notices and all(path.read_bytes() == expected_notice for path in notices),
+            "Missing or mismatched NuPhyIO license notice")
+    require(list(app.rglob("SPARKLE-NOTICE.txt")), "Missing Sparkle license")
+    return components
+
+
+def build(args):
+    base = https_base(args.base_url)
+    require(re.fullmatch(r"\d+\.\d+\.\d+", args.version), "Version must be major.minor.patch")
+    require(re.fullmatch(r"[1-9]\d*", args.build), "Build number must be a positive integer")
+    require(len(base64.b64decode(args.public_key, validate=True)) == 32, "Public Ed25519 key must contain 32 bytes")
+    require(re.fullmatch(r"[A-Z0-9]{10}", args.team), "Invalid Apple Team ID")
+    output = args.output.resolve()
+    require(not output.is_relative_to(Path("/private/tmp")), "Release output must be persistent")
+    output.mkdir(parents=True, exist_ok=False)
+    manifest = {"version": args.version, "build": args.build, "base_url": base,
+                "public_key": args.public_key, "team": args.team,
+                "source_commit": run("git", "rev-parse", "HEAD"),
+                "source_status": run("git", "status", "--short"), "status": "building"}
+    save(output, manifest)
+    command = ["xcodebuild", "-project", str(ROOT / "Keyphore.xcodeproj"), "-scheme", "Keyphore",
+               "-configuration", "Release", "-derivedDataPath", str(args.build_root / "DerivedData"),
+               "-clonedSourcePackagesDirPath", str(args.build_root / "SourcePackages"),
+               "-disableAutomaticPackageResolution", "DEVELOPMENT_TEAM=" + args.team,
+               "CODE_SIGN_STYLE=Manual", "CODE_SIGN_IDENTITY=Developer ID Application",
+               "CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO", "OTHER_CODE_SIGN_FLAGS=--timestamp",
+               "ENABLE_HARDENED_RUNTIME=YES",
+               "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES", "GCC_TREAT_WARNINGS_AS_ERRORS=YES",
+               "MARKETING_VERSION=" + args.version, "CURRENT_PROJECT_VERSION=" + args.build,
+               "KEYPHORE_UPDATE_FEED_URL=" + base + "appcast.xml",
+               "KEYPHORE_UPDATE_PUBLIC_ED_KEY=" + args.public_key, "build"]
+    with (output / "build.log").open("w") as log:
+        subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
+    app = output / "Keyphore.app"
+    run("ditto", args.build_root / "DerivedData/Build/Products/Release/Keyphore.app", app)
+    sign_components(app)
+    manifest["components"] = audit(app, manifest)
+    manifest["hook_digest"] = run(app / "Contents/Helpers/keyphore", "release-hook-digest")
+    require(re.fullmatch(r"[0-9a-f]{64}", manifest["hook_digest"]), "Invalid release Hook digest")
+    run("ditto", "-c", "-k", "--keepParent", app, output / "Notarization.zip")
+    manifest["status"] = "signed-awaiting-notarization"
+    save(output, manifest)
+
+
+def notarize_file(path, profile, output):
+    record = output / (path.name + ".notary.json")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    result = json.loads(record.read_text()) if record.exists() else {}
+    if result.get("sha256") != digest:
+        result = json.loads(run("xcrun", "notarytool", "submit", path, "--keychain-profile", profile,
+                                "--output-format", "json"))
+        result["sha256"] = digest
+        record.write_text(json.dumps(result, indent=2) + "\n")
+    if result.get("status") != "Accepted":
+        result = json.loads(run("xcrun", "notarytool", "wait", result["id"], "--keychain-profile", profile,
+                                "--output-format", "json"))
+        result["sha256"] = digest
+        record.write_text(json.dumps(result, indent=2) + "\n")
+    require(result.get("status") == "Accepted", "Apple did not accept " + path.name)
+
+
+def notarize(args, manifest):
+    require(args.submit_to_apple, "Apple upload requires --submit-to-apple after explicit authorization")
+    require_production_channel(manifest)
+    output = args.output
+    app = output / "Keyphore.app"
+    audit(app, manifest)
+    # Recreate the submitted ZIP from the audited App, never trust a stale ZIP.
+    try:
+        run("xcrun", "stapler", "validate", app)
+    except subprocess.CalledProcessError:
+        zip_path = args.build_root / "Notarization.zip"
+        run("ditto", "-c", "-k", "--keepParent", app, zip_path)
+        notarize_file(zip_path, args.notary_profile, output)
+        run("xcrun", "stapler", "staple", app)
+    run("xcrun", "stapler", "validate", app)
+    run("spctl", "--assess", "--type", "execute", "--verbose=2", app)
+    dmg = output / ("Keyphore-" + manifest["version"] + ".dmg")
+    if not dmg.exists():
+        with tempfile.TemporaryDirectory(dir=args.build_root) as temporary:
+            staging = Path(temporary) / "contents"
+            staging.mkdir()
+            run("ditto", app, staging / app.name)
+            shutil.copy2(ROOT / "release/Install.html", staging / "Install.html")
+            shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", staging / "NUPHYIO-NOTICE.txt")
+            temporary_dmg = Path(temporary) / dmg.name
+            run("hdiutil", "create", "-volname", "Keyphore", "-srcfolder", staging, "-format", "UDZO", temporary_dmg)
+            run("codesign", "--sign", signing_identity(app), "--timestamp", temporary_dmg)
+            shutil.copy2(temporary_dmg, dmg)
+    notarize_file(dmg, args.notary_profile, output)
+    run("xcrun", "stapler", "staple", dmg)
+    run("xcrun", "stapler", "validate", dmg)
+    manifest["status"] = "notarized-awaiting-channel-staging"
+    save(output, manifest)
+
+
+def stage(args, manifest):
+    require_production_channel(manifest)
+    output = args.output
+    app = output / "Keyphore.app"
+    dmg = output / ("Keyphore-" + manifest["version"] + ".dmg")
+    components = audit(app, manifest)
+    require(run(app / "Contents/Helpers/keyphore", "release-hook-digest") == manifest["hook_digest"],
+            "Release Hook digest differs from the shipped runtime")
+    run("codesign", "--verify", "--strict", dmg)
+    for path in [app, dmg]:
+        run("xcrun", "stapler", "validate", path)
+    run("spctl", "--assess", "--type", "execute", "--verbose=2", app)
+    run("spctl", "--assess", "--type", "open", "--context", "context:primary-signature", dmg)
+    mounted = plistlib.loads(subprocess.check_output([
+        "hdiutil", "attach", "-readonly", "-nobrowse", "-plist", str(dmg)]))
+    mount = next(Path(item["mount-point"]) for item in mounted["system-entities"] if "mount-point" in item)
+    try:
+        require(audit(mount / "Keyphore.app", manifest) == components, "DMG App differs from audited App")
+        run("xcrun", "stapler", "validate", mount / "Keyphore.app")
+    finally:
+        run("hdiutil", "detach", mount)
+    bin_dir = args.sparkle_bin.resolve()
+    key = run(bin_dir / "generate_keys", "--account", args.sparkle_account, "-p")
+    require(key == manifest["public_key"], "Sparkle signing key does not match the App public key")
+    public = output / "public"
+    require(not public.exists(), "Public artifacts already exist; retain them and use a new release output")
+    with tempfile.TemporaryDirectory(dir=args.build_root) as temporary:
+        prepared = Path(temporary) / "public"
+        prepared.mkdir()
+        write_channel(args, manifest, prepared, dmg, bin_dir)
+        # Copy completed deliverables beside their destination, then promote on the same filesystem.
+        delivery = output / ".public-delivery"
+        require(not delivery.exists(), "An interrupted public delivery needs inspection: " + str(delivery))
+        try:
+            shutil.copytree(prepared, delivery)
+            delivery.rename(public)
+        finally:
+            if delivery.exists():
+                shutil.rmtree(delivery)
+    manifest["public_sha256"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                                for path in sorted(public.iterdir())}
+    manifest["status"] = "staged-awaiting-release-authorization-and-installed-acceptance"
+    manifest["pending_acceptance"] = ["Clean supported account GUI installation", "Public anonymous download",
+        "Installed first launch and update discovery", "Approved update and renewed Hook consent"]
+    save(output, manifest)
+
+
+def write_channel(args, manifest, public, dmg, bin_dir):
+    shutil.copy2(dmg, public / dmg.name)
+    sign = [bin_dir / "sign_update", "--account", args.sparkle_account]
+    signature = run(*sign, "-p", public / dmg.name)
+    run(*sign, "--verify", public / dmg.name, signature)
+    rss = ET.Element("rss", {"version": "2.0"})
+    channel = ET.SubElement(rss, "channel")
+    ET.SubElement(channel, "title").text = "Keyphore"
+    ET.SubElement(channel, "link").text = manifest["base_url"]
+    item = ET.SubElement(channel, "item")
+    for name, value in {
+        "title": "Keyphore " + manifest["version"],
+        "{" + SPARKLE + "}version": manifest["build"],
+        "{" + SPARKLE + "}shortVersionString": manifest["version"],
+        "{" + SPARKLE + "}minimumSystemVersion": "13.0.0",
+        "{" + SPARKLE + "}hardwareRequirements": "arm64",
+        "{https://keyphore.app/xml-namespaces/keyphore}hookDefinitionsDigest": manifest["hook_digest"],
+    }.items():
+        ET.SubElement(item, name).text = value
+    ET.SubElement(item, "description", {"{" + SPARKLE + "}format": "plain-text"}).text = args.notes.read_text()
+    ET.SubElement(item, "enclosure", {"url": manifest["base_url"] + dmg.name,
+        "{" + SPARKLE + "}edSignature": signature, "length": str(dmg.stat().st_size),
+        "type": "application/octet-stream"})
+    feed = public / "appcast.xml"
+    ET.ElementTree(rss).write(feed, encoding="utf-8", xml_declaration=True)
+    run(*sign, feed)
+    run(*sign, "--verify", feed)
+    for name in ["index.html", "style.css"]:
+        content = (ROOT / "release/site" / name).read_text()
+        content = content.replace("{{VERSION}}", html.escape(manifest["version"]))
+        content = content.replace("{{DOWNLOAD_URL}}", html.escape(manifest["base_url"] + dmg.name, quote=True))
+        (public / name).write_text(content)
+    shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", public / "NUPHYIO-NOTICE.txt")
+    shutil.copy2(ROOT / "release/Install.html", public / "Install.html")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name in ["build", "notarize", "stage"]:
+        command = commands.add_parser(name)
+        command.add_argument("--output", type=Path, required=True)
+        command.add_argument("--build-root", type=Path, required=True,
+                             help="Existing codex-temp-guard directory")
+        if name == "build":
+            for option in ["base-url", "public-key", "version", "build", "team"]:
+                command.add_argument("--" + option, required=True)
+        elif name == "notarize":
+            command.add_argument("--notary-profile", required=True)
+            command.add_argument("--submit-to-apple", action="store_true")
+        else:
+            command.add_argument("--sparkle-bin", type=Path, required=True, help="Pinned Sparkle 2.9.6 bin directory")
+            command.add_argument("--sparkle-account", required=True, help="Existing Keychain account; never creates keys")
+            command.add_argument("--notes", type=Path, required=True, help="Approved plain-text release notes")
+    args = parser.parse_args()
+    try:
+        args.output = args.output.resolve()
+        if hasattr(args, "build_root"):
+            args.build_root = args.build_root.resolve()
+            require(args.build_root.is_relative_to(Path("/private/tmp/codex-builds"))
+                    and (args.build_root / ".codex-temp-guard").is_file(), "Use a codex-temp-guard build root")
+        if args.command == "build":
+            build(args)
+        else:
+            manifest = json.loads((args.output / "release.json").read_text())
+            {"notarize": notarize, "stage": stage}[args.command](args, manifest)
+        print(args.output / "release.json")
+        return 0
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        print("Release stopped: " + str(error), file=sys.stderr)
+        if isinstance(error, subprocess.CalledProcessError) and error.output:
+            print(error.output, file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

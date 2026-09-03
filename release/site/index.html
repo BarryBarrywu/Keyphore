@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Keyphore 把 Codex 的执行、等待和完成状态映射到 NuPhy Air65 V3 键盘灯光。免费的原生 Mac App。">
+  <title>Keyphore — 让键盘告诉你，Codex 进行到哪了。</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><a class="wordmark" href="./">Keyphore<span class="light" aria-hidden="true"></span></a><a href="#install">安装说明</a></header>
+  <main>
+    <section class="hero">
+      <div class="intro">
+        <p class="eyebrow">CODEX × NUPHY AIR65 V3</p>
+        <h1>继续手头的事。<br>让键盘告诉你<br><span>任务的进度。</span></h1>
+        <p class="lead">执行中、需要回应、已完成。<br>把 Codex 的任务状态，变成余光就能看到的键盘灯光。</p>
+        <a class="download" href="{{DOWNLOAD_URL}}">免费下载 Mac 版 <span aria-hidden="true">↓</span></a>
+        <p class="compatibility">v{{VERSION}} · Apple Silicon · macOS 13 或更高版本</p>
+      </div>
+      <div class="signals" aria-label="默认灯光：蓝色执行中、橙色需要回应、绿色已完成，无活动时熄灯">
+        <div class="signal blue"><span class="keycap" aria-hidden="true">⌘</span><div><strong>执行中</strong><span>Codex 正在处理任务</span></div></div>
+        <div class="signal orange"><span class="keycap" aria-hidden="true">?</span><div><strong>需要回应</strong><span>有审批或输入等你确认</span></div></div>
+        <div class="signal green"><span class="keycap" aria-hidden="true">↵</span><div><strong>已完成</strong><span>这一轮任务结束了</span></div></div>
+        <p class="signal-note">无活动时熄灯。颜色、亮度和慢闪都由你设置。<br>图示为信号示意，实际效果以键盘为准。</p>
+      </div>
+    </section>
+    <section class="details" aria-label="使用要求与隐私">
+      <article><h2>为你的桌面而生</h2><p>支持一把通过 USB 有线连接的 NuPhy Air65 V3。首次使用需已安装 Codex 桌面 App 或 CLI；蓝牙、2.4 GHz 和其他键盘型号暂不支持。</p></article>
+      <article><h2>留在这台 Mac 上</h2><p>无需 Keyphore 账户，不自动上传遥测或诊断。仅处理任务状态所需的事件字段，不读取对话、提示词或工具内容。</p></article>
+      <article><h2>由你决定</h2><p>免费使用，源代码不公开。自动检查更新，下载与安装需你批准；任务事件的授权会单独说明。支持简体中文和英文。</p></article>
+    </section>
+    <section class="installation" id="install">
+      <h2>从下载到亮灯。</h2>
+      <ol>
+        <li><strong>放入你自己的应用程序文件夹</strong><p>打开 DMG。在访达中打开个人文件夹，创建或打开其中的 Applications 文件夹，再将 Keyphore 拖入。<a href="Install.html">查看详细步骤</a>。</p></li>
+        <li><strong>打开 Keyphore，完成引导</strong><p>按 App 中的说明连接 Codex、查看任务事件并授权。若 macOS 要求输入监控权限，请按引导完成。</p></li>
+        <li><strong>连接键盘，确认灯光</strong><p>用 USB 连接 Air65 V3，运行信号预览并确认目视效果。菜单栏可打开设置；退出 Keyphore 会停止信号并熄灯。</p></li>
+      </ol>
+    </section>
+  </main>
+  <footer><span>Keyphore · 免费的原生 Mac App</span><a href="NUPHYIO-NOTICE.txt">NuPhyIO 协议致谢与许可</a></footer>
+</body>
+</html>
