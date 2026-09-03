@@ -394,10 +394,6 @@ final class KeyphoreAppState: ObservableObject {
         }
     }
 
-    var menuBarSymbol: String {
-        currentSignalPresentation.systemImage
-    }
-
     var currentSignalPresentation: AggregateSignalPresentation {
         snapshot.currentSignal.presentation(in: snapshot.profile)
     }

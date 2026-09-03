@@ -12,7 +12,7 @@ struct KeyphoreApp: App {
             KeyphorePopover(state: state)
         } label: {
             Image(nsImage: state.currentSignalPresentation.menuBarImage)
-                .accessibilityLabel(AppCopy.value(.productName))
+                .accessibilityLabel(state.currentSignalPresentation.menuBarAccessibilityLabel)
                 .onAppear {
                     applyAppearance()
                     appDelegate.prepareToQuit = state.prepareToQuit
