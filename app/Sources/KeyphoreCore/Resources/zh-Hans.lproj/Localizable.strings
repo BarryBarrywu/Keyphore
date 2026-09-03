@@ -9,6 +9,14 @@
 "signal.execution" = "执行中";
 "signal.attention" = "需要注意";
 "signal.completion" = "已完成";
+"signal.short.off" = "熄灭";
+"signal.short.execution" = "执行";
+"signal.short.attention" = "注意";
+"signal.short.completion" = "完成";
+"signal.off_description" = "没有可见的 Codex 信号";
+"signal.hidden" = "此信号已隐藏";
+"keyboard.illustration" = "Air65 V3 键盘示意";
+"preview.running_short" = "正在预览…";
 "keyboard.disconnected" = "Air65 V3 未连接";
 "keyboard.unavailable" = "键盘状态暂不可用";
 "keyboard.connected" = "Air65 V3 已连接";

@@ -4,6 +4,7 @@ import KeyphoreCore
 
 struct KeyphorePopover: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var state: KeyphoreAppState
     private let foregroundWindowAction: ForegroundWindowAction
     private let checkForUpdates: () -> Void
@@ -18,138 +19,244 @@ struct KeyphorePopover: View {
         self.checkForUpdates = checkForUpdates
     }
 
+    private var presentation: KeyboardSignalPresentation {
+        KeyboardSignalPresentation(snapshot: state.snapshot, preview: state.previewRecord)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(spacing: 0) {
             header
+                .padding(.horizontal, 22)
+                .padding(.top, 20)
+                .padding(.bottom, 18)
+
             if state.menuState == .configurationRequired {
                 GuidedSetupView(state: state)
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 20)
             } else {
-                if state.setupSnapshot.phase == .configured {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label(AppCopy.value(.setupConfigured), systemImage: "checkmark.circle")
-                        Text(AppCopy.value(.setupWaitingForKeyboard))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                if state.migrationRequiresSignalPreview {
-                    migrationPreviewReminder
-                }
-                Air65KeyboardView(signal: state.snapshot.currentSignal, profile: state.snapshot.profile)
-                statusGrid
+                keyboardSection
             }
+
             Divider()
             actions
         }
-        .padding(20)
-        .frame(width: 390)
+        .frame(width: 460)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: state.refresh)
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Image(nsImage: NSApplication.shared.applicationIconImage)
-                .resizable()
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(AppCopy.value(.productName))
-                    .font(.title2.weight(.semibold))
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(AppCopy.value(.productName).uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
                 Text(AppCopy.value(.deviceName))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 19, weight: .semibold))
             }
-
             Spacer()
-
-            Text(AppCopy.value(state.menuState.copyKey))
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(state.menuState.tint.opacity(0.14))
-                .foregroundStyle(state.menuState.tint)
-                .clipShape(Capsule())
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(state.menuState.tint)
+                    .frame(width: 7, height: 7)
+                Text(AppCopy.value(state.menuState.copyKey))
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 29)
+            .background(Color.primary.opacity(0.055), in: Capsule())
         }
     }
 
-    private var statusGrid: some View {
-        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-            GridRow {
-                Text(AppCopy.value(.currentSignal))
+    private var keyboardSection: some View {
+        VStack(spacing: 18) {
+            Air65KeyboardView(presentation: presentation)
+
+            signalIndicators
+
+            VStack(spacing: 6) {
+                Text(statusTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                Text(statusDetail)
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                Label(
-                    AppCopy.value(
-                        state.snapshot.currentSignal.presentation(in: state.snapshot.profile).copyKey
-                    ),
-                    systemImage: state.menuBarSymbol
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: presentation.signal)
+
+            if state.migrationRequiresSignalPreview {
+                Text(AppCopy.value(.migrationPreviewRequired))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 12) {
+                Button(
+                    AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .previewStart),
+                    action: state.beginSignalPreview
                 )
-                .foregroundStyle(state.currentSignalPresentation.color)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(state.menuState != .ready || presentation.isPreviewing
+                          || state.previewRecord?.phase == .awaitingVisualConfirmation)
+
+                previewFeedback
+
+                if state.previewStateFailed {
+                    Text(AppCopy.value(.previewStateError))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
-            GridRow {
-                Text(AppCopy.value(.keyboardHealth))
-                    .foregroundStyle(.secondary)
-                Text(AppCopy.value(state.snapshot.keyboardHealth.copyKey))
-            }
+            .frame(maxWidth: .infinity)
         }
-        .font(.callout)
+        .padding(.horizontal, 22)
+        .padding(.bottom, 22)
     }
 
-    private var migrationPreviewReminder: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(AppCopy.value(.migrationPreviewRequired), systemImage: "eye")
-                .font(.subheadline.weight(.semibold))
-            Text(AppCopy.value(.migrationPreviewDescription))
+    private var signalIndicators: some View {
+        HStack(spacing: 3) {
+            signalIndicator(.signalOff, title: .signalOffShort)
+            signalIndicator(.execution, title: .executionShort)
+            signalIndicator(.attention, title: .attentionShort)
+            signalIndicator(.completion, title: .completionShort)
+        }
+        .padding(3)
+        .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 9))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AppCopy.value(presentation.isPreviewing ? .previewTitle : .currentSignal))
+        .accessibilityValue(AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey))
+    }
+
+    private func signalIndicator(_ signal: AggregateSignal, title: AppCopyKey) -> some View {
+        let selected = signal == presentation.signal
+        return Text(AppCopy.value(title))
+            .font(.system(size: 12, weight: selected ? .semibold : .regular))
+            .foregroundStyle(selected ? Color.primary : Color.secondary)
+            .padding(.horizontal, 12)
+            .frame(height: 26)
+            .background {
+                if selected {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
+                }
+            }
+    }
+
+    private var statusTitle: String {
+        if state.menuState != .ready {
+            return AppCopy.value(state.snapshot.keyboardHealth.copyKey)
+        }
+        let title = AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey)
+        return presentation.isPreviewing ? "\(AppCopy.value(.previewTitle)) · \(title)" : title
+    }
+
+    private var statusDetail: String {
+        if state.menuState != .ready {
+            return AppCopy.value(.previewUnavailable)
+        }
+        guard let appearance = presentation.appearance else {
+            return AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .signalOffDescription)
+        }
+        var details = [
+            AppCopy.value(appearance.pattern == .steady ? .settingsSteady : .settingsSlowFlashing),
+            "\(appearance.brightness.percent)% \(AppCopy.value(.settingsBrightness))",
+        ]
+        if !appearance.isVisible {
+            details.insert(AppCopy.value(.signalHidden), at: 0)
+        }
+        if presentation.signal == .completion {
+            details.append("\(state.snapshot.profile.completionDisplayDuration.seconds) \(AppCopy.value(.settingsSeconds))")
+        }
+        return details.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var previewFeedback: some View {
+        if let preview = state.previewRecord {
+            switch preview.phase {
+            case .pending, .presenting:
+                ProgressView(AppCopy.value(.previewRunning))
+                    .controlSize(.small)
+                    .font(.caption)
+            case .awaitingVisualConfirmation:
+                VStack(alignment: .leading, spacing: 8) {
+                    if preview.protocolReadbackSucceeded {
+                        Label(AppCopy.value(.previewProtocolVerified), systemImage: "checkmark.circle")
+                    }
+                    if preview.rhythmLightPreserved {
+                        Label(AppCopy.value(.previewRhythmPreserved), systemImage: "checkmark.circle")
+                    }
+                    Text(AppCopy.value(.previewConfirmPrompt))
+                        .fontWeight(.medium)
+                    HStack {
+                        Button(AppCopy.value(.previewConfirm)) { state.confirmSignalPreview(.confirmed) }
+                        Button(AppCopy.value(.previewReject)) { state.confirmSignalPreview(.rejected) }
+                    }
+                }
                 .font(.caption)
-                .foregroundStyle(.secondary)
-            if #available(macOS 14.0, *) {
-                ForegroundSettingsButton(
-                    title: AppCopy.value(.migrationPreviewAction),
-                    foregroundWindowAction: foregroundWindowAction
-                )
+            case .confirmed:
+                Text(AppCopy.value(.previewConfirmed)).font(.caption).foregroundStyle(.secondary)
+            case .rejected:
+                Text(AppCopy.value(.previewRejected)).font(.caption).foregroundStyle(.secondary)
+            case .failed:
+                Text(AppCopy.value(.previewFailed)).font(.caption).foregroundStyle(.red)
             }
         }
     }
 
     private var actions: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 0) {
             HStack {
                 if state.menuState != .configurationRequired {
-                    if #available(macOS 14.0, *) {
-                        ForegroundSettingsButton(
-                            title: AppCopy.value(.settings),
-                            foregroundWindowAction: foregroundWindowAction
-                        )
-                    } else {
-                        Button(AppCopy.value(.settings)) {
-                            foregroundWindowAction.open {
-                                NSApp.sendAction(
-                                    Selector(("showSettingsWindow:")),
-                                    to: nil,
-                                    from: nil
-                                )
-                            }
-                        }
-                    }
-                }
-                Button(AppCopy.value(.diagnostics)) {
-                    foregroundWindowAction.open {
-                        openWindow(id: "diagnostics")
-                    }
-                }
-                Button(AppCopy.value(.checkForUpdates)) {
-                    checkForUpdates()
+                    settingsButton
                 }
                 Spacer()
-                Button(AppCopy.value(.quit)) {
-                    NSApp.terminate(nil)
+                Button(AppCopy.value(.diagnostics)) {
+                    foregroundWindowAction.open { openWindow(id: "diagnostics") }
                 }
             }
-            .controlSize(.small)
+            .buttonStyle(.link)
+            .font(.system(size: 12, weight: .medium))
+            .frame(height: 46)
+
+            HStack {
+                Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
+                Spacer()
+                Button(AppCopy.value(.quit)) { NSApp.terminate(nil) }
+            }
+            .buttonStyle(.borderless)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 14)
+
             if state.quitFailed {
                 Text(AppCopy.value(.quitError))
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .padding(.bottom, 14)
+            }
+        }
+        .padding(.horizontal, 22)
+    }
+
+    @ViewBuilder
+    private var settingsButton: some View {
+        if #available(macOS 14.0, *) {
+            ForegroundSettingsButton(
+                title: AppCopy.value(.settings),
+                foregroundWindowAction: foregroundWindowAction
+            )
+        } else {
+            Button(AppCopy.value(.settings)) {
+                foregroundWindowAction.open {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
             }
         }
     }

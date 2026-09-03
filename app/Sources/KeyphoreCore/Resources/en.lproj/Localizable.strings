@@ -9,6 +9,14 @@
 "signal.execution" = "Execution";
 "signal.attention" = "Attention";
 "signal.completion" = "Completion";
+"signal.short.off" = "Off";
+"signal.short.execution" = "Working";
+"signal.short.attention" = "Attention";
+"signal.short.completion" = "Complete";
+"signal.off_description" = "No visible Codex signal";
+"signal.hidden" = "This signal is hidden";
+"keyboard.illustration" = "Air65 V3 keyboard illustration";
+"preview.running_short" = "Previewing…";
 "keyboard.disconnected" = "Air65 V3 disconnected";
 "keyboard.unavailable" = "Keyboard status unavailable";
 "keyboard.connected" = "Air65 V3 connected";
