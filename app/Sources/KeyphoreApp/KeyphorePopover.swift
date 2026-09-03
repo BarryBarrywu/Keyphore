@@ -4,22 +4,33 @@ import KeyphoreCore
 
 struct KeyphorePopover: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var state: KeyphoreAppState
     private let foregroundWindowAction: ForegroundWindowAction
-    private let checkForUpdates: () -> Void
 
     init(
         state: KeyphoreAppState,
-        foregroundWindowAction: ForegroundWindowAction = .live,
-        checkForUpdates: @escaping () -> Void
+        foregroundWindowAction: ForegroundWindowAction = .live
     ) {
         self.state = state
         self.foregroundWindowAction = foregroundWindowAction
-        self.checkForUpdates = checkForUpdates
     }
 
     private var presentation: KeyboardSignalPresentation {
         KeyboardSignalPresentation(snapshot: state.snapshot, preview: state.previewRecord)
+    }
+
+    private var animatesSignal: Bool {
+        presentation.isLit && !presentation.isPreviewing
+            && presentation.appearance?.pattern == .slowFlashing && !reduceMotion
+    }
+
+    private var showsPreviewFeedback: Bool {
+        if state.migrationRequiresSignalPreview { return true }
+        return switch state.previewRecord?.phase {
+        case .pending?, .presenting?, .awaitingVisualConfirmation?, .failed?: true
+        case .confirmed?, .rejected?, nil: false
+        }
     }
 
     var body: some View {
@@ -29,7 +40,7 @@ struct KeyphorePopover: View {
                     .font(.system(size: 10, weight: .semibold)).tracking(1.1)
                     .foregroundStyle(.secondary)
                 Spacer()
-                settingsButton.buttonStyle(.borderless).foregroundStyle(.secondary)
+                settingsButton.buttonStyle(.plain).foregroundStyle(.secondary)
             }.padding(.bottom, 16)
 
             if state.menuState == .configurationRequired {
@@ -40,46 +51,60 @@ struct KeyphorePopover: View {
                     Text(statusDetail).font(.system(size: 12)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 62, alignment: .top)
                 .padding(.bottom, 22)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: presentation.signal)
 
-                Air65KeyboardView(presentation: presentation).padding(.bottom, 18)
+                TimelineView(.animation(minimumInterval: 0.2, paused: !animatesSignal)) { context in
+                    Air65KeyboardView(
+                        presentation: presentation,
+                        isPatternLit: !animatesSignal || Int(context.date.timeIntervalSince1970) % 2 == 0
+                    )
+                }
+                    .frame(width: 344, height: 344 * 160 / 416)
+                    .padding(.bottom, 18)
 
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(AppCopy.value(.deviceName)).font(.system(size: 12, weight: .medium))
-                        Text(AppCopy.value(state.menuState == .ready ? .statusUSBConnected : state.snapshot.keyboardHealth.copyKey))
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                        HStack(spacing: 5) {
+                            Circle().fill(state.menuState == .ready ? Color.green : .secondary)
+                                .frame(width: 4, height: 4)
+                            Text(AppCopy.value(connectionDetail))
+                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer()
                     Button(action: state.beginSignalPreview) {
-                        Label(AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .previewStart),
+                        Label(AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .previewButtonTitle),
                               systemImage: "play.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 12).frame(height: 30)
                     }
-                    .font(.system(size: 11, weight: .medium)).controlSize(.regular)
+                    .buttonStyle(SecondaryPreviewStyle())
                     .disabled(state.menuState != .ready || presentation.isPreviewing
                               || state.previewRecord?.phase == .awaitingVisualConfirmation)
                 }
-                if state.previewRecord != nil || state.migrationRequiresSignalPreview {
+                if showsPreviewFeedback {
                     SignalPreviewFeedback(state: state).padding(.top, 14)
                 }
             }
             if state.previewStateFailed {
                 Text(AppCopy.value(.previewStateError)).font(.caption).foregroundStyle(.red).padding(.top, 12)
             }
-            Divider().padding(.top, 20).padding(.bottom, 12)
-            HStack {
-                Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
-                Spacer()
-                Button(AppCopy.value(.quit)) { NSApp.terminate(nil) }
-            }.buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(.secondary)
             if state.quitFailed {
                 Text(AppCopy.value(.quitError)).font(.caption).foregroundStyle(.red).padding(.top, 10)
             }
         }
         .padding(24).frame(width: 392)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(colorScheme == .dark ? Color(white: 0.135) : Color(white: 0.995))
+        .clipShape(RoundedRectangle(cornerRadius: 22))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22)
+                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        }
         .onAppear(perform: state.refresh)
     }
 
@@ -91,6 +116,14 @@ struct KeyphorePopover: View {
         case .attention: return AppCopy.value(.statusAttention)
         case .completion: return AppCopy.value(.statusCompleted)
         case .signalOff: return AppCopy.value(.statusNoSignal)
+        }
+    }
+
+    private var connectionDetail: AppCopyKey {
+        switch state.snapshot.keyboardHealth {
+        case .connected: .statusUSBConnected
+        case .disconnected: .statusWaitingForUSB
+        default: state.snapshot.keyboardHealth.copyKey
         }
     }
 
@@ -116,7 +149,8 @@ struct KeyphorePopover: View {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 }
             } label: {
-                Image(systemName: "gearshape").frame(width: 28, height: 28)
+                Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
+                    .frame(width: 24, height: 24)
             }.accessibilityLabel(AppCopy.value(.settings)).help(AppCopy.value(.settings))
         }
     }
@@ -168,9 +202,24 @@ private struct ForegroundSettingsButton: View {
         Button {
             foregroundWindowAction.open { openSettings() }
         } label: {
-            Image(systemName: "gearshape").frame(width: 28, height: 28)
+            Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
+                .frame(width: 24, height: 24)
         }
         .accessibilityLabel(title).help(title)
+    }
+}
+
+private struct SecondaryPreviewStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var hovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isEnabled ? Color.primary : .secondary)
+            .background(Color.primary.opacity(configuration.isPressed ? 0.10 : hovered && isEnabled ? 0.075 : 0.045),
+                        in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .onHover { hovered = $0 }
     }
 }
 

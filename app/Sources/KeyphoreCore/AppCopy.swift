@@ -37,6 +37,8 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
     case statusAttentionDetail = "status.attention_detail"
     case statusCompletionDetail = "status.completion_detail"
     case statusUSBConnected = "status.usb_connected"
+    case statusWaitingForUSB = "status.waiting_for_usb"
+    case previewButtonTitle = "preview.button_title"
     case productName = "product.name"
     case deviceName = "device.name"
     case currentSignal = "status.current_signal"

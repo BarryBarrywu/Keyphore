@@ -522,6 +522,9 @@ private struct AcceptanceFixture {
         case "ready-completion":
             health = .configured(keyboard: .connected(protocolHealthy: true))
             outcome = .completion
+        case "ready-off":
+            health = .configured(keyboard: .connected(protocolHealthy: true))
+            outcome = .signalOff
         default:
             health = .configurationRequired
             outcome = .signalOff

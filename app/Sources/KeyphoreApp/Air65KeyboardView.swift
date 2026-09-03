@@ -3,6 +3,8 @@ import KeyphoreCore
 
 struct Air65KeyboardView: View {
     let presentation: KeyboardSignalPresentation
+    var isPatternLit = true
+    @Environment(\.colorScheme) private var colorScheme
 
     private struct Key {
         enum Surface { case standard, mint, yellow, knob }
@@ -54,10 +56,10 @@ struct Air65KeyboardView: View {
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: 18 * scale, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [.white, Color(red: 0.78, green: 0.79, blue: 0.81)],
+                        colors: [Color(white: colorScheme == .dark ? 0.84 : 0.97), Color(red: 0.78, green: 0.79, blue: 0.81)],
                         startPoint: .top, endPoint: .bottom
                     ))
-                    .shadow(color: .black.opacity(0.16), radius: 8 * scale, y: 5 * scale)
+                    .shadow(color: .black.opacity(0.12), radius: 5 * scale, y: 3 * scale)
 
                 RoundedRectangle(cornerRadius: 11 * scale, style: .continuous)
                     .fill(Color(red: 0.12, green: 0.13, blue: 0.14))
@@ -65,7 +67,7 @@ struct Air65KeyboardView: View {
                     .padding(.vertical, 10 * scale)
 
                 RoundedRectangle(cornerRadius: 15 * scale, style: .continuous)
-                    .strokeBorder(.white.opacity(0.85), lineWidth: scale)
+                    .strokeBorder(.white.opacity(0.65), lineWidth: scale)
                     .padding(3 * scale)
 
                 VStack(spacing: gap) {
@@ -116,11 +118,16 @@ struct Air65KeyboardView: View {
                 .fill(surfaceColor(key))
                 .overlay {
                     RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
-                        .fill(presentation.color.opacity(key.surface == .standard ? lightOpacity * 0.14 : 0))
+                        .fill(LinearGradient(colors: [.white.opacity(0.18), .black.opacity(0.025)],
+                                             startPoint: .top, endPoint: .bottom))
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
-                        .strokeBorder(.white.opacity(0.8), lineWidth: 0.6 * scale)
+                        .fill(presentation.color.opacity(key.surface == .standard ? lightOpacity * 0.07 : 0))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
+                        .strokeBorder(.white.opacity(0.65), lineWidth: 0.6 * scale)
                 }
                 .overlay {
                     Text(key.label)
@@ -137,10 +144,10 @@ struct Air65KeyboardView: View {
                         Circle().fill(.black.opacity(0.08)).frame(width: 11 * scale, height: 11 * scale)
                     }
                 }
-                .shadow(color: presentation.color.opacity(lightOpacity * 0.5), radius: 3 * scale, y: scale)
+                .shadow(color: presentation.color.opacity(lightOpacity * 0.22), radius: 2 * scale, y: scale)
                 .overlay(alignment: .bottom) {
                     Capsule()
-                        .fill(presentation.color.opacity(lightOpacity * 0.65))
+                        .fill(presentation.color.opacity(lightOpacity * 0.58))
                         .frame(height: 2 * scale)
                         .padding(.horizontal, 3 * scale)
                         .padding(.bottom, 2 * scale)
@@ -149,12 +156,12 @@ struct Air65KeyboardView: View {
     }
 
     private var lightOpacity: Double {
-        presentation.isLit ? Double(presentation.appearance?.brightness.percent ?? 0) / 100 : 0
+        presentation.isLit && isPatternLit ? Double(presentation.appearance?.brightness.percent ?? 0) / 100 : 0
     }
 
     private func surfaceColor(_ key: Key) -> Color {
         switch key.surface {
-        case .standard: Color(red: 0.94, green: 0.94, blue: 0.95)
+        case .standard: Color(white: colorScheme == .dark ? 0.86 : 0.94)
         case .mint: Color(red: 0.40, green: 0.82, blue: 0.66)
         case .yellow: Color(red: 0.95, green: 0.77, blue: 0.16)
         case .knob: .clear

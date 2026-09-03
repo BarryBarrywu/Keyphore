@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SignalSettingsView: View {
     @ObservedObject var state: KeyphoreAppState
+    let checkForUpdates: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var editingSignal: CodexSignal = .execution
@@ -28,9 +29,21 @@ struct SignalSettingsView: View {
                     errors
                 }.padding(.horizontal, 28).padding(.bottom, 24)
             }
+            HStack {
+                Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
+                Spacer()
+                Button(AppCopy.value(.quit)) { NSApp.terminate(nil) }
+            }
+            .buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(.secondary)
+            .padding(.horizontal, 28).padding(.vertical, 16)
+            if state.quitFailed {
+                Text(AppCopy.value(.quitError)).font(.caption).foregroundStyle(.red)
+                    .padding(.horizontal, 28).padding(.bottom, 12)
+            }
         }
         .frame(minWidth: 480, idealWidth: 480, minHeight: 680)
         .background(colorScheme == .dark ? Color(white: 0.11) : Color(white: 0.965))
+        .tint(Color(red: 0.16, green: 0.36, blue: 0.96))
         .navigationTitle(AppCopy.value(.settings))
         .onAppear(perform: state.refresh)
         .onChange(of: editingSignal) { _ in showColorWheel = false }

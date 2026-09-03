@@ -9,10 +9,7 @@ struct KeyphoreApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            KeyphorePopover(
-                state: state,
-                checkForUpdates: appDelegate.checkForUpdates
-            )
+            KeyphorePopover(state: state)
         } label: {
             Image(nsImage: state.currentSignalPresentation.menuBarImage)
                 .accessibilityLabel(AppCopy.value(.productName))
@@ -28,7 +25,7 @@ struct KeyphoreApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            SignalSettingsView(state: state)
+            SignalSettingsView(state: state, checkForUpdates: appDelegate.checkForUpdates)
         }
         .defaultSize(width: 480, height: 740)
     }

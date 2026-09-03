@@ -13,7 +13,7 @@
 "signal.short.execution" = "执行";
 "signal.short.attention" = "注意";
 "signal.short.completion" = "完成";
-"signal.off_description" = "没有可见的 Codex 信号";
+"signal.off_description" = "主背光已熄灭，等待下一个信号";
 "signal.hidden" = "此信号已隐藏";
 "keyboard.illustration" = "Air65 V3 键盘示意";
 "preview.running_short" = "正在预览…";
@@ -182,3 +182,5 @@
 "status.attention_detail" = "请回到 Codex 查看待处理事项";
 "status.completion_detail" = "完成提示结束后，恢复当前任务信号";
 "status.usb_connected" = "USB 已连接";
+"status.waiting_for_usb" = "等待 USB 连接";
+"preview.button_title" = "预览灯效";

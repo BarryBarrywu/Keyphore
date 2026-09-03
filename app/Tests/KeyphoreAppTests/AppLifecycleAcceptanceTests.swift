@@ -1,9 +1,32 @@
 import AppKit
+import SwiftUI
 import XCTest
 import KeyphoreCore
 
 @MainActor
 final class AppLifecycleAcceptanceTests: XCTestCase {
+    func testFinishedVisualConfirmationDoesNotExpandTheMainPanel() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SignalPreviewStore(url: directory.appending(path: "preview.json"))
+        for phase in [SignalPreviewPhase.confirmed, .rejected] {
+            var record = try store.begin()
+            record.phase = phase
+            try store.save(record)
+            let state = KeyphoreAppState(
+                lifecycle: KeyphoreLifecycle(
+                    health: AppHealth(), profiles: AppProfile(), durableStatus: AppDurableStatus(),
+                    lighting: AppLighting(), runtime: AppRecordingRuntime()
+                ),
+                previewStore: store
+            )
+            let hosting = NSHostingController(rootView: KeyphorePopover(state: state))
+
+            XCTAssertLessThanOrEqual(hosting.sizeThatFits(in: NSSize(width: 392, height: 0)).height, 370)
+            XCTAssertEqual(try store.load()?.phase, phase)
+        }
+    }
+
     func testGeneralSettingsPersistWithoutStartingDiagnosticCollection() async throws {
         let suite = "keyphore-app-preferences-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

@@ -13,7 +13,7 @@
 "signal.short.execution" = "Working";
 "signal.short.attention" = "Attention";
 "signal.short.completion" = "Complete";
-"signal.off_description" = "No visible Codex signal";
+"signal.off_description" = "Main backlight is off, waiting for the next signal.";
 "signal.hidden" = "This signal is hidden";
 "keyboard.illustration" = "Air65 V3 keyboard illustration";
 "preview.running_short" = "Previewing…";
@@ -182,3 +182,5 @@
 "status.attention_detail" = "Return to Codex to review pending requests.";
 "status.completion_detail" = "The current task signal resumes after this indication.";
 "status.usb_connected" = "USB Connected";
+"status.waiting_for_usb" = "Waiting for USB";
+"preview.button_title" = "Preview Lighting";

@@ -135,6 +135,9 @@ targets:
       - path: app/Sources/KeyphoreApp/SignalColor+SwiftUI.swift
       - path: app/Sources/KeyphoreApp/SystemGuidedSetup.swift
       - path: app/Sources/KeyphoreApp/ForegroundWindowAction.swift
+      - path: app/Sources/KeyphoreApp/Air65KeyboardView.swift
+      - path: app/Sources/KeyphoreApp/KeyphorePopover.swift
+      - path: app/Sources/KeyphoreApp/DiagnosticsView.swift
     dependencies:
       - package: KeyphoreAppModules
         product: KeyphoreCore

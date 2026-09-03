@@ -10,11 +10,14 @@
 		0282DEA7495D3DFDE9D7BA27 /* KeyphoreAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25FE58FB3629F85604D70E /* KeyphoreAppDelegate.swift */; };
 		0C467B042607403C3614692B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */; };
 		13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = C1DDCFEE9542DF769377C699 /* KeyphoreCore */; };
+		1DF31AFF9BB3EAE1DE83830C /* PopoverLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37A7D963824DFB98CB683E42 /* PopoverLayoutTests.swift */; };
 		30114C1BEC1957CFB834EE9B /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = 89FCBC9F640B575A1CA3A3DE /* KeyphoreCore */; };
+		32D6EE5C8490F6E4D2752769 /* Air65KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA21CB3661C6A998618B32AE /* Air65KeyboardView.swift */; };
 		393429007627070B268A8E7E /* MenuBarImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7472A4A1E98B2F5861E50E3 /* MenuBarImageTests.swift */; };
 		3CE169B4802BEDEEE3DEA530 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C3DC8CB73E9C7ECA2DBFD453 /* Sparkle */; };
 		45948C3A8E769B19E7D2AECD /* SignalSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BDDF4944884C170A0CF8D2 /* SignalSettingsView.swift */; };
 		4FF408F8337FF68D480912A5 /* ManagedUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C393D00FD0BD33BB4DE23E /* ManagedUpdateController.swift */; };
+		5412E8A38900F07EB064716B /* KeyphorePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */; };
 		592E1E720FE6F256CF51D908 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AED54CB55122355A7910093D /* Sparkle */; };
 		5A3973645ECD5BA2BE9B0A73 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6704F8D3192EF419FC41D0AC /* main.swift */; };
 		5A8B6135118149895EAC94E7 /* ForegroundWindowActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A418CD6D9D3A9DAB5EA4356 /* ForegroundWindowActionTests.swift */; };
@@ -32,6 +35,7 @@
 		B3786713107DFD9E74B0D9E9 /* KeyphoreAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25FE58FB3629F85604D70E /* KeyphoreAppDelegate.swift */; };
 		B464B6D9AB0EED111F13C466 /* AppLifecycleAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC514F7D097DCC14D6EF98FB /* AppLifecycleAcceptanceTests.swift */; };
 		BB155FB00ADBA16225774BE8 /* SystemGuidedSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EA601A7391D49F787A9328 /* SystemGuidedSetup.swift */; };
+		C2146F88F21232D36A7A8882 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C2BBC9EAC1806FEA00D8F8 /* DiagnosticsView.swift */; };
 		C29B97853A7370436BABD7EE /* AggregateSignal+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */; };
 		D3C0814D593D1C40C25513E2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */; };
 		DE9A2FAED40577FF13629D3A /* KeyphoreAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5007C934BB3F0A9607548DC0 /* KeyphoreAppState.swift */; };
@@ -65,6 +69,7 @@
 		01C393D00FD0BD33BB4DE23E /* ManagedUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedUpdateController.swift; sourceTree = "<group>"; };
 		0A079ACB24E25C8801341DB1 /* ForegroundWindowAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundWindowAction.swift; sourceTree = "<group>"; };
 		30D76DBB7A493C660BA9BAB5 /* KeyphoreAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeyphoreAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		37A7D963824DFB98CB683E42 /* PopoverLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverLayoutTests.swift; sourceTree = "<group>"; };
 		37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AggregateSignal+Presentation.swift"; sourceTree = "<group>"; };
 		4A418CD6D9D3A9DAB5EA4356 /* ForegroundWindowActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundWindowActionTests.swift; sourceTree = "<group>"; };
 		4F25FE58FB3629F85604D70E /* KeyphoreAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyphoreAppDelegate.swift; sourceTree = "<group>"; };
@@ -133,6 +138,7 @@
 				4A418CD6D9D3A9DAB5EA4356 /* ForegroundWindowActionTests.swift */,
 				BB0D39BFC5AACFAFF0523B45 /* LegacyMigrationSystemAcceptanceTests.swift */,
 				D7472A4A1E98B2F5861E50E3 /* MenuBarImageTests.swift */,
+				37A7D963824DFB98CB683E42 /* PopoverLayoutTests.swift */,
 			);
 			name = KeyphoreAppTests;
 			path = app/Tests/KeyphoreAppTests;
@@ -416,14 +422,18 @@
 			buildActionMask = 2147483647;
 			files = (
 				C29B97853A7370436BABD7EE /* AggregateSignal+Presentation.swift in Sources */,
+				32D6EE5C8490F6E4D2752769 /* Air65KeyboardView.swift in Sources */,
 				B464B6D9AB0EED111F13C466 /* AppLifecycleAcceptanceTests.swift in Sources */,
+				C2146F88F21232D36A7A8882 /* DiagnosticsView.swift in Sources */,
 				E1C6A2FF576FE6A233D14037 /* ForegroundWindowAction.swift in Sources */,
 				5A8B6135118149895EAC94E7 /* ForegroundWindowActionTests.swift in Sources */,
 				0282DEA7495D3DFDE9D7BA27 /* KeyphoreAppDelegate.swift in Sources */,
 				E9023C4F1A9563D1F7618D04 /* KeyphoreAppState.swift in Sources */,
+				5412E8A38900F07EB064716B /* KeyphorePopover.swift in Sources */,
 				F51848C6801D298DC8909C48 /* LegacyMigrationSystemAcceptanceTests.swift in Sources */,
 				4FF408F8337FF68D480912A5 /* ManagedUpdateController.swift in Sources */,
 				393429007627070B268A8E7E /* MenuBarImageTests.swift in Sources */,
+				1DF31AFF9BB3EAE1DE83830C /* PopoverLayoutTests.swift in Sources */,
 				672CD80BBD2103D410D38E84 /* SignalColor+SwiftUI.swift in Sources */,
 				BB155FB00ADBA16225774BE8 /* SystemGuidedSetup.swift in Sources */,
 			);
