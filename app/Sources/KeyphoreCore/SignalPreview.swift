@@ -15,6 +15,7 @@ public struct SignalPreviewRecord: Codable, Equatable, Sendable {
     public var phase: SignalPreviewPhase
     public var currentSignal: CodexSignal?
     public var stageStartedAt: StatusTimestamp?
+    public var presentationStep: Int?
     public var presentationIsLit: Bool
     public var completedSignals: [CodexSignal]
     public var protocolReadbackSucceeded: Bool
@@ -101,15 +102,18 @@ public final class SignalPreviewController {
     private let store: SignalPreviewStore
     private let profileProvider: () throws -> LocalProfile
     private let lighting: any CompanionLightingEvidenceApplying
+    private let clock: () -> ContinuousClock.Instant
 
     public init(
         store: SignalPreviewStore,
         profileProvider: @escaping () throws -> LocalProfile,
-        lighting: any CompanionLightingEvidenceApplying
+        lighting: any CompanionLightingEvidenceApplying,
+        clock: @escaping () -> ContinuousClock.Instant = { .now }
     ) {
         self.store = store
         self.profileProvider = profileProvider
         self.lighting = lighting
+        self.clock = clock
     }
 
     public func poll(at now: StatusTimestamp = .now) throws -> SignalPreviewPollResult {
@@ -157,22 +161,26 @@ public final class SignalPreviewController {
         let elapsed = now.millisecondsSince1970 >= stageStartedAt.millisecondsSince1970
             ? now.millisecondsSince1970 - stageStartedAt.millisecondsSince1970
             : 0
-        if elapsed >= 2_000 {
-            guard index + 1 < Self.signalOrder.count else {
-                record.phase = .awaitingVisualConfirmation
-                record.currentSignal = nil
-                record.stageStartedAt = nil
-                record.presentationIsLit = false
-                try store.save(record)
-                return .finished
-            }
-            return try present(Self.signalOrder[index + 1], record: &record, at: now)
-        }
         let appearance = appearance(for: currentSignal, in: try profileProvider())
-        if appearance.pattern == .slowFlashing, elapsed >= 1_000, record.presentationIsLit {
-            return try apply(.off, signal: currentSignal, record: &record, completing: false)
+        let flashes = appearance.isVisible && appearance.pattern == .slowFlashing
+        let step = record.presentationStep ?? (record.presentationIsLit ? 0 : 1)
+        guard elapsed >= (flashes ? 1_000 : 2_000) else { return .active }
+        if flashes, step < 3 {
+            record.presentationStep = step + 1
+            let behavior: LightingBehavior = record.presentationIsLit
+                ? .off : .signal(appearance.replacingPattern(with: .steady))
+            return try apply(behavior, signal: currentSignal, record: &record, completing: false, at: now)
         }
-        return .active
+        guard index + 1 < Self.signalOrder.count else {
+            record.phase = .awaitingVisualConfirmation
+            record.currentSignal = nil
+            record.stageStartedAt = nil
+            record.presentationStep = nil
+            record.presentationIsLit = false
+            try store.save(record)
+            return .finished
+        }
+        return try present(Self.signalOrder[index + 1], record: &record, at: now)
     }
 
     private func present(
@@ -187,12 +195,14 @@ public final class SignalPreviewController {
         record.phase = .presenting
         record.currentSignal = signal
         record.stageStartedAt = now
+        record.presentationStep = 0
         record.presentationIsLit = true
         return try apply(
             behavior,
             signal: signal,
             record: &record,
-            completing: true
+            completing: true,
+            at: now
         )
     }
 
@@ -200,10 +210,14 @@ public final class SignalPreviewController {
         _ behavior: LightingBehavior,
         signal: CodexSignal,
         record: inout SignalPreviewRecord,
-        completing: Bool
+        completing: Bool,
+        at now: StatusTimestamp
     ) throws -> SignalPreviewPollResult {
         do {
+            let started = clock()
             let evidence = try lighting.applyAndVerify(behavior)
+            // Preserve the full visible phase after hardware acknowledgement, even when I/O is slow.
+            record.stageStartedAt = now.adding(started.duration(to: clock()))
             if record.completedSignals.isEmpty {
                 record.protocolReadbackSucceeded = evidence.protocolReadbackSucceeded
                 record.rhythmLightPreserved = evidence.rhythmBefore == evidence.rhythmAfter

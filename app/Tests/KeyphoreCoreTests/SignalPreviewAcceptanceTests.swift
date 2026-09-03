@@ -3,6 +3,49 @@ import KeyphoreCore
 import XCTest
 
 final class SignalPreviewAcceptanceTests: XCTestCase {
+    func testDelayedPollingCannotSkipOrShortenTheUnlitPreviewPhase() throws {
+        let fixture = try PreviewFixture()
+        _ = try fixture.store.begin(at: .milliseconds(0))
+
+        _ = try fixture.controller.poll(at: .milliseconds(0))
+        _ = try fixture.controller.poll(at: .milliseconds(2_100))
+
+        XCTAssertEqual(fixture.lighting.behaviors, [
+            .signal(fixture.steady(fixture.profile.execution)), .off,
+        ])
+        XCTAssertEqual(try fixture.store.load()?.currentSignal, .execution)
+
+        _ = try fixture.controller.poll(at: .milliseconds(3_099))
+        XCTAssertEqual(fixture.lighting.behaviors.last, .off)
+        XCTAssertEqual(try fixture.store.load()?.currentSignal, .execution)
+    }
+
+    func testHardwareLatencyDoesNotConsumeTheLitOrUnlitHoldTime() throws {
+        let fixture = try PreviewFixture()
+        fixture.lighting.didApply = {
+            fixture.clock.now = fixture.clock.now.advanced(by: .milliseconds(2_500))
+        }
+        _ = try fixture.store.begin(at: .milliseconds(0))
+
+        for time: UInt64 in [0, 2_600, 3_499] {
+            _ = try fixture.controller.poll(at: .milliseconds(time))
+        }
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(fixture.steady(fixture.profile.execution))])
+
+        _ = try fixture.controller.poll(at: .milliseconds(3_500))
+        _ = try fixture.controller.poll(at: .milliseconds(6_999))
+        XCTAssertEqual(fixture.lighting.behaviors, [
+            .signal(fixture.steady(fixture.profile.execution)), .off,
+        ])
+
+        _ = try fixture.controller.poll(at: .milliseconds(7_000))
+        XCTAssertEqual(fixture.lighting.behaviors, [
+            .signal(fixture.steady(fixture.profile.execution)), .off,
+            .signal(fixture.steady(fixture.profile.execution)),
+        ])
+        fixture.lighting.didApply = {}
+    }
+
     func testPreviewStartsOnlyAfterAnExplicitRequestAndUsesAControllableClock() throws {
         let fixture = try PreviewFixture()
 
@@ -10,17 +53,19 @@ final class SignalPreviewAcceptanceTests: XCTestCase {
         XCTAssertTrue(fixture.lighting.behaviors.isEmpty)
 
         _ = try fixture.store.begin(at: .milliseconds(0))
-        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(0)), .active)
-        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(1_000)), .active)
-        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(2_000)), .active)
-        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(4_000)), .active)
-        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(5_000)), .active)
-        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(6_000)), .finished)
+        for time: UInt64 in stride(from: 0, through: 9_000, by: 1_000) {
+            XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(time)), .active)
+        }
+        XCTAssertEqual(try fixture.controller.poll(at: .milliseconds(10_000)), .finished)
 
         XCTAssertEqual(fixture.lighting.behaviors, [
             .signal(fixture.steady(fixture.profile.execution)),
             .off,
+            .signal(fixture.steady(fixture.profile.execution)),
+            .off,
             .signal(fixture.profile.attention),
+            .signal(fixture.steady(fixture.profile.completion)),
+            .off,
             .signal(fixture.steady(fixture.profile.completion)),
             .off,
         ])
@@ -35,7 +80,7 @@ final class SignalPreviewAcceptanceTests: XCTestCase {
     func testVisualConfirmationIsRecordedSeparatelyFromProtocolEvidence() throws {
         let fixture = try PreviewFixture()
         _ = try fixture.store.begin(at: .milliseconds(0))
-        for time: UInt64 in [0, 2_000, 4_000, 6_000] {
+        for time: UInt64 in stride(from: 0, through: 10_000, by: 1_000) {
             _ = try fixture.controller.poll(at: .milliseconds(time))
         }
 
@@ -87,7 +132,7 @@ final class SignalPreviewAcceptanceTests: XCTestCase {
         )
         _ = try fixture.store.begin(at: .milliseconds(0))
 
-        for time: UInt64 in [0, 2_000, 4_000, 6_000] {
+        for time: UInt64 in stride(from: 0, through: 20_000, by: 2_000) {
             try companion.sync(at: .milliseconds(time))
         }
 
@@ -142,6 +187,7 @@ private final class PreviewFixture {
     let statusStore: DurableStatusStore
     let profile: LocalProfile
     let lighting = PreviewLightingAdapter()
+    let clock = PreviewClock()
     let controller: SignalPreviewController
 
     init(executionVisible: Bool = true) throws {
@@ -164,7 +210,8 @@ private final class PreviewFixture {
         controller = SignalPreviewController(
             store: store,
             profileProvider: { [profile] in profile },
-            lighting: lighting
+            lighting: lighting,
+            clock: { [clock] in clock.now }
         )
     }
 
@@ -190,12 +237,17 @@ private final class PreviewFixture {
     }
 }
 
+private final class PreviewClock {
+    var now = ContinuousClock.now
+}
+
 private final class PreviewLightingAdapter: CompanionLightingApplying,
     CompanionLightingEvidenceApplying, CompanionLightingVerifying
 {
     private(set) var behaviors: [LightingBehavior] = []
     private(set) var displayChecks = 0
     var error: Error?
+    var didApply: () -> Void = {}
 
     func apply(_ behavior: LightingBehavior) throws {
         _ = try applyAndVerify(behavior)
@@ -204,6 +256,7 @@ private final class PreviewLightingAdapter: CompanionLightingApplying,
     func applyAndVerify(_ behavior: LightingBehavior) throws -> NuPhyIOEvidence {
         if let error { throw error }
         behaviors.append(behavior)
+        didApply()
         return NuPhyIOEvidence(
             protocolReadbackSucceeded: true,
             visualConfirmation: .notRequested,
