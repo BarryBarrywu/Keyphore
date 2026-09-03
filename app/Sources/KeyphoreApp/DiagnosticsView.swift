@@ -8,7 +8,13 @@ struct DiagnosticsView: View {
     @State private var saveFailed = false
 
     var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: 12) { content }
+            .font(.system(size: 12))
+            .onAppear(perform: state.refreshDiagnosticReport)
+    }
+
+    private var content: some View {
+        Group {
             ForEach(state.diagnosticReport.fields) { field in
                 LabeledContent(field.label) {
                     VStack(alignment: .trailing, spacing: 4) {
@@ -35,9 +41,6 @@ struct DiagnosticsView: View {
                     .foregroundStyle(.red)
             }
         }
-        .formStyle(.grouped)
-        .padding()
-        .onAppear(perform: state.refreshDiagnosticReport)
     }
 
     private func save() {

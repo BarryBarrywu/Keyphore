@@ -3,7 +3,6 @@ import SwiftUI
 import KeyphoreCore
 
 struct KeyphorePopover: View {
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var state: KeyphoreAppState
     private let foregroundWindowAction: ForegroundWindowAction
@@ -24,241 +23,138 @@ struct KeyphorePopover: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, 22)
-                .padding(.top, 20)
-                .padding(.bottom, 18)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("KEYPHORE")
+                    .font(.system(size: 10, weight: .semibold)).tracking(1.1)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                settingsButton.buttonStyle(.borderless).foregroundStyle(.secondary)
+            }.padding(.bottom, 16)
 
             if state.menuState == .configurationRequired {
                 GuidedSetupView(state: state)
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 20)
             } else {
-                keyboardSection
-            }
-
-            Divider()
-            actions
-        }
-        .frame(width: 460)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear(perform: state.refresh)
-    }
-
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(AppCopy.value(.productName).uppercased())
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(0.8)
-                    .foregroundStyle(.secondary)
-                Text(AppCopy.value(.deviceName))
-                    .font(.system(size: 19, weight: .semibold))
-            }
-            Spacer()
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(state.menuState.tint)
-                    .frame(width: 7, height: 7)
-                Text(AppCopy.value(state.menuState.copyKey))
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 29)
-            .background(Color.primary.opacity(0.055), in: Capsule())
-        }
-    }
-
-    private var keyboardSection: some View {
-        VStack(spacing: 18) {
-            Air65KeyboardView(presentation: presentation)
-
-            signalIndicators
-
-            VStack(spacing: 6) {
-                Text(statusTitle)
-                    .font(.system(size: 17, weight: .semibold))
-                Text(statusDetail)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: presentation.signal)
-
-            if state.migrationRequiresSignalPreview {
-                Text(AppCopy.value(.migrationPreviewRequired))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 12) {
-                Button(
-                    AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .previewStart),
-                    action: state.beginSignalPreview
-                )
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(state.menuState != .ready || presentation.isPreviewing
-                          || state.previewRecord?.phase == .awaitingVisualConfirmation)
-
-                previewFeedback
-
-                if state.previewStateFailed {
-                    Text(AppCopy.value(.previewStateError))
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(statusTitle).font(.system(size: 25, weight: .semibold)).tracking(-0.6)
+                    Text(statusDetail).font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .padding(.horizontal, 22)
-        .padding(.bottom, 22)
-    }
+                .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+                .padding(.bottom, 22)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: presentation.signal)
 
-    private var signalIndicators: some View {
-        HStack(spacing: 3) {
-            signalIndicator(.signalOff, title: .signalOffShort)
-            signalIndicator(.execution, title: .executionShort)
-            signalIndicator(.attention, title: .attentionShort)
-            signalIndicator(.completion, title: .completionShort)
-        }
-        .padding(3)
-        .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 9))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(AppCopy.value(presentation.isPreviewing ? .previewTitle : .currentSignal))
-        .accessibilityValue(AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey))
-    }
+                Air65KeyboardView(presentation: presentation).padding(.bottom, 18)
 
-    private func signalIndicator(_ signal: AggregateSignal, title: AppCopyKey) -> some View {
-        let selected = signal == presentation.signal
-        return Text(AppCopy.value(title))
-            .font(.system(size: 12, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? Color.primary : Color.secondary)
-            .padding(.horizontal, 12)
-            .frame(height: 26)
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
-                }
-            }
-    }
-
-    private var statusTitle: String {
-        if state.menuState != .ready {
-            return AppCopy.value(state.snapshot.keyboardHealth.copyKey)
-        }
-        let title = AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey)
-        return presentation.isPreviewing ? "\(AppCopy.value(.previewTitle)) · \(title)" : title
-    }
-
-    private var statusDetail: String {
-        if state.menuState != .ready {
-            return AppCopy.value(.previewUnavailable)
-        }
-        guard let appearance = presentation.appearance else {
-            return AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .signalOffDescription)
-        }
-        var details = [
-            AppCopy.value(appearance.pattern == .steady ? .settingsSteady : .settingsSlowFlashing),
-            "\(appearance.brightness.percent)% \(AppCopy.value(.settingsBrightness))",
-        ]
-        if !appearance.isVisible {
-            details.insert(AppCopy.value(.signalHidden), at: 0)
-        }
-        if presentation.signal == .completion {
-            details.append("\(state.snapshot.profile.completionDisplayDuration.seconds) \(AppCopy.value(.settingsSeconds))")
-        }
-        return details.joined(separator: " · ")
-    }
-
-    @ViewBuilder
-    private var previewFeedback: some View {
-        if let preview = state.previewRecord {
-            switch preview.phase {
-            case .pending, .presenting:
-                ProgressView(AppCopy.value(.previewRunning))
-                    .controlSize(.small)
-                    .font(.caption)
-            case .awaitingVisualConfirmation:
-                VStack(alignment: .leading, spacing: 8) {
-                    if preview.protocolReadbackSucceeded {
-                        Label(AppCopy.value(.previewProtocolVerified), systemImage: "checkmark.circle")
+                HStack {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(AppCopy.value(.deviceName)).font(.system(size: 12, weight: .medium))
+                        Text(AppCopy.value(state.menuState == .ready ? .statusUSBConnected : state.snapshot.keyboardHealth.copyKey))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                    if preview.rhythmLightPreserved {
-                        Label(AppCopy.value(.previewRhythmPreserved), systemImage: "checkmark.circle")
+                    Spacer()
+                    Button(action: state.beginSignalPreview) {
+                        Label(AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .previewStart),
+                              systemImage: "play.fill")
                     }
-                    Text(AppCopy.value(.previewConfirmPrompt))
-                        .fontWeight(.medium)
-                    HStack {
-                        Button(AppCopy.value(.previewConfirm)) { state.confirmSignalPreview(.confirmed) }
-                        Button(AppCopy.value(.previewReject)) { state.confirmSignalPreview(.rejected) }
-                    }
+                    .font(.system(size: 11, weight: .medium)).controlSize(.regular)
+                    .disabled(state.menuState != .ready || presentation.isPreviewing
+                              || state.previewRecord?.phase == .awaitingVisualConfirmation)
                 }
-                .font(.caption)
-            case .confirmed:
-                Text(AppCopy.value(.previewConfirmed)).font(.caption).foregroundStyle(.secondary)
-            case .rejected:
-                Text(AppCopy.value(.previewRejected)).font(.caption).foregroundStyle(.secondary)
-            case .failed:
-                Text(AppCopy.value(.previewFailed)).font(.caption).foregroundStyle(.red)
-            }
-        }
-    }
-
-    private var actions: some View {
-        VStack(spacing: 0) {
-            HStack {
-                if state.menuState != .configurationRequired {
-                    settingsButton
-                }
-                Spacer()
-                Button(AppCopy.value(.diagnostics)) {
-                    foregroundWindowAction.open { openWindow(id: "diagnostics") }
+                if state.previewRecord != nil || state.migrationRequiresSignalPreview {
+                    SignalPreviewFeedback(state: state).padding(.top, 14)
                 }
             }
-            .buttonStyle(.link)
-            .font(.system(size: 12, weight: .medium))
-            .frame(height: 46)
-
+            if state.previewStateFailed {
+                Text(AppCopy.value(.previewStateError)).font(.caption).foregroundStyle(.red).padding(.top, 12)
+            }
+            Divider().padding(.top, 20).padding(.bottom, 12)
             HStack {
                 Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
                 Spacer()
                 Button(AppCopy.value(.quit)) { NSApp.terminate(nil) }
-            }
-            .buttonStyle(.borderless)
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .padding(.bottom, 14)
-
+            }.buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(.secondary)
             if state.quitFailed {
-                Text(AppCopy.value(.quitError))
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.bottom, 14)
+                Text(AppCopy.value(.quitError)).font(.caption).foregroundStyle(.red).padding(.top, 10)
             }
         }
-        .padding(.horizontal, 22)
+        .padding(24).frame(width: 392)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear(perform: state.refresh)
     }
 
-    @ViewBuilder
-    private var settingsButton: some View {
+    private var statusTitle: String {
+        if state.menuState != .ready { return AppCopy.value(state.snapshot.keyboardHealth.copyKey) }
+        if presentation.isPreviewing { return AppCopy.value(.previewRunningShort) }
+        switch presentation.signal {
+        case .execution: return AppCopy.value(.statusExecuting)
+        case .attention: return AppCopy.value(.statusAttention)
+        case .completion: return AppCopy.value(.statusCompleted)
+        case .signalOff: return AppCopy.value(.statusNoSignal)
+        }
+    }
+
+    private var statusDetail: String {
+        if state.menuState != .ready { return AppCopy.value(.previewUnavailable) }
+        if presentation.isPreviewing {
+            return AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey)
+        }
+        switch presentation.signal {
+        case .execution: return AppCopy.value(.statusExecutionDetail)
+        case .attention: return AppCopy.value(.statusAttentionDetail)
+        case .completion: return AppCopy.value(.statusCompletionDetail)
+        case .signalOff: return AppCopy.value(.signalOffDescription)
+        }
+    }
+
+    @ViewBuilder private var settingsButton: some View {
         if #available(macOS 14.0, *) {
-            ForegroundSettingsButton(
-                title: AppCopy.value(.settings),
-                foregroundWindowAction: foregroundWindowAction
-            )
+            ForegroundSettingsButton(title: AppCopy.value(.settings), foregroundWindowAction: foregroundWindowAction)
         } else {
-            Button(AppCopy.value(.settings)) {
+            Button {
                 foregroundWindowAction.open {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 }
-            }
+            } label: {
+                Image(systemName: "gearshape").frame(width: 28, height: 28)
+            }.accessibilityLabel(AppCopy.value(.settings)).help(AppCopy.value(.settings))
         }
+    }
+}
+
+struct SignalPreviewFeedback: View {
+    @ObservedObject var state: KeyphoreAppState
+    var allowsRestart = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if state.migrationRequiresSignalPreview {
+                Text(AppCopy.value(.migrationPreviewDescription)).foregroundStyle(.secondary)
+            }
+            if allowsRestart {
+                Button(AppCopy.value(.previewStart), action: state.beginSignalPreview)
+                    .disabled(state.menuState != .ready || state.previewRecord?.phase == .pending
+                              || state.previewRecord?.phase == .presenting
+                              || state.previewRecord?.phase == .awaitingVisualConfirmation)
+            }
+            if let preview = state.previewRecord {
+                switch preview.phase {
+                case .pending, .presenting:
+                    Text(AppCopy.value(.previewRunning)).foregroundStyle(.secondary)
+                case .awaitingVisualConfirmation:
+                    if preview.protocolReadbackSucceeded { Text(AppCopy.value(.previewProtocolVerified)) }
+                    if preview.rhythmLightPreserved { Text(AppCopy.value(.previewRhythmPreserved)) }
+                    Text(AppCopy.value(.previewConfirmPrompt)).fontWeight(.medium)
+                    HStack {
+                        Button(AppCopy.value(.previewConfirm)) { state.confirmSignalPreview(.confirmed) }
+                        Button(AppCopy.value(.previewReject)) { state.confirmSignalPreview(.rejected) }
+                    }
+                case .confirmed: Text(AppCopy.value(.previewConfirmed)).foregroundStyle(.secondary)
+                case .rejected: Text(AppCopy.value(.previewRejected)).foregroundStyle(.secondary)
+                case .failed: Text(AppCopy.value(.previewFailed)).foregroundStyle(.red)
+                }
+            }
+        }.font(.system(size: 12))
     }
 }
 
@@ -269,11 +165,12 @@ private struct ForegroundSettingsButton: View {
     let foregroundWindowAction: ForegroundWindowAction
 
     var body: some View {
-        Button(title) {
-            foregroundWindowAction.open {
-                openSettings()
-            }
+        Button {
+            foregroundWindowAction.open { openSettings() }
+        } label: {
+            Image(systemName: "gearshape").frame(width: 28, height: 28)
         }
+        .accessibilityLabel(title).help(title)
     }
 }
 
@@ -412,16 +309,6 @@ private extension LegacyComponent {
         case .hooks: .migrationComponentHooks
         case .companionRegistration: .migrationComponentCompanion
         case .managedRuntimeState: .migrationComponentRuntimeState
-        }
-    }
-}
-
-private extension MenuState {
-    var tint: Color {
-        switch self {
-        case .configurationRequired: .orange
-        case .configured: .blue
-        case .ready: .green
         }
     }
 }

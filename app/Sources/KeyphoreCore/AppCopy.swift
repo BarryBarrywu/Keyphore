@@ -6,6 +6,37 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
 }
 
 public enum AppCopyKey: String, CaseIterable, Sendable {
+    case settingsDevice = "settings.device"
+    case settingsSignals = "settings.signals"
+    case settingsGeneral = "settings.general"
+    case settingsHideDetails = "settings.hide_details"
+    case settingsDiagnosticDetails = "settings.diagnostic_details"
+    case settingsResetColor = "settings.reset_color"
+    case settingsAppearance = "settings.appearance"
+    case settingsLanguage = "settings.language"
+    case settingsFollowSystem = "settings.follow_system"
+    case settingsLight = "settings.light"
+    case settingsDark = "settings.dark"
+    case settingsColorWheel = "settings.color_wheel"
+    case colorBlue = "color.blue"
+    case colorOrange = "color.orange"
+    case colorGreen = "color.green"
+    case colorPurple = "color.purple"
+    case colorPink = "color.pink"
+    case colorRed = "color.red"
+    case colorWhite = "color.white"
+    case colorHue = "color.hue"
+    case colorSaturation = "color.saturation"
+    case colorIncreaseSaturation = "color.increase_saturation"
+    case colorDecreaseSaturation = "color.decrease_saturation"
+    case statusExecuting = "status.executing"
+    case statusAttention = "status.attention"
+    case statusCompleted = "status.completed"
+    case statusNoSignal = "status.no_signal"
+    case statusExecutionDetail = "status.execution_detail"
+    case statusAttentionDetail = "status.attention_detail"
+    case statusCompletionDetail = "status.completion_detail"
+    case statusUSBConnected = "status.usb_connected"
     case productName = "product.name"
     case deviceName = "device.name"
     case currentSignal = "status.current_signal"
@@ -163,10 +194,7 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
 
 public enum AppCopy {
     public static func value(_ key: AppCopyKey) -> String {
-        String(
-            localized: String.LocalizationValue(key.rawValue),
-            bundle: .module
-        )
+        value(key, language: AppPreferencesStore().load().resolvedLanguage())
     }
 
     public static func value(_ key: AppCopyKey, language: AppLanguage) -> String {

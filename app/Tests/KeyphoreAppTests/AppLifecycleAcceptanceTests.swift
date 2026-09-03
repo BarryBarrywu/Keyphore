@@ -4,6 +4,64 @@ import KeyphoreCore
 
 @MainActor
 final class AppLifecycleAcceptanceTests: XCTestCase {
+    func testGeneralSettingsPersistWithoutStartingDiagnosticCollection() async throws {
+        let suite = "keyphore-app-preferences-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppPreferencesStore(defaults: defaults)
+        let provider = AppDiagnosticProvider(snapshot: DiagnosticSnapshot(
+            appVersion: "0.1.0", macOSVersion: "macOS", codexHosts: [],
+            integration: .notConfigured, keyboard: .disconnected
+        ), onCollection: {})
+        let state = KeyphoreAppState(
+            lifecycle: KeyphoreLifecycle(
+                health: AppHealth(), profiles: AppProfile(), durableStatus: AppDurableStatus(),
+                lighting: AppLighting(), runtime: AppRecordingRuntime()
+            ),
+            diagnosticSnapshotProvider: provider.snapshot,
+            preferencesStore: store
+        )
+
+        state.updatePreferences(AppPreferences(appearance: .dark, language: .simplifiedChinese))
+
+        XCTAssertFalse(state.diagnosticReportIsRefreshing)
+        XCTAssertFalse(state.diagnosticReportIsReady)
+        XCTAssertEqual(provider.callCount, 0)
+        XCTAssertEqual(store.load(), state.preferences)
+        XCTAssertEqual(state.diagnosticReport.language, .simplifiedChinese)
+        XCTAssertEqual(state.snapshot.profile, .default)
+    }
+
+    func testResettingSignalColorPersistsWithoutResettingOtherSignalSettings() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = LocalProfileStore(url: directory.appending(path: "profile.json"))
+        let state = KeyphoreAppState(
+            lifecycle: KeyphoreLifecycle(
+                health: AppHealth(), profiles: PersistedAppProfile(store: store),
+                durableStatus: AppDurableStatus(), lighting: AppLighting(), runtime: AppRecordingRuntime()
+            ),
+            profileStore: store
+        )
+        let custom = SignalAppearance(
+            isVisible: false, color: SignalColor(red: 120, green: 30, blue: 90),
+            brightness: SignalBrightness(percent: 42)!, pattern: .slowFlashing
+        )
+        state.updateAppearance(custom, for: .completion)
+        state.updateCompletionDisplayDuration(CompletionDisplayDuration(seconds: 12)!)
+        state.resetSignalColor(for: .completion)
+
+        let reopened = try LocalProfileStore(url: store.url).load()
+        XCTAssertEqual(reopened.completion.color, LocalProfile.default.completion.color)
+        XCTAssertEqual(reopened.completion.brightness.percent, 42)
+        XCTAssertEqual(reopened.completion.pattern, .slowFlashing)
+        XCTAssertFalse(reopened.completion.isVisible)
+        XCTAssertEqual(reopened.completionDisplayDuration.seconds, 12)
+        XCTAssertEqual(reopened.execution, LocalProfile.default.execution)
+        XCTAssertEqual(reopened.attention, LocalProfile.default.attention)
+        XCTAssertEqual(state.snapshot.profile, reopened)
+    }
+
     func testAppStateCollectsTheReviewedDiagnosticPreviewOnlyWhenRequested() async {
         let diagnosticSnapshot = DiagnosticSnapshot(
             appVersion: "0.1.0 (1)",
@@ -239,6 +297,11 @@ private struct AppHealth: KeyphoreHealthProviding {
 
 private struct AppProfile: LocalProfileProviding {
     func currentProfile() -> LocalProfile { .default }
+}
+
+private struct PersistedAppProfile: LocalProfileProviding {
+    let store: LocalProfileStore
+    func currentProfile() -> LocalProfile { store.loadOrDefault() }
 }
 
 private struct AppDurableStatus: DurableStatusProviding {

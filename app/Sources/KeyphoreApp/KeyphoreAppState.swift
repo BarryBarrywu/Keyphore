@@ -21,6 +21,7 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var removalIsWorking = false
     @Published private(set) var removalFailed = false
     @Published var loginLaunchEnabled = true
+    @Published private(set) var preferences: AppPreferences
 
     private let lifecycle: KeyphoreLifecycle
     private let guidedSetup: GuidedSetup?
@@ -28,7 +29,9 @@ final class KeyphoreAppState: ObservableObject {
     private let profileStore: LocalProfileStore?
     private let previewStore: SignalPreviewStore?
     private let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
-    private let diagnosticLanguage: AppLanguage
+    private var diagnosticLanguage: AppLanguage
+    private var latestDiagnosticSnapshot: DiagnosticSnapshot
+    private let preferencesStore: AppPreferencesStore
     private let managedRemoval: ManagedRemoval?
     private let updateRuntime: (any KeyphoreRuntimeManaging)?
     private var durableStatusTimer: Timer?
@@ -42,7 +45,8 @@ final class KeyphoreAppState: ObservableObject {
         managedRemoval: ManagedRemoval? = nil,
         updateRuntime: (any KeyphoreRuntimeManaging)? = nil,
         diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)? = nil,
-        diagnosticLanguage: AppLanguage = .english
+        diagnosticLanguage: AppLanguage = .english,
+        preferencesStore: AppPreferencesStore = AppPreferencesStore()
     ) {
         self.lifecycle = lifecycle
         self.systemHealth = systemHealth
@@ -52,6 +56,8 @@ final class KeyphoreAppState: ObservableObject {
         self.updateRuntime = updateRuntime
         self.diagnosticSnapshotProvider = diagnosticSnapshotProvider
         self.diagnosticLanguage = diagnosticLanguage
+        self.preferencesStore = preferencesStore
+        preferences = preferencesStore.load()
         diagnosticReportIsReady = diagnosticSnapshotProvider == nil
         let initialSnapshot = lifecycle.refresh()
         snapshot = initialSnapshot
@@ -62,6 +68,7 @@ final class KeyphoreAppState: ObservableObject {
             integration: .notConfigured,
             keyboard: initialSnapshot.keyboardHealth
         )
+        latestDiagnosticSnapshot = diagnosticSnapshot
         diagnosticReport = DiagnosticReport(
             snapshot: diagnosticSnapshot,
             language: diagnosticLanguage
@@ -193,16 +200,14 @@ final class KeyphoreAppState: ObservableObject {
     func refreshDiagnosticReport() {
         guard !diagnosticReportIsRefreshing, let diagnosticSnapshotProvider else { return }
         diagnosticReportIsRefreshing = true
-        let language = diagnosticLanguage
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let report = DiagnosticReport(
-                snapshot: diagnosticSnapshotProvider(),
-                language: language
-            )
+            let snapshot = diagnosticSnapshotProvider()
             DispatchQueue.main.async {
-                self?.diagnosticReport = report
-                self?.diagnosticReportIsReady = true
-                self?.diagnosticReportIsRefreshing = false
+                guard let self else { return }
+                self.latestDiagnosticSnapshot = snapshot
+                self.diagnosticReport = DiagnosticReport(snapshot: snapshot, language: self.diagnosticLanguage)
+                self.diagnosticReportIsReady = true
+                self.diagnosticReportIsRefreshing = false
             }
         }
     }
@@ -335,6 +340,23 @@ final class KeyphoreAppState: ObservableObject {
         save(snapshot.profile.replacingAppearance(appearance, for: signal))
     }
 
+    func resetSignalColor(for signal: CodexSignal) {
+        let appearance = snapshot.profile.appearance(for: signal)
+        updateAppearance(SignalAppearance(
+            isVisible: appearance.isVisible,
+            color: LocalProfile.default.appearance(for: signal).color,
+            brightness: appearance.brightness,
+            pattern: appearance.pattern
+        ), for: signal)
+    }
+
+    func updatePreferences(_ preferences: AppPreferences) {
+        preferencesStore.save(preferences)
+        self.preferences = preferences
+        diagnosticLanguage = preferences.resolvedLanguage()
+        diagnosticReport = DiagnosticReport(snapshot: latestDiagnosticSnapshot, language: diagnosticLanguage)
+    }
+
     func updateCompletionDisplayDuration(_ duration: CompletionDisplayDuration) {
         let profile = snapshot.profile
         save(
@@ -459,9 +481,7 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     private static func appLanguage() -> AppLanguage {
-        Locale.preferredLanguages.first?.lowercased().hasPrefix("zh-hans") == true
-            ? .simplifiedChinese
-            : .english
+        AppPreferencesStore().load().resolvedLanguage()
     }
 
     private static func initialSetupSnapshot(for snapshot: LifecycleSnapshot) -> GuidedSetupSnapshot {
