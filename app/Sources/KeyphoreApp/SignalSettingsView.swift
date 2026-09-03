@@ -12,12 +12,6 @@ struct SignalSettingsView: View {
             signalSection(.completion, appearance: state.snapshot.profile.completion)
 
             Section {
-                Stepper(value: completionDuration, in: 1...60) {
-                    LabeledContent(AppCopy.value(.settingsCompletionDuration)) {
-                        Text("\(state.snapshot.profile.completionDisplayDuration.seconds) \(AppCopy.value(.settingsSeconds))")
-                            .monospacedDigit()
-                    }
-                }
                 Toggle(AppCopy.value(.settingsLoginLaunch), isOn: loginLaunch)
             }
 
@@ -86,6 +80,15 @@ struct SignalSettingsView: View {
                 Text(AppCopy.value(.settingsSlowFlashing)).tag(SignalPattern.slowFlashing)
             }
             .pickerStyle(.segmented)
+
+            if signal == .completion {
+                Stepper(value: completionDuration, in: 1...60) {
+                    LabeledContent(AppCopy.value(.settingsCompletionDuration)) {
+                        Text("\(state.snapshot.profile.completionDisplayDuration.seconds) \(AppCopy.value(.settingsSeconds))")
+                            .monospacedDigit()
+                    }
+                }
+            }
         }
     }
 

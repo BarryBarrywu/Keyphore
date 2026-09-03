@@ -67,7 +67,7 @@
 "settings.pattern" = "样式";
 "settings.pattern.steady" = "常亮";
 "settings.pattern.slow_flashing" = "慢闪";
-"settings.completion_duration" = "显示时长";
+"settings.completion_duration" = "完成信号显示时长";
 "settings.seconds" = "秒";
 "settings.save_error" = "设置未能保存，请重试。";
 "settings.validation_error" = "已保存的配置无效。保存有效设置前将显示默认值。";

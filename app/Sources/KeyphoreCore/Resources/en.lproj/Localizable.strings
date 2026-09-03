@@ -67,7 +67,7 @@
 "settings.pattern" = "Pattern";
 "settings.pattern.steady" = "Steady";
 "settings.pattern.slow_flashing" = "Slow flashing";
-"settings.completion_duration" = "Display duration";
+"settings.completion_duration" = "Completion signal duration";
 "settings.seconds" = "seconds";
 "settings.save_error" = "The settings could not be saved. Try again.";
 "settings.validation_error" = "The saved profile is invalid. Default values are shown until you save valid settings.";
