@@ -674,7 +674,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 }
 
 @MainActor
-private func lifecycleSnapshot(
+func lifecycleSnapshot(
     outcome: DurableStatusOutcome,
     lighting: RecordingMenuLightingAdapter
 ) -> LifecycleSnapshot {
@@ -703,7 +703,7 @@ private struct SignalFlowDurableStatusAdapter: DurableStatusProviding {
     func currentOutcome() -> DurableStatusOutcome { outcome }
 }
 
-private final class RecordingMenuLightingAdapter: LightingEmitting {
+final class RecordingMenuLightingAdapter: LightingEmitting {
     private(set) var behaviors: [LightingBehavior] = []
 
     func emit(_ behavior: LightingBehavior) {

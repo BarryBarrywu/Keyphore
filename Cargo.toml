@@ -3,6 +3,7 @@ name = "keyphore"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "Migration oracle only; the production Keyphore App and runtime are native Swift."
 
 [dependencies]
 anyhow = "1.0.102"

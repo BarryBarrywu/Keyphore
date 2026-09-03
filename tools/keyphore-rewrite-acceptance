@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Run software gates and save inspectable evidence; never claim physical acceptance."""
+
+import argparse
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import plistlib
+import re
+import subprocess
+import sys
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def capture(arguments):
+    return subprocess.check_output(arguments, cwd=ROOT, text=True, stderr=subprocess.STDOUT).strip()
+
+
+def compare_parity(output):
+    rust = json.loads((output / "rust-parity.json").read_text())
+    swift = json.loads((output / "swift-parity.json").read_text())
+    fixture = json.loads((ROOT / "tests/fixtures/swift-parity.json").read_text())
+    expected = [(scenario["id"], index) for scenario in fixture["scenarios"]
+                for index, _ in enumerate(scenario["steps"])]
+    differences = []
+    for language, observations in [("rust", rust), ("swift", swift)]:
+        if [(row["scenario"], row["step"]) for row in observations] != expected:
+            differences.append({"runtime": language, "error": "missing or reordered observations"})
+        for row in observations:
+            row["owners"].sort(key=lambda owner: (owner["product"], owner["session"], owner["agent"]))
+    for index, (left, right) in enumerate(zip(rust, swift)):
+        if left != right:
+            differences.append({"observation": index, "rust": left, "swift": right})
+    return {"status": "failed" if differences else "passed", "scenario_count": len(fixture["scenarios"]),
+            "observation_count": len(expected), "differences": differences,
+            "boundary": "production Hook, durable owners, timers, Companion and protocol adapter with simulated USB",
+            "normalization": "relative owner expiry times, owner order and visible signal names; compare every main-backlight write packet, excluding random session handshake packets"}
+
+
+
+def compare_contracts(output):
+    fixture = json.loads((ROOT / "tests/fixtures/swift-parity.json").read_text())
+    observations = {}
+    for name, expected in fixture["contracts"].items():
+        rust = json.loads((output / ("rust-" + name + ".json")).read_text())
+        swift = json.loads((output / ("swift-" + name + ".json")).read_text())
+        observations[name] = {"rust": rust, "swift": swift, "expected": expected,
+                              "status": "passed" if rust == swift == expected else "failed"}
+    return {"status": "passed" if observations and all(row["status"] == "passed"
+            for row in observations.values()) else "failed", "observations": observations,
+            "normalization": "CLI health strings and localized App fields become health booleans; product-specific Hook IDs normalize to owned versus unrelated"}
+
+
+def archive_app(app, build, output, signing_team):
+    archive = output / "Keyphore-build.zip"
+    capture(["/usr/bin/ditto", "-c", "-k", "--keepParent", "--norsrc", "--noextattr", str(app), str(archive)])
+    unpacked = build / output.name / "archive-verification"
+    capture(["/usr/bin/ditto", "-x", "-k", str(archive), str(unpacked)])
+    if signing_team:
+        capture(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(unpacked / app.name)])
+    return {"status": "passed", "path": archive.name,
+            "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+            "extracted_signature": "verified" if signing_team else "not-verified"}
+
+
+def audit_app(app, signing_team):
+    components = []
+    errors = []
+    required = ["Contents/MacOS/Keyphore", "Contents/Helpers/keyphore",
+                "Contents/Library/LoginItems/Keyphore Companion.app/Contents/MacOS/Keyphore Companion"]
+    for name in required:
+        if not (app / name).is_file():
+            errors.append("Missing " + name)
+    for path in sorted(app.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        kind = capture(["/usr/bin/file", "-b", str(path)])
+        if "Mach-O" not in kind:
+            if os.access(path, os.X_OK):
+                errors.append("Unexpected non-Mach-O executable: " + str(path.relative_to(app)))
+            continue
+        data = path.read_bytes()
+        relative = str(path.relative_to(app))
+        forbidden = re.findall(rb"rust_eh_personality|__rust_alloc|/rustc/|nuphyctl", data)
+        dependencies = capture(["/usr/bin/otool", "-L", str(path)]).splitlines()[1:]
+        if forbidden or any("rust" in line.lower() or "nuphyctl" in line for line in dependencies):
+            errors.append("Forbidden runtime marker/dependency: " + relative)
+        signature = "not-verified"
+        if signing_team:
+            try:
+                capture(["/usr/bin/codesign", "--verify", "--strict", str(path)])
+                details = capture(["/usr/bin/codesign", "-dv", "--verbose=4", str(path)])
+                if relative in required and ("TeamIdentifier=" + signing_team not in details
+                        or "Authority=Developer ID Application:" not in details):
+                    errors.append("Unexpected first-party signature: " + relative)
+                signature = "verified"
+            except subprocess.CalledProcessError:
+                errors.append("Invalid executable signature: " + relative)
+                signature = "failed"
+        components.append({"path": relative, "sha256": hashlib.sha256(data).hexdigest(),
+                           "format": kind, "signature": signature,
+                           "dependencies": [line.strip() for line in dependencies],
+                           "forbidden_markers": sorted(set(value.decode() for value in forbidden))})
+    if not components:
+        errors.append("No executable components found")
+    if signing_team:
+        try:
+            capture(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)])
+        except subprocess.CalledProcessError:
+            errors.append("App bundle signature verification failed")
+    tables = list(app.rglob("en.lproj/Localizable.strings"))
+    expected_keys = set(re.findall(r'case \w+ = "([^"]+)"',
+        (ROOT / "app/Sources/KeyphoreCore/AppCopy.swift").read_text().split("public enum AppCopyKey", 1)[1]))
+    localization = []
+    for english in tables:
+        if "KeyphoreAppModules_KeyphoreCore" not in str(english):
+            continue
+        for language in ["en", "zh-Hans"]:
+            table = english.parent.parent / (language + ".lproj") / "Localizable.strings"
+            try:
+                # plutil also handles the compiled binary .strings files inside Xcode bundles.
+                values = json.loads(capture(["/usr/bin/plutil", "-convert", "json", "-o", "-", str(table)]))
+                missing = sorted(key for key in expected_keys if not values.get(key, "").strip())
+            except (subprocess.CalledProcessError, ValueError):
+                missing = sorted(expected_keys)
+            localization.append({"path": str(table.relative_to(app)), "missing": missing})
+            if missing:
+                errors.append("Incomplete installed localization: " + str(table.relative_to(app)))
+    if not localization:
+        errors.append("No Keyphore localization resource bundle found")
+    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+    return {"status": "failed" if errors else "passed", "errors": errors,
+            "components": components, "localizations": localization,
+            "scope": "built artifact; marker/dependency audit plus native build provenance, not installed-runtime acceptance",
+            "update_channel_configured": bool(info.get("SUFeedURL") and info.get("SUPublicEDKey"))}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--build-root", type=Path, required=True,
+                        help="Directory from codex-temp-guard create; release it after this run")
+    parser.add_argument("--output", type=Path, required=True, help="New persistent evidence directory")
+    parser.add_argument("--signing-team", help="Build and verify Developer ID signatures for this team")
+    args = parser.parse_args()
+    build = args.build_root.resolve()
+    output = args.output.resolve()
+    if not build.is_relative_to(Path("/private/tmp/codex-builds")) or not build.is_dir():
+        parser.error("--build-root must exist under /private/tmp/codex-builds")
+    if output.is_relative_to(Path("/private/tmp")):
+        parser.error("--output must be persistent, outside the temporary build tree")
+    output.mkdir(parents=True, exist_ok=False)
+    environment = dict(os.environ, CARGO_TARGET_DIR=str(build / "cargo"),
+                       KEYPHORE_PARITY_OUTPUT=str(output), TEST_RUNNER_KEYPHORE_PARITY_OUTPUT=str(output), TMPDIR=str(build / "test-tmp"))
+    Path(environment["TMPDIR"]).mkdir(exist_ok=True)
+    report = {"schema_version": 1, "issue": "https://github.com/BarryBarrywu/Keyphore/issues/24",
+              "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "source_commit": capture(["git", "rev-parse", "HEAD"]),
+              "source_status": capture(["git", "status", "--short"]),
+              "rust_role": "migration oracle only; never copied into the App", "checks": {},
+              "installed_acceptance": {"status": "pending", "required_evidence": [
+                  "Fresh macOS user: GUI-only install, no admin/driver/system-wide writes",
+                  "Signed installed App: Configured versus Ready, login launch, Quit and reopen",
+                  "Signed/notarized update: approval, changed-Hook consent, decline and repair",
+                  "Installed migration and removal: no overlapping Companion; unrelated Hooks preserved",
+                  "Stock wired Air65 V3: execution, attention, completion, colors/brightness, slow flashing and duration",
+                  "Stock wired Air65 V3: signal-off, rhythm preservation, reconnect, sleep/wake, Companion restart and typing",
+                  "Durable health/preview/diagnostic evidence plus human visual confirmation tied to executable hashes"]}}
+    tracked = capture(["git", "ls-files", "--cached", "--others", "--exclude-standard"]).splitlines()
+    report["source_files"] = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                              for name in tracked if (ROOT / name).is_file()}
+    try:
+        commands = [
+            ("swift", ["swift", "test", "--package-path", "app", "--scratch-path", str(build / "swiftpm"),
+                       "-Xswiftc", "-warnings-as-errors"]),
+            ("rust", ["cargo", "test", "--all-targets"]),
+            ("rust-static", ["cargo", "clippy", "--all-targets", "--", "-D", "warnings"]),
+            ("app-tests", ["xcodebuild", "-project", "Keyphore.xcodeproj", "-scheme", "Keyphore",
+                           "-configuration", "Debug", "-destination", "platform=macOS,arch=arm64",
+                           "-derivedDataPath", str(build / "DerivedData"), "-resultBundlePath",
+                           str(output / "AppTests.xcresult"), "CODE_SIGNING_ALLOWED=NO",
+                           "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES", "GCC_TREAT_WARNINGS_AS_ERRORS=YES", "test"]),
+        ]
+        if args.signing_team:
+            commands.append(("signed-app", ["xcodebuild", "-project", "Keyphore.xcodeproj", "-scheme", "Keyphore",
+                "-configuration", "Debug", "-derivedDataPath", str(build / "DerivedData"),
+                "DEVELOPMENT_TEAM=" + args.signing_team, "CODE_SIGN_STYLE=Manual",
+                "CODE_SIGN_IDENTITY=Developer ID Application", "CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO",
+                "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES", "GCC_TREAT_WARNINGS_AS_ERRORS=YES", "build"]))
+        for name, command in commands:
+            print("Running " + name, flush=True)
+            with (output / (name + ".log")).open("w") as log:
+                result = subprocess.run(command, cwd=ROOT, env=environment, stdout=log, stderr=subprocess.STDOUT)
+            report["checks"][name] = {"status": "passed" if result.returncode == 0 else "failed",
+                                       "exit_code": result.returncode, "log": name + ".log"}
+        report["checks"]["parity"] = compare_parity(output)
+        report["checks"]["contract-parity"] = compare_contracts(output)
+        app = build / "DerivedData/Build/Products/Debug/Keyphore.app"
+        report["checks"]["app-artifact"] = audit_app(app, args.signing_team)
+        if report["checks"]["app-artifact"]["status"] == "passed":
+            report["checks"]["app-archive"] = archive_app(app, build, output, args.signing_team)
+        report["contract_coverage"] = {
+            "hook_ownership": ["rust.log: plugin_lifecycle_contract", "swift.log: GuidedSetupAcceptanceTests, ManagedRemovalAcceptanceTests"],
+            "diagnostics_privacy": ["rust.log: diagnostics_report_every_health_surface_without_private_codex_content",
+                                    "swift.log: DiagnosticReportAcceptanceTests (preview and exported ZIP)"],
+            "recovery": ["rust.log: recovery_contract, power_contract", "swift.log: TransportLifecycleAcceptanceTests"],
+            "app_lifecycle": ["app-tests.log: AppLifecycleAcceptanceTests, LegacyMigrationSystemAcceptanceTests"],
+            "localization": ["swift.log: LocalizationCompletenessTests", "app-artifact: compiled resource tables"],
+        }
+    except Exception as error:
+        report["error"] = str(error)
+    passed = bool(report["checks"]) and "error" not in report and all(
+        check["status"] == "passed" for check in report["checks"].values())
+    report["software_status"] = "passed" if passed else "failed"
+    report["rewrite_gate"] = "pending-installed-acceptance" if passed else "failed-software-checks"
+    report["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    (output / "acceptance-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    print(str(output / "acceptance-report.json"), flush=True)
+    return 0 if passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

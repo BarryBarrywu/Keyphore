@@ -1,0 +1,493 @@
+{
+  "schema_version": 1,
+  "main_states": {
+    "off": [
+      3,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "execution": [
+      3,
+      100,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      255
+    ],
+    "attention": [
+      3,
+      100,
+      3,
+      0,
+      1,
+      0,
+      255,
+      132,
+      0
+    ],
+    "completion": [
+      3,
+      100,
+      3,
+      0,
+      1,
+      0,
+      0,
+      255,
+      0
+    ]
+  },
+  "rhythm": [
+    4,
+    70,
+    2,
+    1,
+    0,
+    17,
+    34,
+    51
+  ],
+  "private_markers": [
+    "PRIVATE_PROMPT_24",
+    "PRIVATE_TOOL_24",
+    "PRIVATE_RESPONSE_24",
+    "PRIVATE_USER_24",
+    "PRIVATE_PATH_24"
+  ],
+  "scenarios": [
+    {
+      "id": "owners-priority-and-eight-hooks",
+      "steps": [
+        {
+          "at": 0,
+          "event": {
+            "hook_event_name": "SessionStart",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "off",
+          "displayed_signal": "off"
+        },
+        {
+          "at": 10,
+          "event": {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 20,
+          "event": {
+            "hook_event_name": "SubagentStart",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24",
+            "agent_id": "child"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 30,
+          "event": {
+            "hook_event_name": "PermissionRequest",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24",
+            "agent_id": "child"
+          },
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 40,
+          "event": {
+            "hook_event_name": "PermissionRequest",
+            "session_id": "session-b",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 50,
+          "event": {
+            "hook_event_name": "PostToolUse",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24",
+            "agent_id": "child"
+          },
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 60,
+          "event": {
+            "hook_event_name": "Stop",
+            "session_id": "session-b",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 70,
+          "event": {
+            "hook_event_name": "SubagentStop",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24",
+            "agent_id": "child"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 80,
+          "event": {
+            "hook_event_name": "Stop",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "completion",
+          "displayed_signal": "completion"
+        },
+        {
+          "at": 5079,
+          "aggregate": "completion",
+          "displayed_signal": "completion"
+        },
+        {
+          "at": 5080,
+          "aggregate": "off",
+          "displayed_signal": "off"
+        },
+        {
+          "at": 5090,
+          "event": {
+            "hook_event_name": "SessionEnd",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "off",
+          "displayed_signal": "off"
+        }
+      ]
+    },
+    {
+      "id": "stale-turn-and-timer",
+      "steps": [
+        {
+          "at": 0,
+          "event": {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 100,
+          "event": {
+            "hook_event_name": "Stop",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "completion",
+          "capture_expiry": true,
+          "displayed_signal": "completion"
+        },
+        {
+          "at": 1000,
+          "event": {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-a",
+            "turn_id": "turn-2",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 1100,
+          "event": {
+            "hook_event_name": "Stop",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 5100,
+          "aggregate": "execution",
+          "fire_expiry": true,
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 5200,
+          "event": {
+            "hook_event_name": "SessionEnd",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "off",
+          "displayed_signal": "off"
+        }
+      ]
+    },
+    {
+      "id": "attention-expiry-reveals-execution",
+      "steps": [
+        {
+          "at": 0,
+          "event": {
+            "hook_event_name": "PermissionRequest",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 1000,
+          "event": {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-b",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 3599999,
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 3600000,
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 3601000,
+          "aggregate": "off",
+          "displayed_signal": "off"
+        }
+      ]
+    },
+    {
+      "id": "companion-restart-replays-durable-status",
+      "steps": [
+        {
+          "at": 0,
+          "event": {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "execution",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 10,
+          "aggregate": "execution",
+          "restart": true,
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 20,
+          "event": {
+            "hook_event_name": "PermissionRequest",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "attention",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 30,
+          "aggregate": "attention",
+          "restart": true,
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 40,
+          "event": {
+            "hook_event_name": "Stop",
+            "session_id": "session-a",
+            "turn_id": "turn-1",
+            "prompt": "PRIVATE_PROMPT_24",
+            "tool_input": "PRIVATE_TOOL_24",
+            "tool_response": "PRIVATE_RESPONSE_24",
+            "cwd": "/Users/PRIVATE_USER_24/PRIVATE_PATH_24"
+          },
+          "aggregate": "completion",
+          "displayed_signal": "completion"
+        },
+        {
+          "at": 50,
+          "aggregate": "completion",
+          "restart": true,
+          "displayed_signal": "completion"
+        },
+        {
+          "at": 5040,
+          "aggregate": "off",
+          "displayed_signal": "off"
+        }
+      ]
+    },
+    {
+      "id": "sleep-wake-and-reconnect",
+      "steps": [
+        {
+          "at": 0,
+          "aggregate": "execution",
+          "event": {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "recovery",
+            "turn_id": "turn-1"
+          },
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 10,
+          "aggregate": "execution",
+          "power": "sleep",
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 20,
+          "aggregate": "attention",
+          "event": {
+            "hook_event_name": "PermissionRequest",
+            "session_id": "recovery",
+            "turn_id": "turn-1"
+          },
+          "displayed_signal": "execution"
+        },
+        {
+          "at": 30,
+          "aggregate": "attention",
+          "power": "wake",
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 40,
+          "aggregate": "attention",
+          "reconnect": true,
+          "displayed_signal": "attention"
+        },
+        {
+          "at": 50,
+          "aggregate": "off",
+          "event": {
+            "hook_event_name": "SessionEnd",
+            "session_id": "recovery"
+          },
+          "displayed_signal": "off"
+        }
+      ]
+    }
+  ],
+  "contracts": {
+    "managed-removal": {
+      "owned_plugin_present": false,
+      "other_plugin_preserved": true,
+      "owned_hooks_disabled": true
+    },
+    "healthy-diagnostics": {
+      "hooks_trusted": true,
+      "companion_running": true,
+      "keyboard_connected": true,
+      "protocol_healthy": true,
+      "private_content_absent": true
+    }
+  }
+}

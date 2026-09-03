@@ -334,6 +334,15 @@ fn update_and_removal_are_scoped_to_the_keyphore_plugin() {
         fs::read_to_string(&fixture.plugin_state).unwrap(),
         "codex-zectrix-dashboard@codex-zectrix-dashboard\n"
     );
+    record_parity_contract(
+        "managed-removal",
+        serde_json::json!({
+            "owned_plugin_present": fs::read_to_string(&fixture.plugin_state).unwrap().lines().any(|line| line == "keyphore@local"),
+            "other_plugin_preserved": fs::read_to_string(&fixture.other_product_state).unwrap() == "leave-me-alone"
+                && fs::read_to_string(&fixture.plugin_state).unwrap().contains("codex-zectrix-dashboard@codex-zectrix-dashboard"),
+            "owned_hooks_disabled": fixture.hook_disabled.exists(),
+        }),
+    );
     assert!(!fixture.data_dir.join("lifecycle.json").exists());
     assert!(!fixture.data_dir.join("hook-events.jsonl").exists());
     assert!(fixture.hook_disabled.exists());
@@ -411,6 +420,23 @@ fn diagnostics_report_every_health_surface_without_private_codex_content() {
     for private in private_values {
         assert!(!diagnostics.contains(private));
     }
+    if let Ok(directory) = std::env::var("KEYPHORE_PARITY_OUTPUT") {
+        fs::write(
+            Path::new(&directory).join("rust-diagnostic-output.txt"),
+            &diagnostics,
+        )
+        .unwrap();
+    }
+    record_parity_contract(
+        "healthy-diagnostics",
+        serde_json::json!({
+            "hooks_trusted": diagnostics.lines().any(|line| line == "hook_trust=trusted"),
+            "companion_running": diagnostics.lines().any(|line| line == "companion=running"),
+            "keyboard_connected": diagnostics.lines().any(|line| line == "keyboard_discovery=air65-v3"),
+            "protocol_healthy": diagnostics.lines().any(|line| line == "protocol_health=healthy"),
+            "private_content_absent": private_values.iter().all(|value| !diagnostics.contains(value)),
+        }),
+    );
 }
 
 #[test]
@@ -492,4 +518,17 @@ fn executable(path: PathBuf, contents: &str) -> PathBuf {
     fs::write(&path, contents).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     path
+}
+
+fn record_parity_contract(name: &str, observed: serde_json::Value) {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/swift-parity.json")).unwrap();
+    assert_eq!(observed, fixture["contracts"][name]);
+    if let Ok(directory) = std::env::var("KEYPHORE_PARITY_OUTPUT") {
+        fs::write(
+            Path::new(&directory).join(format!("rust-{name}.json")),
+            serde_json::to_vec_pretty(&observed).unwrap(),
+        )
+        .unwrap();
+    }
 }

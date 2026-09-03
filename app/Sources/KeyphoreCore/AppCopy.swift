@@ -170,16 +170,15 @@ public enum AppCopy {
         language: AppLanguage,
         resources: Bundle
     ) -> String {
-        let resourceNames = [language.rawValue, language.rawValue.lowercased()]
-        guard let path = resourceNames.lazy.compactMap({ resource in
-            resources.path(forResource: resource, ofType: "lproj")
-        }).first,
-            let bundle = Bundle(path: path)
-        else {
-            return key.rawValue
+        let resourceNames = [language.rawValue, language.rawValue.lowercased(), "en"]
+        for resource in resourceNames {
+            guard let path = resources.path(forResource: resource, ofType: "lproj"),
+                  let bundle = Bundle(path: path)
+            else { continue }
+            let value = bundle.localizedString(forKey: key.rawValue, value: key.rawValue, table: nil)
+            if value != key.rawValue { return value }
         }
-
-        return bundle.localizedString(forKey: key.rawValue, value: key.rawValue, table: nil)
+        return key.rawValue
     }
 }
 

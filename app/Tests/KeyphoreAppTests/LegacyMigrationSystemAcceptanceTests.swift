@@ -3,6 +3,68 @@ import KeyphoreCore
 
 @MainActor
 final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
+    func testHealthyDiagnosticFieldsMatchTheRustContractAndExcludePrivateContent() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try fixture.prepareCurrentInstallation()
+        try Data().write(to: fixture.currentRunning)
+        let metadata: [[String: Any]] = HookDefinition.reviewedRelease.map { hook in
+            ["key": hook.event.rawValue, "eventName": hook.event.rawValue.prefix(1).lowercased() + hook.event.rawValue.dropFirst(),
+             "handlerType": "command", "executionMode": "sync", "command": "\"\(fixture.cachedHelper.path)\" hook", "timeoutSec": 1,
+             "sourcePath": fixture.cachedPlugin.appending(path: "hooks/hooks.json").path,
+             "pluginId": "keyphore@keyphore-app", "enabled": true, "isManaged": false,
+             "currentHash": hook.reviewedHash, "trustStatus": "trusted"]
+        }
+        let response = fixture.root.appending(path: "hook-response.json")
+        var responseData = try JSONSerialization.data(withJSONObject:
+            ["id": 2, "result": ["data": [["cwd": "fixture", "hooks": metadata, "warnings": [], "errors": []]]]])
+        responseData.append(0x0a)
+        try responseData.write(to: response)
+        let codex = fixture.bin.appending(path: "codex")
+        let script = try String(contentsOf: codex, encoding: .utf8).replacingOccurrences(
+            of: "read request\n", with: "read request\ncat '\(response.path)'\nexit 0\n")
+        try script.write(to: codex, atomically: false, encoding: .utf8)
+        let detector = SystemCodexHostDetector(environment: ["PATH": fixture.bin.path],
+            homeDirectory: fixture.home, registeredDesktopAppURL: nil)
+        let integration = try XCTUnwrap(SystemGuidedSetupIntegration(detector: detector,
+            homeDirectory: fixture.home, launchctlURL: fixture.launchctl,
+            processListURL: fixture.processList, helperURL: fixture.helper))
+        try integration.stage(HookDefinition.reviewedRelease)
+        try integration.registerCompanion()
+        try integration.persistConfigured()
+        let store = DurableStatusStore(url: fixture.support.appending(path: "status.json"))
+        try ProductionHookHandler(store: store).handle(Data(
+            #"{"hook_event_name":"UserPromptSubmit","session_id":"diagnostic","turn_id":"turn-1","prompt":"PRIVATE_PROMPT_24","tool_response":"PRIVATE_RESPONSE_24","cwd":"/Users/PRIVATE_USER_24/PRIVATE_PATH_24"}"#.utf8))
+        let keyboard = KeyboardHealthStore(url: fixture.support.appending(path: "keyboard-health.json"))
+        try keyboard.save(.connected(protocolHealthy: true))
+        let setup = GuidedSetup(hosts: detector, integration: integration,
+            keyboard: ParityKeyboardHealth(store: keyboard))
+        let report = DiagnosticReport(snapshot: setup.diagnosticSnapshot(
+            appVersion: "0.1.0 (1)", macOSVersion: "macOS 15.6.1"), language: .english)
+        let fields = Dictionary(uniqueKeysWithValues: report.fields.map { ($0.id, $0.value) })
+        let observed = [
+            "hooks_trusted": fields[.hook] == "Trusted",
+            "companion_running": fields[.companion] == "Running",
+            "keyboard_connected": fields[.keyboard] == "Connected",
+            "protocol_healthy": fields[.protocolReadback] == "Healthy",
+            "private_content_absent": !report.fields.contains { $0.value.contains("PRIVATE_") || $0.value.contains(fixture.root.path) },
+        ]
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "tests/fixtures/swift-parity.json")
+        let specification = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: source)) as? [String: Any])
+        let expected = try XCTUnwrap((specification["contracts"] as? [String: [String: Bool]])?["healthy-diagnostics"])
+        XCTAssertEqual(observed, expected)
+        if let directory = ProcessInfo.processInfo.environment["KEYPHORE_PARITY_OUTPUT"] {
+            try JSONSerialization.data(withJSONObject: observed, options: [.prettyPrinted, .sortedKeys])
+                .write(to: URL(fileURLWithPath: directory).appending(path: "swift-healthy-diagnostics.json"))
+            let output = URL(fileURLWithPath: directory)
+            try JSONEncoder().encode(report).write(to: output.appending(path: "swift-diagnostic-preview.json"))
+            try DiagnosticReportExporter().export(report, to: output.appending(path: "swift-diagnostic-report.zip"))
+        }
+    }
+
     func testMissingCodexHostDoesNotGuessCompanionStopped() {
         let setup = GuidedSetup(
             hosts: MissingHostDetector(),
@@ -354,6 +416,24 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         let plugins = try String(contentsOf: fixture.pluginState)
         XCTAssertFalse(plugins.contains("keyphore@keyphore-app"))
         XCTAssertTrue(plugins.contains("other@product"))
+        let otherState = try String(contentsOf: fixture.otherPluginState, encoding: .utf8)
+        let observed = [
+            "owned_plugin_present": plugins.contains("keyphore@keyphore-app"),
+            "other_plugin_preserved": plugins.contains("other@product")
+                && otherState == "preserved",
+            "owned_hooks_disabled": FileManager.default.fileExists(atPath: fixture.hooksDisabled.path),
+        ]
+        let contractURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "tests/fixtures/swift-parity.json")
+        let contracts = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: contractURL)) as? [String: Any])
+        let expected = try XCTUnwrap((contracts["contracts"] as? [String: [String: Bool]])?["managed-removal"])
+        XCTAssertEqual(observed, expected)
+        if let directory = ProcessInfo.processInfo.environment["KEYPHORE_PARITY_OUTPUT"] {
+            try JSONSerialization.data(withJSONObject: observed, options: [.prettyPrinted, .sortedKeys])
+                .write(to: URL(fileURLWithPath: directory).appending(path: "swift-managed-removal.json"))
+        }
     }
 
     func testInterruptedRemovalCompletesWithoutReinstallingACodexHost() throws {
@@ -908,4 +988,10 @@ private struct LegacyMigrationFixture {
 
 private final class RemovalLoginLaunchState: @unchecked Sendable {
     var isEnabled = true
+}
+
+private struct ParityKeyboardHealth: SetupKeyboardHealthProviding {
+    let store: KeyboardHealthStore
+    func currentKeyboardHealth() -> KeyboardHealth { store.load() }
+    func currentDiagnosticKeyboardHealth() -> KeyboardHealth { store.loadDiagnosticHealth() }
 }

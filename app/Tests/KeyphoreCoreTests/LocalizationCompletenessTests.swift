@@ -2,6 +2,45 @@ import XCTest
 @testable import KeyphoreCore
 
 final class LocalizationCompletenessTests: XCTestCase {
+    func testBothResourceTablesContainEveryVisibleKeyWithoutUsingFallback() throws {
+        let resources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Sources/KeyphoreCore/Resources")
+        for language in AppLanguage.allCases {
+            let data = try Data(contentsOf: resources.appending(path: "\(language.rawValue).lproj/Localizable.strings"))
+            let table = try XCTUnwrap(
+                PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String]
+            )
+            XCTAssertEqual(Set(table.keys), Set(AppCopyKey.allCases.map(\.rawValue)))
+            for key in AppCopyKey.allCases {
+                XCTAssertFalse(try XCTUnwrap(table[key.rawValue]).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    func testMissingTranslationOrLanguageDirectoryFallsBackToEnglish() throws {
+        for includeChinese in [false, true] {
+            let root = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).bundle")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let english = root.appending(path: "Contents/Resources/en.lproj")
+            try FileManager.default.createDirectory(at: english, withIntermediateDirectories: true)
+            try Data(#""action.quit" = "Quit Keyphore";"#.utf8)
+                .write(to: english.appending(path: "Localizable.strings"))
+            if includeChinese {
+                let chinese = root.appending(path: "Contents/Resources/zh-Hans.lproj")
+                try FileManager.default.createDirectory(at: chinese, withIntermediateDirectories: true)
+                try Data(#""product.name" = "Keyphore";"#.utf8)
+                    .write(to: chinese.appending(path: "Localizable.strings"))
+            }
+            try PropertyListSerialization.data(fromPropertyList: [
+                "CFBundleIdentifier": "com.barrywu.keyphore.fallback.\(includeChinese)",
+                "CFBundlePackageType": "BNDL", "CFBundleDevelopmentRegion": "en",
+            ], format: .xml, options: 0).write(to: root.appending(path: "Contents/Info.plist"))
+            let bundle = try XCTUnwrap(Bundle(url: root))
+            XCTAssertEqual(AppCopy.value(.quit, language: .simplifiedChinese, resources: bundle), "Quit Keyphore")
+        }
+    }
+
     func testEnglishAndSimplifiedChineseCoverEveryVisibleString() {
         for key in AppCopyKey.allCases {
             for language in AppLanguage.allCases {
