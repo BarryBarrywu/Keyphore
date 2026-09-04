@@ -1,3 +1,5 @@
+<p align="center"><strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a></p>
+
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="Keyphore — Codex task status on your NuPhy keyboard. Blue for working, orange for attention, green for complete, and lights off when idle.">
 </p>
@@ -7,12 +9,6 @@
 **See when Codex is working, needs you, or has finished—right on your keyboard.**
 
 Keyphore (pronounced “key-for”) is a native macOS menu bar app that turns Codex task events into NuPhy keyboard backlighting. Configure your signals in the App, then keep working while the keyboard shows the current state.
-
-**用键盘灯光，看见 Codex 正在执行、需要回应，还是已经完成。**
-
-Keyphore（读作“key-for”）是一款原生 macOS 菜单栏应用，把 Codex 的任务状态显示在 NuPhy 键盘背光上：默认蓝色表示执行中，橙色表示需要审批或输入，绿色表示本轮完成，无活动信号时熄灯。多个任务同时运行时，按“需要回应 → 执行中 → 已完成”的优先级显示。
-
-目前支持 Apple Silicon Mac、macOS 13 及以上，以及通过 USB 有线连接的 NuPhy Air65 V3 和 Air75 V3，一次连接一把受支持键盘。你可以分别设置三种信号的颜色、亮度、慢闪和显示开关，将完成提示设为 1–60 秒，并在 App 中预览实际灯光。支持简体中文与英文，无需 Keyphore 账户，不自动上传遥测或诊断。具体型号与连接限制见下方 [Compatibility](#compatibility)，源码采用 [GPL v3](#license) 许可。
 
 [Get started](#get-started) · [Compatibility](#compatibility) · [Build from source](#build-from-source) · [GPL v3](#license)
 
