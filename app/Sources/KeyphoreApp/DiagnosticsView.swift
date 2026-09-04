@@ -71,6 +71,7 @@ extension MenuState {
 extension KeyboardHealth {
     var copyKey: AppCopyKey {
         switch self {
+        case .unverified: .keyboardUnverified
         case .disconnected: .keyboardDisconnected
         case .unavailable: .keyboardUnavailable
         case .ambiguous: .keyboardAmbiguous

@@ -201,6 +201,17 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
         language: AppLanguage
     ) -> KeyboardDiagnosis {
         switch health {
+        case .unverified(let interfaces):
+            KeyboardDiagnosis(
+                keyboard: DiagnosticField(
+                    id: .keyboard,
+                    label: AppCopy.value(.diagnosticFieldKeyboard, language: language),
+                    value: interfaces.map(\.diagnosticDescription).joined(separator: "\n"),
+                    action: AppCopy.value(.keyboardUnverifiedDetail, language: language)
+                ),
+                protocolReadback: field(.protocolReadback, value: .keyboardUnverified, language: language),
+                issue: .keyboardUnverified
+            )
         case .disconnected:
             KeyboardDiagnosis(
                 keyboard: field(

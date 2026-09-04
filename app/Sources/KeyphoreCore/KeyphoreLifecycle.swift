@@ -2,6 +2,7 @@ import Foundation
 
 public enum KeyboardHealth: Equatable, Sendable {
     case disconnected
+    case unverified([UnverifiedKeyboardInterface])
     case unavailable
     case ambiguous
     case connected(protocolHealthy: Bool)

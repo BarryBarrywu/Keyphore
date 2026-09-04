@@ -16,6 +16,8 @@ public final class KeyboardHealthStore: @unchecked Sendable {
         )
         let record: Record
         switch health {
+        case .unverified(let interfaces):
+            record = Record(status: .unverified, protocolHealthy: false, observedAt: timestamp, interfaces: interfaces)
         case .disconnected:
             record = Record(status: .disconnected, protocolHealthy: false, observedAt: timestamp)
         case .unavailable:
@@ -53,6 +55,9 @@ public final class KeyboardHealthStore: @unchecked Sendable {
             return nil
         }
         switch record.status {
+        case .unverified:
+            guard let interfaces = record.interfaces, !interfaces.isEmpty else { return nil }
+            return .unverified(interfaces)
         case .disconnected:
             return .disconnected
         case .unavailable:
@@ -67,6 +72,7 @@ public final class KeyboardHealthStore: @unchecked Sendable {
     private struct Record: Codable {
         enum Status: String, Codable {
             case disconnected
+            case unverified
             case unavailable
             case ambiguous
             case connected
@@ -75,5 +81,6 @@ public final class KeyboardHealthStore: @unchecked Sendable {
         let status: Status
         let protocolHealthy: Bool
         let observedAt: StatusTimestamp
+        var interfaces: [UnverifiedKeyboardInterface]? = nil
     }
 }

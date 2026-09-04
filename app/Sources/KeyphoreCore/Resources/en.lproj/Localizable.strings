@@ -184,3 +184,13 @@
 "status.usb_connected" = "USB Connected";
 "status.waiting_for_usb" = "Waiting for USB";
 "preview.button_title" = "Preview Lighting";
+
+"keyboard.unverified" = "Recognized · lighting unverified";
+"keyboard.unverified_detail" = "Lighting control is not enabled for this keyboard. Export diagnostics to help verify support.";
+"keyboard.air75_ansi_illustration" = "Air75 V3 ANSI keyboard illustration";
+"keyboard.kick75_ansi_illustration" = "Kick75 IO ANSI keyboard illustration";
+"candidate.catalog" = "Candidate keyboards and layouts";
+"candidate.catalog_detail" = "These models can be recognized, but lighting control still needs hardware validation. Selecting a model only changes the illustration.";
+"candidate.model" = "Model";
+"candidate.illustration" = "Keyboard illustration";
+"candidate.multiple" = "Candidate keyboards detected";

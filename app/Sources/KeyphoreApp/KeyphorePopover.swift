@@ -56,18 +56,34 @@ struct KeyphorePopover: View {
                 .padding(.bottom, 22)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: presentation.signal)
 
-                TimelineView(.animation(minimumInterval: 0.2, paused: !animatesSignal)) { context in
-                    Air65KeyboardView(
-                        presentation: presentation,
-                        isPatternLit: !animatesSignal || Int(context.date.timeIntervalSince1970) % 2 == 0
-                    )
-                }
+                if !candidateModels.isEmpty {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            ForEach(candidateModels, id: \.self) { model in
+                                if candidateModels.count > 1 {
+                                    Text(model.rawValue).font(.caption).foregroundStyle(.secondary)
+                                }
+                                CandidateKeyboardIllustration(model: model)
+                            }
+                        }
+                    }
+                    .frame(height: candidateModels.count == 1
+                           ? 344 / CandidateKeyboardIllustration(model: candidateModels[0]).aspectRatio : 280)
+                    .padding(.bottom, 18)
+                } else {
+                    TimelineView(.animation(minimumInterval: 0.2, paused: !animatesSignal)) { context in
+                        Air65KeyboardView(
+                            presentation: presentation,
+                            isPatternLit: !animatesSignal || Int(context.date.timeIntervalSince1970) % 2 == 0
+                        )
+                    }
                     .frame(width: 344, height: 344 * 160 / 416)
                     .padding(.bottom, 18)
+                }
 
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(AppCopy.value(.deviceName)).font(.system(size: 12, weight: .medium))
+                        Text(hasUnverifiedKeyboard ? statusTitle : AppCopy.value(.deviceName)).font(.system(size: 12, weight: .medium))
                         HStack(spacing: 5) {
                             Circle().fill(state.menuState == .ready ? Color.green : .secondary)
                                 .frame(width: 4, height: 4)
@@ -108,7 +124,21 @@ struct KeyphorePopover: View {
         .onAppear(perform: state.refresh)
     }
 
+    private var candidateModels: [CandidateKeyboardModel] {
+        guard case .unverified(let interfaces) = state.snapshot.keyboardHealth else { return [] }
+        return Array(Set(interfaces.compactMap(\.model))).sorted { $0.rawValue < $1.rawValue }
+    }
+
+    private var hasUnverifiedKeyboard: Bool {
+        if case .unverified = state.snapshot.keyboardHealth { return true }
+        return false
+    }
+
     private var statusTitle: String {
+        if candidateModels.count > 1 { return AppCopy.value(.candidateMultiple) }
+        if case .unverified(let interfaces) = state.snapshot.keyboardHealth {
+            return Array(Set(interfaces.map { $0.model?.rawValue ?? $0.product })).sorted().joined(separator: ", ")
+        }
         if state.menuState != .ready { return AppCopy.value(state.snapshot.keyboardHealth.copyKey) }
         if presentation.isPreviewing { return AppCopy.value(.previewRunningShort) }
         switch presentation.signal {
@@ -128,6 +158,7 @@ struct KeyphorePopover: View {
     }
 
     private var statusDetail: String {
+        if case .unverified = state.snapshot.keyboardHealth { return AppCopy.value(.keyboardUnverifiedDetail) }
         if state.menuState != .ready { return AppCopy.value(.previewUnavailable) }
         if presentation.isPreviewing {
             return AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey)

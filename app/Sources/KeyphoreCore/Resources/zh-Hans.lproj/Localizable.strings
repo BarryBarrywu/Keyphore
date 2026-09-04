@@ -184,3 +184,13 @@
 "status.usb_connected" = "USB 已连接";
 "status.waiting_for_usb" = "等待 USB 连接";
 "preview.button_title" = "预览灯效";
+
+"keyboard.unverified" = "已识别 · 灯光控制尚未验证";
+"keyboard.unverified_detail" = "此键盘尚未开放灯光控制，可导出诊断信息协助适配。";
+"keyboard.air75_ansi_illustration" = "Air75 V3 ANSI 键盘示意图";
+"keyboard.kick75_ansi_illustration" = "Kick75 IO ANSI 键盘示意图";
+"candidate.catalog" = "候选型号与外观";
+"candidate.catalog_detail" = "以下型号已加入识别目录，灯光控制仍需实机验证。选择型号仅切换示意图。";
+"candidate.model" = "型号";
+"candidate.illustration" = "键盘示意图";
+"candidate.multiple" = "识别到多款候选键盘";

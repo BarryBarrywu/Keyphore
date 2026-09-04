@@ -66,11 +66,18 @@ struct SignalSettingsView: View {
         }
     }
 
+    private var connectedDeviceName: String {
+        if case .unverified(let interfaces) = state.snapshot.keyboardHealth {
+            return Array(Set(interfaces.map { $0.model?.rawValue ?? $0.product })).sorted().joined(separator: ", ")
+        }
+        return AppCopy.value(.deviceName)
+    }
+
     private var device: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(AppCopy.value(.deviceName)).font(.system(size: 14, weight: .semibold))
+                    Text(connectedDeviceName).font(.system(size: 14, weight: .semibold))
                     Text(AppCopy.value(state.menuState == .ready ? .statusUSBConnected : state.snapshot.keyboardHealth.copyKey))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
@@ -83,6 +90,8 @@ struct SignalSettingsView: View {
                     }.font(.system(size: 12)).padding(.vertical, 8)
                 }.buttonStyle(.borderless)
             }.padding(.vertical, 14)
+            Divider()
+            CandidateKeyboardCatalogView()
             if showDiagnostics {
                 Divider()
                 DiagnosticsView(state: state).padding(.vertical, 14)

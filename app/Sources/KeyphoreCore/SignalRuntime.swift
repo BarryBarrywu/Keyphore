@@ -742,6 +742,8 @@ public final class KeyphoreCompanion {
     private static func health(for error: Error) -> KeyboardHealth {
         if let selectionError = error as? Air65DeviceSelectionError {
             switch selectionError {
+            case .unverified(let interfaces):
+                return .unverified(interfaces)
             case .notFound:
                 return .disconnected
             case .ambiguous:

@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class TransportLifecycleAcceptanceTests: XCTestCase {
+    func testUnverifiedKeyboardSurvivesCompanionHealthAndDiagnosticsWithoutBecomingReady() throws {
+        let fixture = try TransportFixture()
+        let interfaces = [UnverifiedKeyboardInterface(HIDDeviceDescriptor(
+            id: "private-registry-id", vendorID: 0x19f5, productID: 0x1028,
+            product: "Air75 V3", bus: .usb, interfaceNumber: 3, usagePage: 1, usage: 0
+        ))]
+        let companion = KeyphoreCompanion(
+            store: fixture.statusStore, profile: .default,
+            lighting: FailingLightingBoundary(error: Air65DeviceSelectionError.unverified(interfaces)),
+            keyboardHealthStore: fixture.healthStore
+        )
+        XCTAssertThrowsError(try companion.sync(at: .milliseconds(100)))
+        let health = fixture.healthStore.loadDiagnosticHealth(at: .milliseconds(100))
+        XCTAssertEqual(health, .unverified(interfaces))
+        let lifecycle = KeyphoreLifecycle(
+            health: PersistedHealthProvider(store: fixture.healthStore, now: .milliseconds(100)),
+            profiles: FixedTransportProfileProvider(), durableStatus: FixedTransportStatusProvider(),
+            lighting: RecordingTransportMenuLighting(), runtime: EmptyTransportRuntime()
+        )
+        XCTAssertEqual(lifecycle.refresh().menuState, .configured)
+        for language in [AppLanguage.english, .simplifiedChinese] {
+            let report = DiagnosticReport(snapshot: DiagnosticSnapshot(
+                appVersion: "test", macOSVersion: "test", codexHosts: nil,
+                integration: nil, keyboard: health
+            ), language: language)
+            let encoded = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
+            XCTAssertTrue(encoded.contains("19f5:1028"))
+            XCTAssertTrue(encoded.contains("Air75 V3"))
+            XCTAssertFalse(encoded.contains("private-registry-id"))
+            XCTAssertEqual(report.fields.first { $0.id == .protocolReadback }?.value,
+                           AppCopy.value(.keyboardUnverified, language: language))
+        }
+        XCTAssertEqual(fixture.healthStore.loadDiagnosticHealth(at: .milliseconds(4000)), .unavailable)
+    }
+
     func testConfiguredBecomesReadyOnlyAfterCompanionProtocolReadback() throws {
         let fixture = try TransportFixture()
         let lighting = VerifiedLightingBoundary()

@@ -100,7 +100,13 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
     func testNeverOpensOrWritesAnUnsupportedOrAmbiguousDevice() {
         var bluetooth = air65()
         bluetooth.bus = .bluetooth
-        for devices in [[], [bluetooth], [air65(), air65()]] {
+        var air75 = air65()
+        air75.productID = 0x1028
+        air75.product = "Air75 V3"
+        var kick75 = air65()
+        kick75.productID = 0x1026
+        kick75.product = "Kick75"
+        for devices in [[], [bluetooth], [air75], [kick75], [air75, kick75], [air65(), air65()]] {
             let transport = FakeReportTransport(responses: [])
             let discovery = FakeDiscovery(devices: devices, transport: transport)
             let adapter = NuPhyIOAdapter(discovery: discovery)
@@ -108,6 +114,20 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
             XCTAssertThrowsError(try adapter.applyAndVerify(.off))
             XCTAssertEqual(discovery.openCount, 0)
             XCTAssertTrue(transport.sent.isEmpty)
+        }
+    }
+
+    func testEveryCatalogCandidateRefusesHIDOpenAndLightingWrites() {
+        for model in CandidateKeyboardModel.allCases {
+            var descriptor = air65()
+            descriptor.productID = model.definition.productID
+            descriptor.product = model.rawValue
+            let transport = FakeReportTransport(responses: [])
+            let discovery = FakeDiscovery(devices: [descriptor], transport: transport)
+            let adapter = NuPhyIOAdapter(discovery: discovery)
+            XCTAssertThrowsError(try adapter.applyAndVerify(.off), model.rawValue)
+            XCTAssertEqual(discovery.openCount, 0, model.rawValue)
+            XCTAssertTrue(transport.sent.isEmpty, model.rawValue)
         }
     }
 
