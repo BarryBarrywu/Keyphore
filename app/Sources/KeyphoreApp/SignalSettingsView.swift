@@ -156,6 +156,7 @@ struct SignalSettingsView: View {
                             .font(.system(size: 12, weight: editingSignal == signal ? .semibold : .regular))
                             .foregroundStyle(editingSignal == signal ? Color.primary : .secondary)
                             .frame(maxWidth: .infinity).frame(height: 30)
+                            .contentShape(Rectangle())
                             .background(Color.primary.opacity(editingSignal == signal ? 0.075 : 0),
                                         in: RoundedRectangle(cornerRadius: 6))
                     }.buttonStyle(.plain)
@@ -248,6 +249,7 @@ struct SignalSettingsView: View {
                             Text(AppCopy.value(choice.copyKey))
                                 .font(.system(size: 12, weight: selected ? .medium : .regular))
                                 .frame(maxWidth: .infinity).frame(height: 26)
+                                .contentShape(Rectangle())
                                 .background {
                                     if selected {
                                         RoundedRectangle(cornerRadius: 5)

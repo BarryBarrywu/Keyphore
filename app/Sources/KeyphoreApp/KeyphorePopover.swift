@@ -167,6 +167,7 @@ struct KeyphorePopover: View {
             } label: {
                 Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
                     .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
             }.accessibilityLabel(AppCopy.value(.settings)).help(AppCopy.value(.settings))
         }
     }
@@ -219,6 +220,7 @@ private struct ForegroundSettingsButton: View {
         } label: {
             Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
                 .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel(title).help(title)
     }

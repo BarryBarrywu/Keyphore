@@ -23,6 +23,7 @@ struct InteractiveColorStyle: ButtonStyle {
     @State private var hovered = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .contentShape(Circle())
             .background(Color.primary.opacity(hovered ? 0.06 : 0), in: Circle())
             .opacity(configuration.isPressed ? 0.65 : 1)
             .onHover { hovered = $0 }
