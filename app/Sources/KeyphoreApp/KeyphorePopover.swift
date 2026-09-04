@@ -35,7 +35,12 @@ struct KeyphorePopover: View {
                 settingsButton.buttonStyle(.plain).foregroundStyle(.secondary)
             }.padding(.bottom, 16)
 
-            if state.menuState == .configurationRequired {
+            if state.isStarting {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text(AppCopy.value(.startupProgress))
+                }.padding(.vertical, 20)
+            } else if state.menuState == .configurationRequired {
                 GuidedSetupView(state: state)
             } else {
                 VStack(alignment: .leading, spacing: 7) {
@@ -46,7 +51,6 @@ struct KeyphorePopover: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: 62, alignment: .top)
                 .padding(.bottom, 22)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: presentation.signal)
 
                 if !candidateModels.isEmpty {
                     ScrollView {
@@ -156,21 +160,16 @@ struct KeyphorePopover: View {
         }
     }
 
-    @ViewBuilder private var settingsButton: some View {
-        if #available(macOS 14.0, *) {
-            ForegroundSettingsButton(title: AppCopy.value(.settings), foregroundWindowAction: foregroundWindowAction)
-        } else {
-            Button {
-                foregroundWindowAction.open {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }
-            } label: {
-                Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
-            }.accessibilityLabel(AppCopy.value(.settings)).help(AppCopy.value(.settings))
-        }
+    private var settingsButton: some View {
+        Button {
+            foregroundWindowAction.open { state.openSettings?() }
+        } label: {
+            Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }.accessibilityLabel(AppCopy.value(.settings)).help(AppCopy.value(.settings))
     }
+
 }
 
 struct SignalPreviewFeedback: View {
@@ -205,24 +204,6 @@ struct SignalPreviewFeedback: View {
                 }
             }
         }.font(.system(size: 12))
-    }
-}
-
-@available(macOS 14.0, *)
-private struct ForegroundSettingsButton: View {
-    @Environment(\.openSettings) private var openSettings
-    let title: String
-    let foregroundWindowAction: ForegroundWindowAction
-
-    var body: some View {
-        Button {
-            foregroundWindowAction.open { openSettings() }
-        } label: {
-            Image(systemName: "gearshape").font(.system(size: 14, weight: .medium))
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(title).help(title)
     }
 }
 

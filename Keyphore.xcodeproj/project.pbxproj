@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB0000000000000000000002 /* SignalColorWheel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB2DE5048FB25463A9E1D645 /* SignalColorWheel.swift */; };
+		AB0000000000000000000001 /* SignalSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BDDF4944884C170A0CF8D2 /* SignalSettingsView.swift */; };
 		0282DEA7495D3DFDE9D7BA27 /* KeyphoreAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F25FE58FB3629F85604D70E /* KeyphoreAppDelegate.swift */; };
 		0C467B042607403C3614692B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */; };
 		13E4E203B1BD283D25B9AD4C /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = C1DDCFEE9542DF769377C699 /* KeyphoreCore */; };
@@ -438,6 +440,8 @@
 				E1C6A2FF576FE6A233D14037 /* ForegroundWindowAction.swift in Sources */,
 				5A8B6135118149895EAC94E7 /* ForegroundWindowActionTests.swift in Sources */,
 				0282DEA7495D3DFDE9D7BA27 /* KeyphoreAppDelegate.swift in Sources */,
+				AB0000000000000000000002 /* SignalColorWheel.swift in Sources */,
+				AB0000000000000000000001 /* SignalSettingsView.swift in Sources */,
 				E9023C4F1A9563D1F7618D04 /* KeyphoreAppState.swift in Sources */,
 				5412E8A38900F07EB064716B /* KeyphorePopover.swift in Sources */,
 				F51848C6801D298DC8909C48 /* LegacyMigrationSystemAcceptanceTests.swift in Sources */,

@@ -3,6 +3,11 @@ import KeyphoreCore
 
 @MainActor
 final class KeyphoreAppState: ObservableObject {
+    @Published var selectedSettingsTab: SettingsTab = .lights
+    var openSettings: (() -> Void)?
+    @Published private(set) var isStarting = false
+    private var startupTask: Task<Void, Never>?
+    private var inspectionIsRunning = false
     @Published private(set) var snapshot: LifecycleSnapshot
     @Published private(set) var setupSnapshot: GuidedSetupSnapshot
     @Published private(set) var setupFailed = false
@@ -49,6 +54,8 @@ final class KeyphoreAppState: ObservableObject {
         updateRuntime: (any KeyphoreRuntimeManaging)? = nil,
         diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)? = nil,
         diagnosticLanguage: AppLanguage = .english,
+        deferSystemStartup: Bool = false,
+        startupInspection: @escaping @Sendable () throws -> SystemStartupInspection = SystemStartupInspection.run,
         preferencesStore: AppPreferencesStore = AppPreferencesStore()
     ) {
         self.lifecycle = lifecycle
@@ -90,16 +97,36 @@ final class KeyphoreAppState: ObservableObject {
                 previewStateFailed = true
             }
         }
-        if let guidedSetup, let inspected = try? guidedSetup.inspect() {
+        if !deferSystemStartup, let guidedSetup, let inspected = try? guidedSetup.inspect() {
             setupSnapshot = inspected
             systemHealth?.isConfigured = inspected.phase.isConfigured
             if inspected.phase.isConfigured {
                 loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
             }
         }
-        if let removal = try? managedRemoval?.inspect() {
+        if !deferSystemStartup, let removal = try? managedRemoval?.inspect() {
             removalSnapshot = removal
             removalIsPresented = removal.status == .repairRequired
+        }
+        if deferSystemStartup {
+            isStarting = true
+            startupTask = Task { [weak self] in
+                let result = await Task.detached(priority: .userInitiated) {
+                    Result { try startupInspection() }
+                }.value
+                guard let self else { return }
+                switch result {
+                case .success(let result):
+                    self.apply(result.setup)
+                    self.loginLaunchEnabled = result.loginLaunchEnabled
+                    self.removalSnapshot = result.removal
+                    self.removalIsPresented = result.removal.status == .repairRequired
+                case .failure:
+                    self.setupFailed = true
+                }
+                self.snapshot = self.lifecycle.refresh()
+                self.isStarting = false
+            }
         }
         durableStatusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
             [weak self] _ in
@@ -127,8 +154,7 @@ final class KeyphoreAppState: ObservableObject {
             guidedSetup = services.setup
             runtime = services.runtime ?? FixtureRuntimeAdapter()
             managedRemoval = services.removal
-            let configured = guidedSetup.flatMap { try? $0.inspect() }?.phase.isConfigured ?? false
-            let adapter = SystemKeyphoreHealthAdapter(isConfigured: configured)
+            let adapter = SystemKeyphoreHealthAdapter(isConfigured: false)
             systemHealth = adapter
             health = adapter
             let storedProfile = LocalProfileStore(url: KeyphoreRuntimePaths.localProfileURL())
@@ -180,10 +206,6 @@ final class KeyphoreAppState: ObservableObject {
             lighting: FixtureLightingAdapter(),
             runtime: runtime
         )
-        if environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil {
-            _ = try? lifecycle.reopenIfNeeded()
-            _ = try? guidedSetup?.repairTrustedInstallationIfNeeded()
-        }
         self.init(
             lifecycle: lifecycle,
             guidedSetup: guidedSetup,
@@ -194,7 +216,8 @@ final class KeyphoreAppState: ObservableObject {
             managedRemoval: managedRemoval,
             updateRuntime: runtime,
             diagnosticSnapshotProvider: diagnosticSnapshotProvider,
-            diagnosticLanguage: Self.appLanguage()
+            diagnosticLanguage: Self.appLanguage(),
+            deferSystemStartup: environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil
         )
     }
 
@@ -263,6 +286,10 @@ final class KeyphoreAppState: ObservableObject {
             }
             setupIsWorking = false
         }
+    }
+
+    func waitForStartup() async {
+        await startupTask?.value
     }
 
     func prepareToQuit() -> Bool {
@@ -424,6 +451,7 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     private func refreshDurableStatus() {
+        guard !isStarting else { return }
         if setupSnapshot.phase.isConfigured {
             refreshSetupSnapshot()
         }
@@ -432,8 +460,15 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     private func refreshSetupSnapshot() {
-        guard let guidedSetup, let inspected = try? guidedSetup.inspect() else { return }
-        apply(inspected)
+        guard !isStarting, !inspectionIsRunning, !setupIsWorking, !removalIsWorking,
+              let guidedSetup else { return }
+        inspectionIsRunning = true
+        Task { [weak self] in
+            let inspected = await Task.detached { try? guidedSetup.inspect() }.value
+            guard let self else { return }
+            if !self.setupIsWorking, !self.removalIsWorking, let inspected { self.apply(inspected) }
+            self.inspectionIsRunning = false
+        }
     }
 
     private func apply(_ inspected: GuidedSetupSnapshot) {

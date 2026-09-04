@@ -221,3 +221,7 @@
 "about.version" = "Version %@ (%@)";
 "about.website" = "Project website";
 "about.more_apps" = "Discover more apps";
+
+"startup.progress" = "Initializing Keyphore…";
+
+"menu.about" = "About Keyphore";

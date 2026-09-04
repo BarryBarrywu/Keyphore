@@ -5,6 +5,65 @@ import KeyphoreCore
 
 @MainActor
 final class AppLifecycleAcceptanceTests: XCTestCase {
+    func testStatusMenuOpensAboutInSharedSettingsSelection() {
+        let state = KeyphoreAppState(environment: ["KEYPHORE_ACCEPTANCE_FIXTURE": "ready"])
+        let delegate = KeyphoreAppDelegate(state: state)
+        let menu = NSMenu()
+        delegate.menuNeedsUpdate(menu)
+        XCTAssertEqual(menu.items.map(\.title), [
+            AppCopy.value(.settings) + "…", AppCopy.value(.aboutMenu), "", AppCopy.value(.quit)
+        ])
+        XCTAssertTrue(menu.items[2].isSeparatorItem)
+        XCTAssertTrue(NSApp.sendAction(menu.items[1].action!, to: menu.items[1].target, from: menu.items[1]))
+        XCTAssertEqual(state.selectedSettingsTab, .about)
+        XCTAssertTrue(NSApp.sendAction(menu.items[0].action!, to: menu.items[0].target, from: menu.items[0]))
+        XCTAssertEqual(state.selectedSettingsTab, .about)
+        for window in NSApp.windows where window.title == AppCopy.value(.settings) { window.close() }
+    }
+
+    func testStartupPresentsLoadingWithoutBlockingTheMainActor() async {
+        let started = expectation(description: "Startup inspection began")
+        let gate = DispatchSemaphore(value: 0)
+        let state = KeyphoreAppState(
+            lifecycle: KeyphoreLifecycle(
+                health: AppHealth(), profiles: AppProfile(), durableStatus: AppDurableStatus(),
+                lighting: AppLighting(), runtime: AppRecordingRuntime()
+            ),
+            deferSystemStartup: true,
+            startupInspection: {
+                started.fulfill()
+                gate.wait()
+                return SystemStartupInspection(
+                    setup: GuidedSetupSnapshot(phase: .configured, detectedHosts: [.desktopApp],
+                                               hooks: HookDefinition.reviewedRelease),
+                    removal: ManagedRemovalSnapshot(status: .reviewRequired), loginLaunchEnabled: false
+                )
+            }
+        )
+        XCTAssertTrue(state.isStarting)
+        await fulfillment(of: [started], timeout: 3)
+        XCTAssertTrue(state.isStarting)
+        gate.signal()
+        await state.waitForStartup()
+        XCTAssertFalse(state.isStarting)
+        XCTAssertEqual(state.setupSnapshot.phase, .configured)
+        XCTAssertFalse(state.loginLaunchEnabled)
+    }
+
+    func testStartupFailureLeavesLoadingAndReportsFailure() async {
+        let state = KeyphoreAppState(
+            lifecycle: KeyphoreLifecycle(
+                health: AppHealth(), profiles: AppProfile(), durableStatus: AppDurableStatus(),
+                lighting: AppLighting(), runtime: AppRecordingRuntime()
+            ),
+            deferSystemStartup: true,
+            startupInspection: { throw CocoaError(.fileReadUnknown) }
+        )
+        await state.waitForStartup()
+        XCTAssertFalse(state.isStarting)
+        XCTAssertTrue(state.setupFailed)
+    }
+
     func testFinishedVisualConfirmationDoesNotExpandTheMainPanel() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

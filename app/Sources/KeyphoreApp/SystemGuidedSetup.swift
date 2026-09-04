@@ -1331,3 +1331,27 @@ final class MissingHostIntegration: GuidedSetupIntegrating {
         throw GuidedSetupError.codexHostMissing
     }
 }
+
+struct SystemStartupInspection: Sendable {
+    let setup: GuidedSetupSnapshot
+    let removal: ManagedRemovalSnapshot
+    let loginLaunchEnabled: Bool
+
+    static func run() throws -> Self {
+        let detector = SystemCodexHostDetector()
+        let integration = SystemGuidedSetupIntegration(detector: detector)
+        let setup = GuidedSetup(hosts: detector, integration: integration, keyboard: SetupKeyboardAdapter())
+        if integration.isQuitGateActive {
+            try integration.clearManagedRuntimeState()
+            if try integration.enableOwnedHooksIfTrusted() {
+                try integration.startCompanion()
+                try integration.requestSignalOff()
+                try integration.clearQuitGate()
+            }
+        }
+        _ = try setup.repairTrustedInstallationIfNeeded()
+        return try Self(setup: setup.inspect(),
+                        removal: ManagedRemoval(integration: integration).inspect(),
+                        loginLaunchEnabled: integration.loginLaunchEnabled())
+    }
+}

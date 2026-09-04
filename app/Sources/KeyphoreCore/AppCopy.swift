@@ -6,6 +6,8 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
 }
 
 public enum AppCopyKey: String, CaseIterable, Sendable {
+    case aboutMenu = "menu.about"
+    case startupProgress = "startup.progress"
     case settingsTabLights = "settings.tab.lights"
     case settingsTabDevice = "settings.tab.device"
     case settingsTabAbout = "settings.tab.about"

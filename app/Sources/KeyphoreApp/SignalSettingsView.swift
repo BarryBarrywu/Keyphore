@@ -7,7 +7,6 @@ struct SignalSettingsView: View {
     let checkForUpdates: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
-    @State private var selectedTab: SettingsTab = .lights
     @State private var editingSignal: CodexSignal = .execution
     @State private var showColorWheel = false
 
@@ -15,13 +14,13 @@ struct SignalSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingsTabPicker(selection: $selectedTab)
+            SettingsTabPicker(selection: $state.selectedSettingsTab)
                 .frame(width: 320, height: 64)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 8).padding(.bottom, 12)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    switch selectedTab {
+                    switch state.selectedSettingsTab {
                     case .lights:
                         section(.settingsSignals) { signals }
                     case .device:
@@ -47,7 +46,8 @@ struct SignalSettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 28).padding(.bottom, 24)
             }
-            .id(selectedTab)
+            .disabled(state.isStarting)
+            .id(state.selectedSettingsTab)
             VStack(alignment: .leading, spacing: 6) { errors }
                 .font(.caption).padding(.horizontal, 28)
             HStack {
@@ -67,7 +67,7 @@ struct SignalSettingsView: View {
         .navigationTitle(AppCopy.value(.settings))
         .onAppear(perform: state.refresh)
         .onChange(of: editingSignal) { _ in showColorWheel = false }
-        .onChange(of: selectedTab) { _ in showColorWheel = false }
+        .onChange(of: state.selectedSettingsTab) { _ in showColorWheel = false }
         .sheet(isPresented: $state.removalIsPresented) { ManagedRemovalView(state: state) }
     }
 
@@ -183,8 +183,9 @@ struct SignalSettingsView: View {
                 Slider(value: Binding(
                     get: { Double(appearance.brightness.percent) },
                     set: { if let value = SignalBrightness(percent: UInt8($0.rounded())) { update(brightness: value) } }
-                ), in: 1...100, step: 1)
+                ), in: 1...100)
                     .frame(width: 182).accessibilityLabel(AppCopy.value(.settingsBrightness))
+                    .accessibilityValue("\(appearance.brightness.percent)%")
                 Text("\(appearance.brightness.percent)%").monospacedDigit().foregroundStyle(.secondary)
                     .frame(width: 44, alignment: .trailing)
             }
@@ -367,7 +368,7 @@ private struct SettingsTabButtonStyle: ButtonStyle {
     }
 }
 
-private enum SettingsTab: CaseIterable {
+enum SettingsTab: CaseIterable {
     case lights, device, general, about
 
     var symbolName: String {

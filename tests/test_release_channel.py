@@ -16,6 +16,22 @@ loader.exec_module(release)
 
 
 class ReleaseChannelTests(unittest.TestCase):
+    def test_dmg_shows_only_app_and_applications_shortcut(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = root / 'Keyphore.app'
+            notices = app / 'Contents/Resources/Licenses'
+            notices.mkdir(parents=True)
+            (notices / 'LICENSE').write_text('license preserved inside app')
+            staging = root / 'contents'
+            release.prepare_dmg_contents(app, staging)
+            self.assertEqual({p.name for p in staging.iterdir() if not p.name.startswith('.')},
+                             {'Keyphore.app', 'Applications'})
+            self.assertEqual((staging / 'Applications').readlink(), Path('/Applications'))
+            self.assertTrue((staging / '.DS_Store').is_file())
+            self.assertEqual((staging / 'Keyphore.app/Contents/Resources/Licenses/LICENSE').read_text(),
+                             'license preserved inside app')
+
     def manifest(self):
         return dict(version='0.2.0', build='2', hook_digest='a' * 64,
                     source_commit='b' * 40, source_status='',

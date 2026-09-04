@@ -221,3 +221,7 @@
 "about.version" = "版本 %@（%@）";
 "about.website" = "项目主页";
 "about.more_apps" = "发现更多应用";
+
+"startup.progress" = "正在初始化 Keyphore…";
+
+"menu.about" = "关于 Keyphore";

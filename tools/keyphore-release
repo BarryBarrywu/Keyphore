@@ -176,6 +176,12 @@ def build(args):
         subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
     app = output / "Keyphore.app"
     run("ditto", args.build_root / "DerivedData/Build/Products/Release/Keyphore.app", app)
+    notices = app / "Contents/Resources/Licenses"
+    notices.mkdir(exist_ok=True)
+    for name, source in [("LICENSE", ROOT / "LICENSE"),
+                         ("NUPHYIO-NOTICE.txt", ROOT / "LICENSES/NUPHYIO-NOTICE.txt"),
+                         ("SPARKLE-NOTICE.txt", ROOT / "app/Sources/KeyphoreCore/Resources/SPARKLE-NOTICE.txt")]:
+        shutil.copy2(source, notices / name)
     sign_components(app)
     manifest["components"] = audit(app, manifest)
     manifest["hook_digest"] = run(app / "Contents/Helpers/keyphore", "release-hook-digest")
@@ -202,6 +208,13 @@ def notarize_file(path, profile, output):
     require(result.get("status") == "Accepted", "Apple did not accept " + path.name)
 
 
+def prepare_dmg_contents(app, staging):
+    staging.mkdir()
+    run("ditto", app, staging / app.name)
+    (staging / "Applications").symlink_to("/Applications", target_is_directory=True)
+    shutil.copy2(ROOT / "release/DMGLayout.dsstore", staging / ".DS_Store")
+
+
 def notarize(args, manifest):
     require(args.submit_to_apple, "Apple upload requires --submit-to-apple after explicit authorization")
     require_production_channel(manifest)
@@ -222,11 +235,7 @@ def notarize(args, manifest):
     if not dmg.exists():
         with tempfile.TemporaryDirectory(dir=args.build_root) as temporary:
             staging = Path(temporary) / "contents"
-            staging.mkdir()
-            run("ditto", app, staging / app.name)
-            shutil.copy2(ROOT / "release/Install.html", staging / "Install.html")
-            shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", staging / "NUPHYIO-NOTICE.txt")
-            shutil.copy2(ROOT / "LICENSE", staging / "LICENSE")
+            prepare_dmg_contents(app, staging)
             temporary_dmg = Path(temporary) / dmg.name
             run("hdiutil", "create", "-volname", "Keyphore", "-srcfolder", staging, "-format", "UDZO", temporary_dmg)
             run("codesign", "--sign", signing_identity(app), "--timestamp", temporary_dmg)
