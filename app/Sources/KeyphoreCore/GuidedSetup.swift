@@ -403,7 +403,7 @@ public final class GuidedSetup: @unchecked Sendable {
             )
         }
         let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
-            == .connected(protocolHealthy: true) ? .ready : .configured
+            .isProtocolHealthy ? .ready : .configured
         return GuidedSetupSnapshot(
             phase: phase,
             detectedHosts: detectedHosts,
@@ -455,7 +455,7 @@ public final class GuidedSetup: @unchecked Sendable {
         try integration.finishConfiguration()
         let completedMigrationStatus = try integration.inspectLegacyMigration()
         let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
-            == .connected(protocolHealthy: true) ? .ready : .configured
+            .isProtocolHealthy ? .ready : .configured
         return GuidedSetupSnapshot(
             phase: phase,
             detectedHosts: detectedHosts,
@@ -493,7 +493,7 @@ public final class GuidedSetup: @unchecked Sendable {
         }
         try integration.finishConfiguration()
         let phase: GuidedSetupPhase = keyboard.currentKeyboardHealth()
-            == .connected(protocolHealthy: true) ? .ready : .configured
+            .isProtocolHealthy ? .ready : .configured
         return GuidedSetupSnapshot(
             phase: phase,
             detectedHosts: detectedHosts,

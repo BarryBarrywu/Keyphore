@@ -45,16 +45,18 @@ public enum NuPhyIOAdapterError: Error, Equatable, Sendable {
     case invalidLightState
     case mainBacklightReadbackMismatch
     case rhythmLightChanged
+    case air75ReadbackMismatch(expected: [UInt8], actual: [UInt8])
 }
 
 public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingVerifying,
-    CompanionLightingRecovering, CompanionLightingEvidenceApplying
+    CompanionLightingRecovering, CompanionLightingEvidenceApplying, CompanionKeyboardIdentifying
 {
     public static let responseTimeout: TimeInterval = 1
 
     private let discovery: any Air65TransportDiscovering
     private let makeChallenge: () -> [UInt8]
     private var ownedTransport: (any Air65ReportTransport)?
+    public private(set) var connectedModel: SupportedKeyboardModel?
     private var discoveryNeedsReset = false
 
     public convenience init(discovery: any Air65TransportDiscovering) {
@@ -73,7 +75,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
         let expected = try mainState(for: behavior)
         do {
             let transport = try acquireTransport()
-            return try applyAndVerify(expected, using: transport)
+            return try applyAndVerify(expected, using: transport, writeBrightnessMirror: connectedModel != .air75V3)
         } catch {
             invalidateTransport()
             throw error
@@ -82,11 +84,15 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     private func applyAndVerify(
         _ expected: [UInt8],
-        using transport: any Air65ReportTransport
+        using transport: any Air65ReportTransport,
+        writeBrightnessMirror: Bool = true,
+        captureReadback: (([UInt8]) -> Void)? = nil,
+        trace: ((String, [UInt8]) -> Void)? = nil
     ) throws -> NuPhyIOEvidence {
         let challenge = makeChallenge()
         let key = try startTemporarySession(transport, challenge: challenge)
         let initial = try readLightState(transport, key: key)
+        trace?("before", initial)
 
         if !mainStateMatches(initial, expected: expected) {
             try exchange(
@@ -94,14 +100,25 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
                 request: .write(address: 0, payload: expected),
                 key: key
             )
-            try exchange(
-                transport,
-                request: .write(address: 1, payload: [expected[1]]),
-                key: key
-            )
+            if let trace {
+                trace("after-main-write", try readLightState(transport, key: key))
+            }
+            if writeBrightnessMirror {
+                try exchange(
+                    transport,
+                    request: .write(address: 1, payload: [expected[1]]),
+                    key: key
+                )
+            }
         }
 
         let verified = try readLightState(transport, key: key)
+        trace?("verified", verified)
+        if let trace {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            trace("after-250ms", try readLightState(transport, key: key))
+        }
+        captureReadback?(verified)
         guard mainStateMatches(verified, expected: expected) else {
             throw NuPhyIOAdapterError.mainBacklightReadbackMismatch
         }
@@ -123,6 +140,63 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
         _ = try applyAndVerify(behavior)
     }
 
+    public func inspectAir75MainAndSideState() throws -> [UInt8] {
+        let transport = try openAir75ForAcceptance()
+        let key = try startTemporarySession(transport, challenge: makeChallenge())
+        return try readLightState(transport, key: key)
+    }
+
+    public func previewAir75MainBacklight(
+        trace: ((String, [UInt8]) -> Void)? = nil,
+        onStep: (String) -> Void
+    ) throws {
+        let transport = try openAir75ForAcceptance()
+        let off: [UInt8] = [3, 0, 3, 0, 1, 0, 0, 0, 0]
+        let steps: [(String, [UInt8])] = [
+            ("blue", [3, 30, 3, 0, 1, 0, 0, 0, 255]),
+            ("orange", [3, 30, 3, 0, 1, 0, 255, 132, 0]),
+            ("green", [3, 30, 3, 0, 1, 0, 0, 255, 0]),
+            ("off", off),
+        ]
+        var lastExpected: [UInt8] = []
+        var lastReadback: [UInt8] = []
+        do {
+            var protectedState: [UInt8]?
+            for (name, expected) in steps {
+                lastExpected = expected
+                let evidence = try applyAndVerify(
+                    expected, using: transport,
+                    // Air75 scales RGB again when brightness is written separately.
+                    writeBrightnessMirror: false,
+                    captureReadback: { lastReadback = $0 }, trace: trace
+                )
+                if let protectedState, evidence.rhythmBefore != protectedState {
+                    throw NuPhyIOAdapterError.rhythmLightChanged
+                }
+                protectedState = evidence.rhythmAfter
+                onStep(name)
+            }
+        } catch {
+            _ = try? applyAndVerify(off, using: transport, writeBrightnessMirror: false)
+            if error as? NuPhyIOAdapterError == .mainBacklightReadbackMismatch {
+                throw NuPhyIOAdapterError.air75ReadbackMismatch(expected: lastExpected, actual: lastReadback)
+            }
+            throw error
+        }
+    }
+
+    private func openAir75ForAcceptance() throws -> any Air65ReportTransport {
+        let matches = try discovery.discover().filter {
+            $0.vendorID == 0x19f5 && $0.productID == 0x1028
+                && ["Air75 V3", "NuPhy Air75 V3"].contains($0.product)
+                && $0.bus == .usb && $0.interfaceNumber == 3
+                && $0.usagePage == 1 && $0.usage == 0
+        }
+        guard !matches.isEmpty else { throw Air65DeviceSelectionError.notFound }
+        guard matches.count == 1 else { throw Air65DeviceSelectionError.ambiguous }
+        return try discovery.open(matches[0])
+    }
+
     public func displays(_ behavior: LightingBehavior) throws -> Bool {
         let expected = try mainState(for: behavior)
         do {
@@ -139,6 +213,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     public func invalidateTransport() {
         ownedTransport = nil
+        connectedModel = nil
         discoveryNeedsReset = true
     }
 
@@ -153,6 +228,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
         let selected = try Air65DeviceSelector.select(from: discovery.discover())
         let transport = try discovery.open(selected)
         ownedTransport = transport
+        connectedModel = SupportedKeyboardModel.identify(selected)
         return transport
     }
 

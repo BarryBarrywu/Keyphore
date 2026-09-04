@@ -17,10 +17,10 @@
 "signal.hidden" = "This signal is hidden";
 "keyboard.illustration" = "Air65 V3 keyboard illustration";
 "preview.running_short" = "Previewing…";
-"keyboard.disconnected" = "Air65 V3 disconnected";
+"keyboard.disconnected" = "Air65 V3 / Air75 V3 disconnected";
 "keyboard.unavailable" = "Keyboard status unavailable";
-"keyboard.connected" = "Air65 V3 connected";
-"keyboard.ambiguous" = "Multiple Air65 V3 keyboards found. Leave only the target connected.";
+"keyboard.connected" = "Air65 V3 / Air75 V3 connected";
+"keyboard.ambiguous" = "Multiple Air65 V3 / Air75 V3 keyboards found. Leave only the target connected.";
 "keyboard.protocol_healthy" = "Lighting protocol healthy";
 "action.settings" = "Settings";
 "action.diagnostics" = "Diagnostics";
@@ -50,7 +50,7 @@
 "setup.error" = "Setup could not finish. Nothing outside Keyphore was changed. Try repair.";
 "setup.hooks_changed" = "The installed Hooks differ from this reviewed release. Keyphore kept them untrusted; run repair to reinstall and review them again.";
 "setup.configured" = "Keyphore is configured for this Mac user.";
-"setup.waiting_for_keyboard" = "Connect one Air65 V3 over wired USB to become Ready.";
+"setup.waiting_for_keyboard" = "Connect one Air65 V3 / Air75 V3 over wired USB to become Ready.";
 "setup.login_launch" = "Start Keyphore when I log in";
 "migration.title" = "Replace the legacy Keyphore installation";
 "migration.description" = "Keyphore found an earlier Plugin installation. Review the owned components below before replacing them. The old and current Companions will never control the keyboard at the same time.";
@@ -126,8 +126,8 @@
 "diagnostic.action.configure" = "Configure Keyphore.";
 "diagnostic.action.review_hooks" = "Review and allow Keyphore's Hooks.";
 "diagnostic.action.repair" = "Repair Keyphore setup.";
-"diagnostic.action.connect_keyboard" = "Connect one Air65 V3 over wired USB.";
-"diagnostic.action.one_keyboard" = "Leave only the target Air65 V3 connected over wired USB.";
+"diagnostic.action.connect_keyboard" = "Connect one Air65 V3 / Air75 V3 over wired USB.";
+"diagnostic.action.one_keyboard" = "Leave only the target Air65 V3 / Air75 V3 connected over wired USB.";
 "diagnostic.action.protocol" = "Reconnect the keyboard and run Signal preview.";
 "diagnostic.action.install_codex" = "Install the Codex desktop app or Codex CLI.";
 "diagnostic.privacy_notice" = "This report contains only the fields shown here. Keyphore never uploads it automatically; you choose where to save and whether to send the ZIP.";

@@ -34,6 +34,31 @@ case "companion":
     }
     let healthStore = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
     let lighting = NuPhyIOAdapter(discovery: SystemAir65TransportDiscovery())
+    if let acceptanceMode = arguments.dropFirst().first,
+        ["--inspect-air75", "--preview-air75", "--trace-air75"].contains(acceptanceMode) {
+        do {
+            try withExtendedLifetime(lease) {
+                if acceptanceMode == "--inspect-air75" {
+                    let bytes = try lighting.inspectAir75MainAndSideState()
+                    print(bytes.map { String(format: "%02x", $0) }.joined(separator: " "))
+                } else {
+                    let trace: ((String, [UInt8]) -> Void)? = acceptanceMode == "--trace-air75" ? { stage, bytes in
+                        print("Air75 \(stage): \(bytes.map { String(format: "%02x", $0) }.joined(separator: " "))")
+                    } : nil
+                    try lighting.previewAir75MainBacklight(trace: trace) { step in
+                        print("Air75 \(step): main readback matched; side state unchanged")
+                        if step != "off" {
+                            RunLoop.current.run(until: Date().addingTimeInterval(5))
+                        }
+                    }
+                }
+            }
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data("Air75 inspection failed: \(error)\n".utf8))
+            exit(1)
+        }
+    }
     let companion = KeyphoreCompanion(
         store: store,
         profileProvider: { try profileStore.load() },

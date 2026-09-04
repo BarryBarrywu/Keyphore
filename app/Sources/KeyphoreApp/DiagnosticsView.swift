@@ -75,7 +75,7 @@ extension KeyboardHealth {
         case .disconnected: .keyboardDisconnected
         case .unavailable: .keyboardUnavailable
         case .ambiguous: .keyboardAmbiguous
-        case .connected(let protocolHealthy):
+        case .connected(let protocolHealthy, _):
             protocolHealthy ? .protocolHealthy : .keyboardConnected
         }
     }

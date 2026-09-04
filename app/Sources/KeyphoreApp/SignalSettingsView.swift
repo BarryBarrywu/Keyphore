@@ -70,7 +70,7 @@ struct SignalSettingsView: View {
         if case .unverified(let interfaces) = state.snapshot.keyboardHealth {
             return Array(Set(interfaces.map { $0.model?.rawValue ?? $0.product })).sorted().joined(separator: ", ")
         }
-        return AppCopy.value(.deviceName)
+        return state.snapshot.keyboardHealth.model?.rawValue ?? AppCopy.value(.deviceName)
     }
 
     private var device: some View {

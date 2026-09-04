@@ -24,11 +24,11 @@ public final class KeyboardHealthStore: @unchecked Sendable {
             record = Record(status: .unavailable, protocolHealthy: false, observedAt: timestamp)
         case .ambiguous:
             record = Record(status: .ambiguous, protocolHealthy: false, observedAt: timestamp)
-        case .connected(let protocolHealthy):
+        case .connected(let protocolHealthy, let model):
             record = Record(
                 status: .connected,
                 protocolHealthy: protocolHealthy,
-                observedAt: timestamp
+                observedAt: timestamp, model: model
             )
         }
         let encoder = JSONEncoder()
@@ -65,7 +65,7 @@ public final class KeyboardHealthStore: @unchecked Sendable {
         case .ambiguous:
             return .ambiguous
         case .connected:
-            return .connected(protocolHealthy: record.protocolHealthy)
+            return .connected(protocolHealthy: record.protocolHealthy, model: record.model)
         }
     }
 
@@ -81,6 +81,7 @@ public final class KeyboardHealthStore: @unchecked Sendable {
         let status: Status
         let protocolHealthy: Bool
         let observedAt: StatusTimestamp
+        var model: SupportedKeyboardModel? = nil
         var interfaces: [UnverifiedKeyboardInterface]? = nil
     }
 }

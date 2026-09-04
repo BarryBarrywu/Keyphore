@@ -37,7 +37,7 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
         XCTAssertEqual(try report.field(.keyboard).value, "Ambiguous device")
         XCTAssertEqual(
             try report.field(.keyboard).action,
-            "Leave only the target Air65 V3 connected over wired USB."
+            "Leave only the target Air65 V3 / Air75 V3 connected over wired USB."
         )
         XCTAssertEqual(try report.field(.protocolReadback).value, "Not available")
         XCTAssertEqual(
@@ -189,7 +189,7 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
         let keyboard = try XCTUnwrap(fields.first { $0["id"] as? String == "keyboard" })
         let hook = try XCTUnwrap(fields.first { $0["id"] as? String == "hook" })
         XCTAssertEqual(keyboard["value"] as? String, "未连接")
-        XCTAssertEqual(keyboard["action"] as? String, "请通过有线 USB 连接一把 Air65 V3。")
+        XCTAssertEqual(keyboard["action"] as? String, "请通过有线 USB 连接一把 Air65 V3 / Air75 V3。")
         XCTAssertEqual(hook["value"] as? String, "未安装")
         XCTAssertEqual(hook["action"] as? String, "请配置 Keyphore。")
     }

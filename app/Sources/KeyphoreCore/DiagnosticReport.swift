@@ -257,9 +257,9 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
                 ),
                 issue: .diagnosticIssueAmbiguous
             )
-        case .connected(protocolHealthy: true):
+        case .connected(protocolHealthy: true, model: let model):
             KeyboardDiagnosis(
-                keyboard: field(.keyboard, value: .diagnosticConnected, language: language),
+                keyboard: DiagnosticField(id: .keyboard, label: AppCopy.value(.diagnosticFieldKeyboard, language: language), value: [model?.rawValue, AppCopy.value(.diagnosticConnected, language: language)].compactMap { $0 }.joined(separator: " · ")),
                 protocolReadback: field(
                     .protocolReadback,
                     value: .diagnosticHealthy,
@@ -267,9 +267,9 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
                 ),
                 issue: nil
             )
-        case .connected(protocolHealthy: false):
+        case .connected(protocolHealthy: false, model: let model):
             KeyboardDiagnosis(
-                keyboard: field(.keyboard, value: .diagnosticConnected, language: language),
+                keyboard: DiagnosticField(id: .keyboard, label: AppCopy.value(.diagnosticFieldKeyboard, language: language), value: [model?.rawValue, AppCopy.value(.diagnosticConnected, language: language)].compactMap { $0 }.joined(separator: " · ")),
                 protocolReadback: field(
                     .protocolReadback,
                     value: .diagnosticFailed,

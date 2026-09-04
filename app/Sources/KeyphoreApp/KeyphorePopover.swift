@@ -74,16 +74,17 @@ struct KeyphorePopover: View {
                     TimelineView(.animation(minimumInterval: 0.2, paused: !animatesSignal)) { context in
                         Air65KeyboardView(
                             presentation: presentation,
-                            isPatternLit: !animatesSignal || Int(context.date.timeIntervalSince1970) % 2 == 0
+                            isPatternLit: !animatesSignal || Int(context.date.timeIntervalSince1970) % 2 == 0,
+                            layout: state.snapshot.keyboardHealth.model == .air75V3 ? .air75ANSI : .air65
                         )
                     }
-                    .frame(width: 344, height: 344 * 160 / 416)
+                    .frame(width: 344, height: 344 * (state.snapshot.keyboardHealth.model == .air75V3 ? 186 : 160) / 416)
                     .padding(.bottom, 18)
                 }
 
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(hasUnverifiedKeyboard ? statusTitle : AppCopy.value(.deviceName)).font(.system(size: 12, weight: .medium))
+                        Text(hasUnverifiedKeyboard ? statusTitle : (state.snapshot.keyboardHealth.model?.rawValue ?? AppCopy.value(.deviceName))).font(.system(size: 12, weight: .medium))
                         HStack(spacing: 5) {
                             Circle().fill(state.menuState == .ready ? Color.green : .secondary)
                                 .frame(width: 4, height: 4)

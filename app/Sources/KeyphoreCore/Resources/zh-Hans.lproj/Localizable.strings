@@ -17,10 +17,10 @@
 "signal.hidden" = "此信号已隐藏";
 "keyboard.illustration" = "Air65 V3 键盘示意";
 "preview.running_short" = "正在预览…";
-"keyboard.disconnected" = "Air65 V3 未连接";
+"keyboard.disconnected" = "Air65 V3 / Air75 V3 未连接";
 "keyboard.unavailable" = "键盘状态暂不可用";
-"keyboard.connected" = "Air65 V3 已连接";
-"keyboard.ambiguous" = "检测到多把 Air65 V3，请只保留目标键盘连接。";
+"keyboard.connected" = "Air65 V3 / Air75 V3 已连接";
+"keyboard.ambiguous" = "检测到多把 Air65 V3 / Air75 V3，请只保留目标键盘连接。";
 "keyboard.protocol_healthy" = "灯光协议正常";
 "action.settings" = "设置";
 "action.diagnostics" = "诊断";
@@ -50,7 +50,7 @@
 "setup.error" = "设置未能完成，Keyphore 以外的内容未被修改。请尝试修复。";
 "setup.hooks_changed" = "已安装的 Hook 与本次审查版本不同。Keyphore 未信任它们；请运行修复并重新审查。";
 "setup.configured" = "Keyphore 已为当前 Mac 用户配置完成。";
-"setup.waiting_for_keyboard" = "通过有线 USB 连接一把 Air65 V3 后即可进入已就绪状态。";
+"setup.waiting_for_keyboard" = "通过有线 USB 连接一把 Air65 V3 / Air75 V3 后即可进入已就绪状态。";
 "setup.login_launch" = "登录 Mac 时启动 Keyphore";
 "migration.title" = "替换旧版 Keyphore 安装";
 "migration.description" = "Keyphore 检测到早期 Plugin 安装。替换前请审查下列归属组件；旧版与当前 Companion 绝不会同时控制键盘。";
@@ -126,8 +126,8 @@
 "diagnostic.action.configure" = "请配置 Keyphore。";
 "diagnostic.action.review_hooks" = "请审查并允许 Keyphore 的 Hook。";
 "diagnostic.action.repair" = "请修复 Keyphore 设置。";
-"diagnostic.action.connect_keyboard" = "请通过有线 USB 连接一把 Air65 V3。";
-"diagnostic.action.one_keyboard" = "请只保留目标 Air65 V3 通过有线 USB 连接。";
+"diagnostic.action.connect_keyboard" = "请通过有线 USB 连接一把 Air65 V3 / Air75 V3。";
+"diagnostic.action.one_keyboard" = "请只保留目标 Air65 V3 / Air75 V3 通过有线 USB 连接。";
 "diagnostic.action.protocol" = "请重新连接键盘并运行信号预览。";
 "diagnostic.action.install_codex" = "请安装 Codex 桌面 App 或 Codex CLI。";
 "diagnostic.privacy_notice" = "此报告只包含这里显示的字段。Keyphore 不会自动上传此报告；你可以自行选择保存位置，并决定是否发送 ZIP。";

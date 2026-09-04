@@ -124,34 +124,35 @@ public enum Air65DeviceSelector {
     public static let productID: UInt16 = 0x102b
 
     public static func select(from devices: [HIDDeviceDescriptor]) throws -> HIDDeviceDescriptor {
-        let matchingModel = devices.filter {
-            $0.vendorID == vendorID && $0.productID == productID
-        }
-        guard !matchingModel.isEmpty else {
-            let candidates = devices.filter {
-                CandidateKeyboardModel.identify(vendorID: $0.vendorID, productID: $0.productID, product: $0.product) != nil
-            }.map(UnverifiedKeyboardInterface.init).sorted {
-                $0.diagnosticDescription < $1.diagnosticDescription
-            }
-            if !candidates.isEmpty {
-                throw Air65DeviceSelectionError.unverified(candidates)
-            }
-            throw Air65DeviceSelectionError.notFound
-        }
-
-        let supported = matchingModel.filter {
-            $0.product == "Air65 V3"
-                && $0.bus == .usb
-                && $0.interfaceNumber == 3
-                && $0.usagePage == 0x0001
-                && $0.usage == 0x0000
-        }
-        guard !supported.isEmpty else {
+        let supported = devices.filter { SupportedKeyboardModel.identify($0) != nil }
+        if supported.count > 1 { throw Air65DeviceSelectionError.ambiguous }
+        if let device = supported.first { return device }
+        let candidates = devices.filter {
+            CandidateKeyboardModel.identify(vendorID: $0.vendorID, productID: $0.productID, product: $0.product) != nil
+        }.map(UnverifiedKeyboardInterface.init).sorted { $0.diagnosticDescription < $1.diagnosticDescription }
+        if !candidates.isEmpty { throw Air65DeviceSelectionError.unverified(candidates) }
+        if devices.contains(where: { $0.vendorID == vendorID && $0.productID == productID }) {
             throw Air65DeviceSelectionError.unsupported
         }
-        guard supported.count == 1 else {
-            throw Air65DeviceSelectionError.ambiguous
-        }
-        return supported[0]
+        throw Air65DeviceSelectionError.notFound
     }
+}
+
+public enum SupportedKeyboardModel: String, Codable, Sendable {
+    case air65V3 = "Air65 V3"
+    case air75V3 = "Air75 V3"
+
+    public static func identify(_ device: HIDDeviceDescriptor) -> Self? {
+        guard device.vendorID == 0x19f5, device.bus == .usb,
+              device.interfaceNumber == 3, device.usagePage == 1, device.usage == 0 else { return nil }
+        switch (device.productID, device.product) {
+        case (0x102b, "Air65 V3"): return .air65V3
+        case (0x1028, "Air75 V3"), (0x1028, "NuPhy Air75 V3"): return .air75V3
+        default: return nil
+        }
+    }
+}
+
+public protocol CompanionKeyboardIdentifying {
+    var connectedModel: SupportedKeyboardModel? { get }
 }

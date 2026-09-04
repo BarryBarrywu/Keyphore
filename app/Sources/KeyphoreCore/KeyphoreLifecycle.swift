@@ -5,7 +5,17 @@ public enum KeyboardHealth: Equatable, Sendable {
     case unverified([UnverifiedKeyboardInterface])
     case unavailable
     case ambiguous
-    case connected(protocolHealthy: Bool)
+    case connected(protocolHealthy: Bool, model: SupportedKeyboardModel? = nil)
+
+    public var isProtocolHealthy: Bool {
+        if case .connected(true, _) = self { return true }
+        return false
+    }
+
+    public var model: SupportedKeyboardModel? {
+        if case .connected(_, let model) = self { return model }
+        return nil
+    }
 }
 
 public struct KeyphoreHealth: Equatable, Sendable {
@@ -160,7 +170,7 @@ public final class KeyphoreLifecycle {
 
         if !currentHealth.isConfigured {
             menuState = .configurationRequired
-        } else if currentHealth.keyboard == .connected(protocolHealthy: true) {
+        } else if currentHealth.keyboard.isProtocolHealthy {
             menuState = .ready
         } else {
             menuState = .configured

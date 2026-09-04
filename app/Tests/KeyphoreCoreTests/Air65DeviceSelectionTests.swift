@@ -14,7 +14,7 @@ final class Air65DeviceSelectionTests: XCTestCase {
 
     func testRejectsMissingUnsupportedAndAmbiguousDevices() {
         var anotherModel = air65()
-        anotherModel.productID = 0x1028
+        anotherModel.productID = 0x1029
         anotherModel.product = "Air75 V3"
 
         var bluetooth = air65()
@@ -40,19 +40,24 @@ final class Air65DeviceSelectionTests: XCTestCase {
         }
     }
 
-    func testRecognizesBothAir75FirmwareNamesWithoutSelectingForControl() throws {
+    func testSelectsBothAir75FirmwareNamesAndRejectsMixedSupportedDevices() throws {
         for name in ["NuPhy Air75 V3", "Air75 V3"] {
             var device = air65()
             device.productID = 0x1028
             device.product = name
-            let expected = [UnverifiedKeyboardInterface(device)]
-            XCTAssertThrowsError(try Air65DeviceSelector.select(from: [device])) {
-                XCTAssertEqual($0 as? Air65DeviceSelectionError, .unverified(expected))
+            XCTAssertEqual(try Air65DeviceSelector.select(from: [device]), device)
+            XCTAssertThrowsError(try Air65DeviceSelector.select(from: [device, air65()])) {
+                XCTAssertEqual($0 as? Air65DeviceSelectionError, .ambiguous)
             }
-            XCTAssertEqual(try Air65DeviceSelector.select(from: [device, air65()]), air65())
-            device.vendorID = 0xffff
-            XCTAssertThrowsError(try Air65DeviceSelector.select(from: [device])) {
-                XCTAssertEqual($0 as? Air65DeviceSelectionError, .notFound)
+            for mutation in 0..<4 {
+                var unsupported = device
+                switch mutation {
+                case 0: unsupported.bus = .bluetooth
+                case 1: unsupported.interfaceNumber = 1
+                case 2: unsupported.usage = 6
+                default: unsupported.productID = 0x1029
+                }
+                XCTAssertThrowsError(try Air65DeviceSelector.select(from: [unsupported]))
             }
         }
     }

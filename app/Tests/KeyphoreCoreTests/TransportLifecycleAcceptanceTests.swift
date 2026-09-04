@@ -4,6 +4,33 @@ import XCTest
 
 @MainActor
 final class TransportLifecycleAcceptanceTests: XCTestCase {
+    func testAir75IdentitySurvivesCompanionHealthStoreAndDiagnostics() throws {
+        let fixture = try TransportFixture()
+        let lighting = VerifiedLightingBoundary()
+        lighting.connectedModel = .air75V3
+        let companion = KeyphoreCompanion(
+            store: fixture.statusStore, profile: .default, lighting: lighting,
+            keyboardHealthStore: fixture.healthStore
+        )
+        try companion.sync(at: .milliseconds(100))
+        let health = fixture.healthStore.loadDiagnosticHealth(at: .milliseconds(100))
+        XCTAssertEqual(health, .connected(protocolHealthy: true, model: .air75V3))
+        let lifecycle = KeyphoreLifecycle(
+            health: PersistedHealthProvider(store: fixture.healthStore, now: .milliseconds(100)),
+            profiles: FixedTransportProfileProvider(), durableStatus: FixedTransportStatusProvider(),
+            lighting: RecordingTransportMenuLighting(), runtime: EmptyTransportRuntime()
+        )
+        XCTAssertEqual(lifecycle.refresh().menuState, .ready)
+        let report = DiagnosticReport(snapshot: DiagnosticSnapshot(
+            appVersion: "test", macOSVersion: "test", codexHosts: nil, integration: nil, keyboard: health
+        ), language: .english)
+        XCTAssertTrue(report.fields.first { $0.id == .keyboard }!.value.contains("Air75 V3"))
+        try companion.transportInterrupted(at: .milliseconds(200))
+        XCTAssertEqual(fixture.healthStore.load(at: .milliseconds(200)), .disconnected)
+        try companion.healthCheck(at: .milliseconds(300))
+        XCTAssertEqual(fixture.healthStore.load(at: .milliseconds(300)), health)
+    }
+
     func testUnverifiedKeyboardSurvivesCompanionHealthAndDiagnosticsWithoutBecomingReady() throws {
         let fixture = try TransportFixture()
         let interfaces = [UnverifiedKeyboardInterface(HIDDeviceDescriptor(
@@ -225,7 +252,7 @@ final class TransportLifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(fixture.healthStore.load(at: .milliseconds(100)), .ambiguous)
         XCTAssertEqual(
             AppCopy.value(.keyboardAmbiguous, language: .english),
-            "Multiple Air65 V3 keyboards found. Leave only the target connected."
+            "Multiple Air65 V3 / Air75 V3 keyboards found. Leave only the target connected."
         )
     }
 
@@ -324,7 +351,8 @@ private final class EmptyTransportRuntime: KeyphoreRuntimeManaging {
     func clearQuitGate() {}
 }
 
-private final class VerifiedLightingBoundary: CompanionLightingApplying, CompanionLightingVerifying {
+private final class VerifiedLightingBoundary: CompanionLightingApplying, CompanionLightingVerifying, CompanionKeyboardIdentifying {
+    var connectedModel: SupportedKeyboardModel?
     private(set) var behaviors: [LightingBehavior] = []
     var displaysExpected = true
 

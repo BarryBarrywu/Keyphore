@@ -697,7 +697,7 @@ public final class KeyphoreCompanion {
             if behavior == .off {
                 try signalOffAcknowledgement?.acknowledge()
             }
-            try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
+            try keyboardHealthStore?.save(.connected(protocolHealthy: true, model: (lighting as? any CompanionKeyboardIdentifying)?.connectedModel), at: now)
         } catch {
             applied = nil
             try keyboardHealthStore?.save(Self.health(for: error), at: now)
@@ -714,13 +714,13 @@ public final class KeyphoreCompanion {
         do {
             if try lighting.displays(behavior) {
                 applied = behavior
-                try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
+                try keyboardHealthStore?.save(.connected(protocolHealthy: true, model: (lighting as? any CompanionKeyboardIdentifying)?.connectedModel), at: now)
                 return
             }
             applied = nil
             try self.lighting.apply(behavior)
             applied = behavior
-            try keyboardHealthStore?.save(.connected(protocolHealthy: true), at: now)
+            try keyboardHealthStore?.save(.connected(protocolHealthy: true, model: (lighting as? any CompanionKeyboardIdentifying)?.connectedModel), at: now)
         } catch {
             applied = nil
             try keyboardHealthStore?.save(Self.health(for: error), at: now)
