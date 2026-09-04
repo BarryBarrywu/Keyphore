@@ -1,0 +1,2 @@
+KEYPHORE_UPDATE_FEED_URL = https:/$()/raw.githubusercontent.com/BarryBarrywu/Keyphore/main/updates/appcast.xml
+KEYPHORE_UPDATE_PUBLIC_ED_KEY = yCzD/uIiICIhjTkTLISYdzNkGtuWSN0PBh34jHAe/GM=

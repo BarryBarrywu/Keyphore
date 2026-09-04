@@ -3,14 +3,14 @@
 
 build: create a signed App and ZIP for Apple submission.
 notarize: explicitly upload to Apple, staple App, create and notarize DMG.
-stage: verify notarized artifacts, sign appcast, and stage a static public site.
-Only the output/public directory is intended for publication after approval.
+stage: verify notarized artifacts and stage signed repository metadata and Release assets.
+After approval, copy output/public/updates into the repository and upload
+output/public/release-assets to the matching GitHub Release before publishing the feed.
 """
 
 import argparse
 import base64
 import hashlib
-import html
 import json
 import os
 from pathlib import Path
@@ -39,14 +39,24 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def https_base(value):
+def https_url(value):
     url = urllib.parse.urlsplit(value)
     require(url.scheme == "https" and url.hostname and not url.username and not url.password
             and not url.query and not url.fragment and not any(c.isspace() for c in value),
-            "Public base URL must be HTTPS without credentials, query or fragment")
-    require(url.hostname not in {"github.com", "api.github.com", "raw.githubusercontent.com"},
-            "Use the public product host, not the private GitHub repository")
-    return value.rstrip("/") + "/"
+            "Public URL must be HTTPS without credentials, query or fragment")
+    return value
+
+
+def channel_configuration():
+    settings = {}
+    for line in (ROOT / "release/Updates.xcconfig").read_text().splitlines():
+        name, value = line.split(" = ", 1)
+        settings[name] = value.replace("$()", "")
+    return settings
+
+
+def release_download_url(version):
+    return "https://github.com/BarryBarrywu/Keyphore/releases/download/v" + version + "/Keyphore-" + version + ".dmg"
 
 
 def read_info(app):
@@ -54,11 +64,13 @@ def read_info(app):
 
 
 def require_production_channel(manifest):
-    host = urllib.parse.urlsplit(https_base(manifest["base_url"])).hostname
-    require(host not in {"localhost", "example.com", "example.org", "example.net"}
-            and not host.endswith((".invalid", ".test", ".example", ".localhost"))
-            and base64.b64decode(manifest["public_key"], validate=True) != bytes(32),
-            "Replace the validation-only URL and key before notarization or channel staging")
+    for field in ["feed_url", "download_url"]:
+        host = urllib.parse.urlsplit(https_url(manifest[field])).hostname
+        require(host not in {"localhost", "example.com", "example.org", "example.net"}
+                and not host.endswith((".invalid", ".test", ".example", ".localhost")),
+                "Replace the validation-only URL before notarization or channel staging")
+    key = base64.b64decode(manifest["public_key"], validate=True)
+    require(len(key) == 32 and key != bytes(32), "Use a real 32-byte public key")
 
 
 def save(output, manifest):
@@ -85,7 +97,7 @@ def audit(app, manifest):
     require(info.get("CFBundleIdentifier") == "com.barrywu.keyphore", "Unexpected App identifier")
     for key, expected in {
         "CFBundleShortVersionString": manifest["version"], "CFBundleVersion": manifest["build"],
-        "SUFeedURL": manifest["base_url"] + "appcast.xml", "SUPublicEDKey": manifest["public_key"],
+        "SUFeedURL": manifest["feed_url"], "SUPublicEDKey": manifest["public_key"],
         "SURequireSignedFeed": True, "SUVerifyUpdateBeforeExtraction": True,
         "SUAllowsAutomaticUpdates": False,
         "SUAutomaticallyUpdate": False, "SUEnableAutomaticChecks": True,
@@ -133,16 +145,19 @@ def audit(app, manifest):
 
 
 def build(args):
-    base = https_base(args.base_url)
+    config = channel_configuration()
+    feed_url = https_url(args.feed_url or config["KEYPHORE_UPDATE_FEED_URL"])
+    public_key = config["KEYPHORE_UPDATE_PUBLIC_ED_KEY"]
     require(re.fullmatch(r"\d+\.\d+\.\d+", args.version), "Version must be major.minor.patch")
     require(re.fullmatch(r"[1-9]\d*", args.build), "Build number must be a positive integer")
-    require(len(base64.b64decode(args.public_key, validate=True)) == 32, "Public Ed25519 key must contain 32 bytes")
+    require(len(base64.b64decode(public_key, validate=True)) == 32, "Public Ed25519 key must contain 32 bytes")
     require(re.fullmatch(r"[A-Z0-9]{10}", args.team), "Invalid Apple Team ID")
     output = args.output.resolve()
     require(not output.is_relative_to(Path("/private/tmp")), "Release output must be persistent")
     output.mkdir(parents=True, exist_ok=False)
-    manifest = {"version": args.version, "build": args.build, "base_url": base,
-                "public_key": args.public_key, "team": args.team,
+    manifest = {"version": args.version, "build": args.build, "feed_url": feed_url,
+                "download_url": https_url(args.download_url or release_download_url(args.version)),
+                "public_key": public_key, "team": args.team,
                 "source_commit": run("git", "rev-parse", "HEAD"),
                 "source_status": run("git", "status", "--short"), "status": "building"}
     save(output, manifest)
@@ -155,8 +170,8 @@ def build(args):
                "ENABLE_HARDENED_RUNTIME=YES",
                "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES", "GCC_TREAT_WARNINGS_AS_ERRORS=YES",
                "MARKETING_VERSION=" + args.version, "CURRENT_PROJECT_VERSION=" + args.build,
-               "KEYPHORE_UPDATE_FEED_URL=" + base + "appcast.xml",
-               "KEYPHORE_UPDATE_PUBLIC_ED_KEY=" + args.public_key, "build"]
+               "KEYPHORE_UPDATE_FEED_URL=" + feed_url,
+               "KEYPHORE_UPDATE_PUBLIC_ED_KEY=" + public_key, "build"]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
     app = output / "Keyphore.app"
@@ -225,6 +240,7 @@ def notarize(args, manifest):
 
 def stage(args, manifest):
     require_production_channel(manifest)
+    require(not manifest["source_status"], "Release source must be committed before building distributable artifacts")
     output = args.output
     app = output / "Keyphore.app"
     dmg = output / ("Keyphore-" + manifest["version"] + ".dmg")
@@ -262,8 +278,8 @@ def stage(args, manifest):
         finally:
             if delivery.exists():
                 shutil.rmtree(delivery)
-    manifest["public_sha256"] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-                                for path in sorted(public.iterdir())}
+    manifest["public_sha256"] = {str(path.relative_to(public)): hashlib.sha256(path.read_bytes()).hexdigest()
+                                for path in sorted(public.rglob("*")) if path.is_file()}
     manifest["status"] = "staged-awaiting-release-authorization-and-installed-acceptance"
     manifest["pending_acceptance"] = ["Clean supported account GUI installation", "Public anonymous download",
         "Installed first launch and update discovery", "Approved update and renewed Hook consent"]
@@ -271,15 +287,27 @@ def stage(args, manifest):
 
 
 def write_channel(args, manifest, public, dmg, bin_dir):
-    shutil.copy2(dmg, public / dmg.name)
+    updates = public / "updates"
+    assets = public / "release-assets"
+    notes = updates / "notes"
+    notes.mkdir(parents=True)
+    assets.mkdir()
+    shutil.copy2(dmg, assets / dmg.name)
     sign = [bin_dir / "sign_update", "--account", args.sparkle_account]
-    signature = run(*sign, "-p", public / dmg.name)
-    run(*sign, "--verify", public / dmg.name, signature)
-    rss = ET.Element("rss", {"version": "2.0"})
-    channel = ET.SubElement(rss, "channel")
-    ET.SubElement(channel, "title").text = "Keyphore"
-    ET.SubElement(channel, "link").text = manifest["base_url"]
-    item = ET.SubElement(channel, "item")
+    signature = run(*sign, "-p", assets / dmg.name)
+    run(*sign, "--verify", assets / dmg.name, signature)
+    existing = ROOT / "updates/appcast.xml"
+    run(*sign, "--verify", existing)
+    rss = ET.parse(existing).getroot()
+    channel = rss.find("channel")
+    require(channel is not None, "Missing appcast channel")
+    for previous in channel.findall("item"):
+        require(int(previous.findtext("{" + SPARKLE + "}version")) < int(manifest["build"]),
+                "Build number must exceed every published build")
+        require(previous.findtext("{" + SPARKLE + "}shortVersionString") != manifest["version"],
+                "Release version already exists; use a new version and immutable Release asset")
+    item = ET.Element("item")
+    channel.insert(0, item)
     for name, value in {
         "title": "Keyphore " + manifest["version"],
         "{" + SPARKLE + "}version": manifest["build"],
@@ -289,22 +317,24 @@ def write_channel(args, manifest, public, dmg, bin_dir):
         "{https://keyphore.app/xml-namespaces/keyphore}hookDefinitionsDigest": manifest["hook_digest"],
     }.items():
         ET.SubElement(item, name).text = value
-    ET.SubElement(item, "description", {"{" + SPARKLE + "}format": "plain-text"}).text = args.notes.read_text()
-    ET.SubElement(item, "enclosure", {"url": manifest["base_url"] + dmg.name,
+    for language, path in [("en", args.notes_en), ("zh-Hans", args.notes_zh_hans)]:
+        text = path.read_text()
+        require(text.strip(), "Release notes must not be empty: " + str(path))
+        ET.SubElement(item, "description", {"{" + SPARKLE + "}format": "plain-text",
+                      "{http://www.w3.org/XML/1998/namespace}lang": language}).text = text
+        (notes / (manifest["version"] + "." + language + ".txt")).write_text(text)
+    ET.SubElement(item, "enclosure", {"url": manifest["download_url"],
         "{" + SPARKLE + "}edSignature": signature, "length": str(dmg.stat().st_size),
         "type": "application/octet-stream"})
-    feed = public / "appcast.xml"
+    source = assets / ("Keyphore-" + manifest["version"] + "-source.zip")
+    run("git", "archive", "--format=zip", "--prefix=Keyphore-" + manifest["version"] + "/",
+        "--output=" + str(source), manifest["source_commit"])
+    feed = updates / "appcast.xml"
     ET.ElementTree(rss).write(feed, encoding="utf-8", xml_declaration=True)
     run(*sign, feed)
     run(*sign, "--verify", feed)
-    for name in ["index.html", "style.css"]:
-        content = (ROOT / "release/site" / name).read_text()
-        content = content.replace("{{VERSION}}", html.escape(manifest["version"]))
-        content = content.replace("{{DOWNLOAD_URL}}", html.escape(manifest["base_url"] + dmg.name, quote=True))
-        (public / name).write_text(content)
-    shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", public / "NUPHYIO-NOTICE.txt")
-    shutil.copy2(ROOT / "LICENSE", public / "LICENSE")
-    shutil.copy2(ROOT / "release/Install.html", public / "Install.html")
+    shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", assets / "NUPHYIO-NOTICE.txt")
+    shutil.copy2(ROOT / "LICENSE", assets / "LICENSE")
 
 
 def main():
@@ -316,15 +346,18 @@ def main():
         command.add_argument("--build-root", type=Path, required=True,
                              help="Existing codex-temp-guard directory")
         if name == "build":
-            for option in ["base-url", "public-key", "version", "build", "team"]:
+            for option in ["version", "build", "team"]:
                 command.add_argument("--" + option, required=True)
+            command.add_argument("--feed-url", help="Override the repository appcast URL")
+            command.add_argument("--download-url", help="Override the versioned GitHub Release DMG URL")
         elif name == "notarize":
             command.add_argument("--notary-profile", required=True)
             command.add_argument("--submit-to-apple", action="store_true")
         else:
             command.add_argument("--sparkle-bin", type=Path, required=True, help="Pinned Sparkle 2.9.6 bin directory")
-            command.add_argument("--sparkle-account", required=True, help="Existing Keychain account; never creates keys")
-            command.add_argument("--notes", type=Path, required=True, help="Approved plain-text release notes")
+            command.add_argument("--sparkle-account", default="com.barrywu.keyphore", help="Existing Keychain account; never creates keys")
+            command.add_argument("--notes-en", type=Path, required=True, help="Approved English plain-text release notes")
+            command.add_argument("--notes-zh-hans", type=Path, required=True, help="Approved Simplified Chinese plain-text release notes")
     args = parser.parse_args()
     try:
         args.output = args.output.resolve()

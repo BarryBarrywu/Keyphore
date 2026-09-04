@@ -111,6 +111,12 @@ tools/keyphore-development-app build-open
 
 </details>
 
+## 更新
+
+App 使用 [`updates/appcast.xml`](./updates/appcast.xml) 中的 Sparkle 签名更新列表。各版本安装包放在 GitHub Releases，中英文更新说明保存在 [`updates/notes`](./updates/notes)。签名、公证的安装包准备好之前，初始列表不包含任何版本。在线更新需要仓库与 Release 附件均可公开访问。
+
+维护者：`tools/keyphore-release build` 从 [`release/Updates.xcconfig`](./release/Updates.xcconfig) 读取更新地址和公钥，也可分别通过 `--feed-url` 和 `--download-url` 覆盖。`stage` 接收 `--notes-en` 和 `--notes-zh-hans`，签名更新列表，并生成用于仓库的 `public/updates` 和用于 GitHub Releases 的 `public/release-assets`，后者包含对应源码。请从已提交的源码构建，先发布版本附件，再更新列表；保留旧附件，每次发布递增版本号和构建号。签名使用钥匙串中的 `com.barrywu.keyphore` 条目，私钥不得提交到仓库。
+
 ## 许可证
 
 Keyphore 的自有代码，包括 Swift App、Companion 和随附插件，采用 [GNU 通用公共许可证第 3 版，仅限此版本](./LICENSE)（`GPL-3.0-only`）。分发许可证覆盖的二进制程序时，需要按许可条款提供对应源码。

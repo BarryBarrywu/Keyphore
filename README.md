@@ -111,6 +111,12 @@ That workflow requires the configured signing identity and `codex-temp-guard`. I
 
 </details>
 
+## Updates
+
+The App uses a signed Sparkle feed in [`updates/appcast.xml`](./updates/appcast.xml). Versioned installers belong in GitHub Releases; English and Simplified Chinese notes live in [`updates/notes`](./updates/notes). The initial feed contains no release until a signed, notarized installer is ready. Online updates require the repository and Release assets to be publicly accessible.
+
+Maintainers: `tools/keyphore-release build` reads the feed URL and public key from [`release/Updates.xcconfig`](./release/Updates.xcconfig), with separate `--feed-url` and `--download-url` overrides. `stage` takes `--notes-en` and `--notes-zh-hans`, signs the feed, and prepares `public/updates` for the repository and `public/release-assets` for GitHub Releases, including corresponding source. Build from committed source. Publish the versioned assets before updating the feed; retain old assets and increase the version and build numbers for each release. Signing uses the `com.barrywu.keyphore` Keychain account; never commit its private key.
+
 ## License
 
 Keyphore’s first-party code, including the Swift App, Companion, and bundled Plugin, is licensed under the [GNU General Public License v3.0 only](./LICENSE) (`GPL-3.0-only`). When distributing covered binaries, provide their corresponding source under the license terms.

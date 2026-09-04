@@ -1,0 +1,6 @@
+Keyphore 0.1.0
+
+See Codex task status on NuPhy Air65 V3 and Air75 V3 keyboards over wired USB.
+Customize the color, brightness, visibility, and steady or slow-flashing pattern of each signal.
+Use the native menu bar App for setup, lighting previews, diagnostics, and managed removal.
+Choose English or Simplified Chinese and light, dark, or system appearance.

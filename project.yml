@@ -55,6 +55,9 @@ targets:
         SWIFT_STRICT_CONCURRENCY: complete
         SWIFT_VERSION: 6.0
   Keyphore:
+    configFiles:
+      Debug: release/Updates.xcconfig
+      Release: release/Updates.xcconfig
     type: application
     platform: macOS
     deploymentTarget: "13.0"

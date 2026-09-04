@@ -83,6 +83,7 @@
 		B0D791B9B3AA891061AE321D /* KeyphoreApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyphoreApp.swift; sourceTree = "<group>"; };
 		BB0D39BFC5AACFAFF0523B45 /* LegacyMigrationSystemAcceptanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationSystemAcceptanceTests.swift; sourceTree = "<group>"; };
 		BB2DE5048FB25463A9E1D645 /* SignalColorWheel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalColorWheel.swift; sourceTree = "<group>"; };
+		BF439C1F49F8350E12695621 /* Updates.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Updates.xcconfig; sourceTree = "<group>"; };
 		BF6AC0D1BFDB4960B4B667B5 /* app */ = {isa = PBXFileReference; lastKnownFileType = folder; name = app; path = app; sourceTree = SOURCE_ROOT; };
 		C0D47D1149D03A8613C5E8C5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C5D770B9B7E20F8A8B2EAD5D /* KeyphorePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyphorePopover.swift; sourceTree = "<group>"; };
@@ -172,12 +173,21 @@
 			path = runtime/Sources;
 			sourceTree = "<group>";
 		};
+		7D27B413736681D9ED962FB6 /* release */ = {
+			isa = PBXGroup;
+			children = (
+				BF439C1F49F8350E12695621 /* Updates.xcconfig */,
+			);
+			path = release;
+			sourceTree = "<group>";
+		};
 		A10CB14EB0CF87A1E58734C8 = {
 			isa = PBXGroup;
 			children = (
 				CECF92B69D02393CEA0972E0 /* KeyphoreApp */,
 				2009D738C055B4E9D1E83EDB /* KeyphoreAppTests */,
 				46C8B9C011EF3CD3B1CE0581 /* Packages */,
+				7D27B413736681D9ED962FB6 /* release */,
 				E971104BD489BF9AE4F2794D /* Resources */,
 				7C7C19D62936DFD915050BF3 /* Sources */,
 				2550DF27A203572856B112CE /* Products */,
@@ -489,6 +499,7 @@
 		};
 		08FD19AC2BE9FB93E536AE67 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = BF439C1F49F8350E12695621 /* Updates.xcconfig */;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -566,6 +577,7 @@
 		};
 		81D53FB52340628AB6346543 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = BF439C1F49F8350E12695621 /* Updates.xcconfig */;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
