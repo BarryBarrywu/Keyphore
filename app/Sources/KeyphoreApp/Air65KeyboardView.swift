@@ -335,20 +335,35 @@ struct CandidateKeyboardIllustration: View {
 
 struct CandidateKeyboardCatalogView: View {
     @State private var selection: CandidateKeyboardModel = .air75V3
+    @State private var isExpanded = false
 
     var body: some View {
-        DisclosureGroup(AppCopy.value(.candidateCatalog)) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(AppCopy.value(.candidateCatalogDetail))
-                    .font(.caption).foregroundStyle(.secondary)
-                Picker(AppCopy.value(.candidateModel), selection: $selection) {
-                    ForEach(CandidateKeyboardModel.allCases.sorted { $0.rawValue < $1.rawValue }, id: \.self) { model in
-                        Text(model.rawValue).tag(model)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            Button { isExpanded.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(AppCopy.value(.candidateCatalog))
+                    Spacer()
                 }
-                CandidateKeyboardIllustration(model: selection)
-                    .padding(.vertical, 8)
-            }.padding(.top, 10)
-        }.padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(AppCopy.value(.candidateCatalogDetail))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Picker(AppCopy.value(.candidateModel), selection: $selection) {
+                        ForEach(CandidateKeyboardModel.allCases.sorted { $0.rawValue < $1.rawValue }, id: \.self) { model in
+                            Text(model.rawValue).tag(model)
+                        }
+                    }
+                    CandidateKeyboardIllustration(model: selection)
+                        .padding(.vertical, 8)
+                }.padding(.bottom, 14)
+            }
+        }
     }
 }

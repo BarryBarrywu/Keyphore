@@ -194,3 +194,16 @@
 "candidate.model" = "Model";
 "candidate.illustration" = "Keyboard illustration";
 "candidate.multiple" = "Candidate keyboards detected";
+
+"experimental.title" = "Experimental connection";
+"experimental.detail" = "Candidate models and illustrations remain available. Lighting tests are offered only when a model-specific protocol profile is available. Other models are recognized but await verification. USB REV is not the firmware version.";
+"experimental.available" = "Protocol check passed; lighting is not yet tested.";
+"experimental.start" = "Start experimental lighting test";
+"experimental.testing" = "Testing lighting and signal-off…";
+"experimental.confirm" = "Readback and signal-off passed. Did the main backlight change correctly, turn off, and leave all other lights unchanged?";
+"experimental.confirm_action" = "Looks correct, enable on this Mac";
+"experimental.enabled" = "Experimental · confirmed on this Mac";
+"experimental.disable" = "Stop / disable experimental control";
+"experimental.revoking" = "Turning off before disabling…";
+"experimental.disabled" = "Experimental control is disabled.";
+"experimental.failed" = "Check failed; automatic control is blocked. If the lights remain on, use the keyboard controls to turn them off. Export diagnostics to help adaptation.";

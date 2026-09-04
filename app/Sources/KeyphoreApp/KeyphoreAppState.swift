@@ -11,6 +11,7 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var settingsFailed = false
     @Published private(set) var validationFailed = false
     @Published private(set) var previewStateFailed = false
+    @Published private(set) var experimentalRecords: [ExperimentalKeyboardRecord] = []
     @Published private(set) var previewRecord: SignalPreviewRecord?
     @Published private(set) var quitFailed = false
     @Published private(set) var diagnosticReport: DiagnosticReport
@@ -27,6 +28,7 @@ final class KeyphoreAppState: ObservableObject {
     private let guidedSetup: GuidedSetup?
     private let systemHealth: SystemKeyphoreHealthAdapter?
     private let profileStore: LocalProfileStore?
+    private let experimentalStore: ExperimentalKeyboardStore?
     private let previewStore: SignalPreviewStore?
     private let diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)?
     private var diagnosticLanguage: AppLanguage
@@ -42,6 +44,7 @@ final class KeyphoreAppState: ObservableObject {
         systemHealth: SystemKeyphoreHealthAdapter? = nil,
         profileStore: LocalProfileStore? = nil,
         previewStore: SignalPreviewStore? = nil,
+        experimentalStore: ExperimentalKeyboardStore? = nil,
         managedRemoval: ManagedRemoval? = nil,
         updateRuntime: (any KeyphoreRuntimeManaging)? = nil,
         diagnosticSnapshotProvider: (@Sendable () -> DiagnosticSnapshot)? = nil,
@@ -52,6 +55,8 @@ final class KeyphoreAppState: ObservableObject {
         self.systemHealth = systemHealth
         self.profileStore = profileStore
         self.previewStore = previewStore
+        self.experimentalStore = experimentalStore
+        experimentalRecords = (try? experimentalStore?.records()) ?? []
         self.managedRemoval = managedRemoval
         self.updateRuntime = updateRuntime
         self.diagnosticSnapshotProvider = diagnosticSnapshotProvider
@@ -185,6 +190,7 @@ final class KeyphoreAppState: ObservableObject {
             systemHealth: systemHealth,
             profileStore: profileStore,
             previewStore: previewStore,
+            experimentalStore: environment["KEYPHORE_ACCEPTANCE_FIXTURE"] == nil ? ExperimentalKeyboardStore() : nil,
             managedRemoval: managedRemoval,
             updateRuntime: runtime,
             diagnosticSnapshotProvider: diagnosticSnapshotProvider,
@@ -443,7 +449,22 @@ final class KeyphoreAppState: ObservableObject {
         }
     }
 
+    func updateExperimental(_ identity: ExperimentalKeyboardIdentity, action: String) {
+        guard let experimentalStore else { return }
+        do {
+            switch action {
+            case "start": try experimentalStore.requestTrial(identity)
+            case "confirm": try experimentalStore.confirm(identity)
+            default: try experimentalStore.revoke(identity)
+            }
+            experimentalRecords = try experimentalStore.records()
+            settingsFailed = false
+        } catch { settingsFailed = true }
+    }
+
     private func refreshStoredState() {
+        do { experimentalRecords = try experimentalStore?.records() ?? [] }
+        catch { settingsFailed = true; experimentalRecords = [] }
         if let profileStore {
             do {
                 _ = try profileStore.load()

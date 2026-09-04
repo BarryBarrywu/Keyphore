@@ -259,7 +259,7 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
             )
         case .connected(protocolHealthy: true, model: let model):
             KeyboardDiagnosis(
-                keyboard: DiagnosticField(id: .keyboard, label: AppCopy.value(.diagnosticFieldKeyboard, language: language), value: [model?.rawValue, AppCopy.value(.diagnosticConnected, language: language)].compactMap { $0 }.joined(separator: " · ")),
+                keyboard: DiagnosticField(id: .keyboard, label: AppCopy.value(.diagnosticFieldKeyboard, language: language), value: [model?.rawValue, model?.isExperimental == true ? AppCopy.value(.experimentalEnabled, language: language) : nil, AppCopy.value(.diagnosticConnected, language: language)].compactMap { $0 }.joined(separator: " · ")),
                 protocolReadback: field(
                     .protocolReadback,
                     value: .diagnosticHealthy,
@@ -269,7 +269,7 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
             )
         case .connected(protocolHealthy: false, model: let model):
             KeyboardDiagnosis(
-                keyboard: DiagnosticField(id: .keyboard, label: AppCopy.value(.diagnosticFieldKeyboard, language: language), value: [model?.rawValue, AppCopy.value(.diagnosticConnected, language: language)].compactMap { $0 }.joined(separator: " · ")),
+                keyboard: DiagnosticField(id: .keyboard, label: AppCopy.value(.diagnosticFieldKeyboard, language: language), value: [model?.rawValue, model?.isExperimental == true ? AppCopy.value(.experimentalEnabled, language: language) : nil, AppCopy.value(.diagnosticConnected, language: language)].compactMap { $0 }.joined(separator: " · ")),
                 protocolReadback: field(
                     .protocolReadback,
                     value: .diagnosticFailed,

@@ -44,7 +44,8 @@ public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
                 bus: bus(stringProperty(device, kIOHIDTransportKey)),
                 interfaceNumber: interfaceNumber,
                 usagePage: UInt16(truncatingIfNeeded: usagePage),
-                usage: UInt16(truncatingIfNeeded: usage)
+                usage: UInt16(truncatingIfNeeded: usage),
+                usbRevision: numberProperty(device, kIOHIDVersionNumberKey)
             )
         }
     }

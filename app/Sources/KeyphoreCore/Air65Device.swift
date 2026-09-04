@@ -15,6 +15,7 @@ public struct HIDDeviceDescriptor: Equatable, Sendable {
     public var interfaceNumber: Int
     public var usagePage: UInt16
     public var usage: UInt16
+    public var usbRevision: Int?
 
     public init(
         id: String,
@@ -24,7 +25,8 @@ public struct HIDDeviceDescriptor: Equatable, Sendable {
         bus: HIDBus,
         interfaceNumber: Int,
         usagePage: UInt16,
-        usage: UInt16
+        usage: UInt16,
+        usbRevision: Int? = nil
     ) {
         self.id = id
         self.vendorID = vendorID
@@ -34,6 +36,7 @@ public struct HIDDeviceDescriptor: Equatable, Sendable {
         self.interfaceNumber = interfaceNumber
         self.usagePage = usagePage
         self.usage = usage
+        self.usbRevision = usbRevision
     }
 }
 
@@ -138,9 +141,19 @@ public enum Air65DeviceSelector {
     }
 }
 
-public enum SupportedKeyboardModel: String, Codable, Sendable {
-    case air65V3 = "Air65 V3"
-    case air75V3 = "Air75 V3"
+public struct SupportedKeyboardModel: RawRepresentable, Codable, Equatable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let air65V3 = Self(rawValue: "Air65 V3")
+    public static let air75V3 = Self(rawValue: "Air75 V3")
+    public var isExperimental: Bool { self != .air65V3 && self != .air75V3 }
+    public init(from decoder: any Decoder) throws {
+        rawValue = try decoder.singleValueContainer().decode(String.self)
+    }
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
     public static func identify(_ device: HIDDeviceDescriptor) -> Self? {
         guard device.vendorID == 0x19f5, device.bus == .usb,

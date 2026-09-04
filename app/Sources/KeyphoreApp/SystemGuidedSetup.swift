@@ -672,6 +672,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
             supportDirectory.appending(path: "companion.stderr.log"),
             supportDirectory.appending(path: "hardware-health.json"),
             supportDirectory.appending(path: "companion.lock"),
+            supportDirectory.appending(path: "experimental-keyboards.json"),
+            supportDirectory.appending(path: "experimental-keyboards.json.lock"),
         ]
     }
 

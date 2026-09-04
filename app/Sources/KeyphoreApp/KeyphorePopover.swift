@@ -126,6 +126,8 @@ struct KeyphorePopover: View {
     }
 
     private var candidateModels: [CandidateKeyboardModel] {
+        if let model = state.snapshot.keyboardHealth.model, model.isExperimental,
+           let candidate = CandidateKeyboardModel(rawValue: model.rawValue) { return [candidate] }
         guard case .unverified(let interfaces) = state.snapshot.keyboardHealth else { return [] }
         return Array(Set(interfaces.compactMap(\.model))).sorted { $0.rawValue < $1.rawValue }
     }
@@ -159,6 +161,7 @@ struct KeyphorePopover: View {
     }
 
     private var statusDetail: String {
+        if state.snapshot.keyboardHealth.model?.isExperimental == true { return AppCopy.value(.experimentalEnabled) }
         if case .unverified = state.snapshot.keyboardHealth { return AppCopy.value(.keyboardUnverifiedDetail) }
         if state.menuState != .ready { return AppCopy.value(.previewUnavailable) }
         if presentation.isPreviewing {

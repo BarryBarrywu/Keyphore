@@ -49,12 +49,15 @@ public enum NuPhyIOAdapterError: Error, Equatable, Sendable {
 }
 
 public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingVerifying,
-    CompanionLightingRecovering, CompanionLightingEvidenceApplying, CompanionKeyboardIdentifying
+    CompanionLightingRecovering, CompanionLightingEvidenceApplying, CompanionKeyboardIdentifying, ExperimentalKeyboardLighting
 {
     public static let responseTimeout: TimeInterval = 1
 
     private let discovery: any Air65TransportDiscovering
+    public var experimentalStore: ExperimentalKeyboardStore?
+    private var experimentalIdentity: ExperimentalKeyboardIdentity?
     private let makeChallenge: () -> [UInt8]
+    private var ownedDescriptor: HIDDeviceDescriptor?
     private var ownedTransport: (any Air65ReportTransport)?
     public private(set) var connectedModel: SupportedKeyboardModel?
     private var discoveryNeedsReset = false
@@ -75,9 +78,26 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
         let expected = try mainState(for: behavior)
         do {
             let transport = try acquireTransport()
-            return try applyAndVerify(expected, using: transport, writeBrightnessMirror: connectedModel != .air75V3)
+            guard let model = connectedModel,
+                  let profile = experimentalIdentity?.model.flatMap(NuPhyLightingProfile.experimental)
+                    ?? NuPhyLightingProfile.verified(for: model) else {
+                throw ExperimentalKeyboardError.incompatibleState
+            }
+            return try applyAndVerify(expected, using: transport, profile: profile)
         } catch {
+            let identity = experimentalIdentity
             invalidateTransport()
+            if let identity, let failure = error as? NuPhyIOAdapterError,
+               failure != .responseTimedOut, let experimentalStore,
+               var record = try? experimentalStore.record(for: identity), record.phase == .enabled {
+                record.phase = .revoking
+                if (try? experimentalStore.replace(record, expecting: .enabled)) != nil {
+                    let off = try? applyExperimental(.off, identity: identity)
+                    record.phase = .failed
+                    record.signalOffVerified = off?.protocolReadbackSucceeded == true
+                    try? experimentalStore.replace(record, expecting: .revoking)
+                }
+            }
             throw error
         }
     }
@@ -85,45 +105,46 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
     private func applyAndVerify(
         _ expected: [UInt8],
         using transport: any Air65ReportTransport,
-        writeBrightnessMirror: Bool = true,
+        profile: NuPhyLightingProfile,
         captureReadback: (([UInt8]) -> Void)? = nil,
         trace: ((String, [UInt8]) -> Void)? = nil
     ) throws -> NuPhyIOEvidence {
+        guard expected.count == profile.mainLength else { throw NuPhyIOAdapterError.invalidLightState }
         let challenge = makeChallenge()
         let key = try startTemporarySession(transport, challenge: challenge)
-        let initial = try readLightState(transport, key: key)
+        let initial = try readLightState(transport, key: key, profile: profile)
         trace?("before", initial)
 
         if !mainStateMatches(initial, expected: expected) {
             try exchange(
                 transport,
-                request: .write(address: 0, payload: expected),
+                request: .write(address: profile.mainAddress, payload: expected),
                 key: key
             )
             if let trace {
-                trace("after-main-write", try readLightState(transport, key: key))
+                trace("after-main-write", try readLightState(transport, key: key, profile: profile))
             }
-            if writeBrightnessMirror {
+            if let address = profile.brightnessMirrorAddress {
                 try exchange(
                     transport,
-                    request: .write(address: 1, payload: [expected[1]]),
+                    request: .write(address: address, payload: [expected[1]]),
                     key: key
                 )
             }
         }
 
-        let verified = try readLightState(transport, key: key)
+        let verified = try readLightState(transport, key: key, profile: profile)
         trace?("verified", verified)
         if let trace {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-            trace("after-250ms", try readLightState(transport, key: key))
+            trace("after-250ms", try readLightState(transport, key: key, profile: profile))
         }
         captureReadback?(verified)
         guard mainStateMatches(verified, expected: expected) else {
             throw NuPhyIOAdapterError.mainBacklightReadbackMismatch
         }
-        let rhythmBefore = Array(initial.suffix(8))
-        let rhythmAfter = Array(verified.suffix(8))
+        let rhythmBefore = Array(initial[profile.protectedRange])
+        let rhythmAfter = Array(verified[profile.protectedRange])
         guard rhythmBefore == rhythmAfter else {
             throw NuPhyIOAdapterError.rhythmLightChanged
         }
@@ -143,7 +164,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
     public func inspectAir75MainAndSideState() throws -> [UInt8] {
         let transport = try openAir75ForAcceptance()
         let key = try startTemporarySession(transport, challenge: makeChallenge())
-        return try readLightState(transport, key: key)
+        return try readLightState(transport, key: key, profile: .air75V3)
     }
 
     public func previewAir75MainBacklight(
@@ -167,7 +188,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
                 let evidence = try applyAndVerify(
                     expected, using: transport,
                     // Air75 scales RGB again when brightness is written separately.
-                    writeBrightnessMirror: false,
+                    profile: .air75V3,
                     captureReadback: { lastReadback = $0 }, trace: trace
                 )
                 if let protectedState, evidence.rhythmBefore != protectedState {
@@ -177,7 +198,7 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
                 onStep(name)
             }
         } catch {
-            _ = try? applyAndVerify(off, using: transport, writeBrightnessMirror: false)
+            _ = try? applyAndVerify(off, using: transport, profile: .air75V3)
             if error as? NuPhyIOAdapterError == .mainBacklightReadbackMismatch {
                 throw NuPhyIOAdapterError.air75ReadbackMismatch(expected: lastExpected, actual: lastReadback)
             }
@@ -203,7 +224,10 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
             let transport = try acquireTransport()
             let challenge = makeChallenge()
             let key = try startTemporarySession(transport, challenge: challenge)
-            let current = try readLightState(transport, key: key)
+            guard let model = connectedModel,
+                  let profile = experimentalIdentity?.model.flatMap(NuPhyLightingProfile.experimental)
+                    ?? NuPhyLightingProfile.verified(for: model) else { throw ExperimentalKeyboardError.incompatibleState }
+            let current = try readLightState(transport, key: key, profile: profile)
             return mainStateMatches(current, expected: expected)
         } catch {
             invalidateTransport()
@@ -213,23 +237,106 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     public func invalidateTransport() {
         ownedTransport = nil
+        ownedDescriptor = nil
         connectedModel = nil
+        experimentalIdentity = nil
         discoveryNeedsReset = true
     }
 
     private func acquireTransport() throws -> any Air65ReportTransport {
+        if let experimentalIdentity {
+            guard try experimentalStore?.record(for: experimentalIdentity)?.phase == .enabled else {
+                invalidateTransport()
+                throw ExperimentalKeyboardError.consentRequired
+            }
+            // Re-enumeration prevents a cached approval surviving a firmware or topology change.
+            guard let current = try experimentalDevice(), ExperimentalKeyboardIdentity(current) == experimentalIdentity else {
+                invalidateTransport()
+                throw ExperimentalKeyboardError.deviceChanged
+            }
+        }
         if let ownedTransport {
+            if let experimentalStore, experimentalIdentity == nil {
+                let authorized = try discovery.discover().filter { device in
+                    if SupportedKeyboardModel.identify(device) != nil { return true }
+                    guard let identity = ExperimentalKeyboardIdentity(device) else { return false }
+                    return (try? experimentalStore.record(for: identity)?.phase) == .enabled
+                }
+                guard authorized.count == 1 else {
+                    invalidateTransport()
+                    throw authorized.isEmpty ? Air65DeviceSelectionError.notFound : .ambiguous
+                }
+                guard authorized[0].id == ownedDescriptor?.id else {
+                    invalidateTransport()
+                    throw ExperimentalKeyboardError.deviceChanged
+                }
+            }
             return ownedTransport
         }
         if discoveryNeedsReset {
             discovery.resetDiscoveryState()
             discoveryNeedsReset = false
         }
-        let selected = try Air65DeviceSelector.select(from: discovery.discover())
+        let devices = try discovery.discover()
+        var selected: HIDDeviceDescriptor
+        do {
+            selected = try Air65DeviceSelector.select(from: devices)
+            if let experimentalStore,
+               devices.contains(where: { device in
+                   guard let identity = ExperimentalKeyboardIdentity(device) else { return false }
+                   return (try? experimentalStore.record(for: identity)?.phase) == .enabled
+               }) { throw Air65DeviceSelectionError.ambiguous }
+        } catch Air65DeviceSelectionError.unverified {
+            guard let device = try experimentalDevice(), let identity = ExperimentalKeyboardIdentity(device),
+                  try experimentalStore?.record(for: identity)?.phase == .enabled else {
+                throw Air65DeviceSelectionError.unverified(devices.filter {
+                    CandidateKeyboardModel.identify(vendorID: $0.vendorID, productID: $0.productID, product: $0.product) != nil
+                }.map(UnverifiedKeyboardInterface.init))
+            }
+            selected = device
+            experimentalIdentity = identity
+        }
         let transport = try discovery.open(selected)
         ownedTransport = transport
+        ownedDescriptor = selected
         connectedModel = SupportedKeyboardModel.identify(selected)
+            ?? experimentalIdentity?.model.map { SupportedKeyboardModel(rawValue: $0.rawValue) }
         return transport
+    }
+
+    public func experimentalDevice() throws -> HIDDeviceDescriptor? {
+        let devices = try discovery.discover()
+        let controls = devices.filter {
+            $0.vendorID == 0x19f5 && $0.bus == .usb && $0.interfaceNumber == 3
+                && $0.usagePage == 1 && $0.usage == 0
+                && ($0.productID == 0x102b || CandidateKeyboardModel.identify(vendorID: $0.vendorID, productID: $0.productID, product: $0.product) != nil)
+        }
+        guard controls.count == 1, ExperimentalKeyboardIdentity(controls[0]) != nil else { return nil }
+        return controls[0]
+    }
+
+    public func inspectExperimental(_ identity: ExperimentalKeyboardIdentity) throws -> [UInt8] {
+        guard identity.isEligible, let device = try experimentalDevice(), ExperimentalKeyboardIdentity(device) == identity else {
+            throw ExperimentalKeyboardError.deviceChanged
+        }
+        let transport = try discovery.open(device)
+        let key = try startTemporarySession(transport, challenge: makeChallenge())
+        let state = try readLightState(transport, key: key, profile: NuPhyLightingProfile.experimental(for: identity.model!)!)
+        guard state[0] <= 30, state[1] <= 100, state[4] <= 1, state[10] <= 100 else {
+            throw ExperimentalKeyboardError.incompatibleState
+        }
+        return state
+    }
+
+    public func applyExperimental(_ behavior: LightingBehavior, identity: ExperimentalKeyboardIdentity) throws -> NuPhyIOEvidence {
+        guard identity.isEligible, let profile = identity.model.flatMap(NuPhyLightingProfile.experimental),
+              let phase = try experimentalStore?.record(for: identity)?.phase,
+              phase == .testing || (phase == .revoking && behavior == .off),
+              let device = try experimentalDevice(), ExperimentalKeyboardIdentity(device) == identity else {
+            throw ExperimentalKeyboardError.consentRequired
+        }
+        let transport = try discovery.open(device)
+        return try applyAndVerify(mainState(for: behavior), using: transport, profile: profile)
     }
 
     private func startTemporarySession(
@@ -255,14 +362,15 @@ public final class NuPhyIOAdapter: CompanionLightingApplying, CompanionLightingV
 
     private func readLightState(
         _ transport: any Air65ReportTransport,
-        key: NuPhySessionKey
+        key: NuPhySessionKey,
+        profile: NuPhyLightingProfile
     ) throws -> [UInt8] {
         let payload = try exchange(
             transport,
-            request: .read(address: 0, length: 17),
+            request: .read(address: profile.stateAddress, length: UInt8(profile.stateLength)),
             key: key
         )
-        guard payload.count == 17 else {
+        guard payload.count == profile.stateLength else {
             throw NuPhyIOAdapterError.invalidLightState
         }
         return payload

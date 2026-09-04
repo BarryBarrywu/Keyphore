@@ -194,3 +194,16 @@
 "candidate.model" = "型号";
 "candidate.illustration" = "键盘示意图";
 "candidate.multiple" = "识别到多款候选键盘";
+
+"experimental.title" = "实验性接入";
+"experimental.detail" = "候选型号和外观可正常查看。仅具备型号专属协议配置的键盘提供灯光测试；其他型号已识别，待验证。USB REV 不代表固件版本。";
+"experimental.available" = "协议检查通过，尚未测试灯光。";
+"experimental.start" = "开始实验性灯光测试";
+"experimental.testing" = "正在测试灯光与关灯…";
+"experimental.confirm" = "读回与关灯检查通过。请确认主背光切换、熄灭正常，其他灯光均未变化。";
+"experimental.confirm_action" = "显示正常，在本机启用";
+"experimental.enabled" = "实验性 · 本机已确认";
+"experimental.disable" = "停止／关闭实验性控制";
+"experimental.revoking" = "正在关灯并关闭试用…";
+"experimental.disabled" = "实验性控制已关闭。";
+"experimental.failed" = "检查未通过，已阻止自动控制。如灯光仍亮，请用键盘自身按键关灯；可导出诊断协助适配。";

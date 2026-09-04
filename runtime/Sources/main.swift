@@ -34,6 +34,8 @@ case "companion":
     }
     let healthStore = KeyboardHealthStore(url: KeyphoreRuntimePaths.keyboardHealthURL())
     let lighting = NuPhyIOAdapter(discovery: SystemAir65TransportDiscovery())
+    let experimentalStore = ExperimentalKeyboardStore()
+    lighting.experimentalStore = experimentalStore
     if let acceptanceMode = arguments.dropFirst().first,
         ["--inspect-air75", "--preview-air75", "--trace-air75"].contains(acceptanceMode) {
         do {
@@ -73,10 +75,24 @@ case "companion":
     let powerEvents = SystemPowerEventMonitor { event in
         try? recovery.handle(event)
     }
+    let experiments = ExperimentalKeyboardController(
+        store: experimentalStore, lighting: lighting, healthStore: healthStore,
+        signalOffAcknowledgement: SignalOffAcknowledgementStore(url: KeyphoreRuntimePaths.signalOffAcknowledgementURL())
+    )
+    var lastExperimentCheck = ContinuousClock.now - .seconds(1)
+    var holdsExperimentalRuntime = false
     var lastHealthCheck = ContinuousClock.now
     while true {
-        try? recovery.poll()
-        if lastHealthCheck.duration(to: .now) >= .seconds(1) {
+        if lastExperimentCheck.duration(to: .now) >= .seconds(1) {
+            do {
+                holdsExperimentalRuntime = try experiments.poll(
+                    quitting: QuitGateStore(url: KeyphoreRuntimePaths.quitGateURL()).isActive
+                )
+            } catch { holdsExperimentalRuntime = true }
+            lastExperimentCheck = .now
+        }
+        if !holdsExperimentalRuntime { try? recovery.poll() }
+        if !holdsExperimentalRuntime, lastHealthCheck.duration(to: .now) >= .seconds(1) {
             try? recovery.healthCheck()
             lastHealthCheck = .now
         }

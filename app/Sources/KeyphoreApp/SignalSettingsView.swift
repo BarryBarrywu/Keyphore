@@ -92,6 +92,8 @@ struct SignalSettingsView: View {
             }.padding(.vertical, 14)
             Divider()
             CandidateKeyboardCatalogView()
+            Divider()
+            ExperimentalKeyboardSettingsView(state: state)
             if showDiagnostics {
                 Divider()
                 DiagnosticsView(state: state).padding(.vertical, 14)
@@ -373,5 +375,48 @@ private extension SignalColor {
             green: byte(color.greenComponent),
             blue: byte(color.blueComponent)
         )
+    }
+}
+
+struct ExperimentalKeyboardSettingsView: View {
+    @ObservedObject var state: KeyphoreAppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(AppCopy.value(.experimentalTitle)).font(.subheadline.weight(.semibold))
+            Text(AppCopy.value(.experimentalDetail)).font(.caption).foregroundStyle(.secondary)
+            ForEach(state.experimentalRecords.filter { $0.identity.isEligible }, id: \.identity) { record in
+                Divider()
+                Text(record.identity.model?.rawValue ?? record.identity.product).font(.subheadline.weight(.medium))
+                Text(String(format: "USB %04X · REV %04X", Int(record.identity.productID), record.identity.usbRevision))
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(AppCopy.value(status(record.phase))).font(.caption)
+                switch record.phase {
+                case .available, .failed, .disabled:
+                    Button(AppCopy.value(.experimentalStart)) { state.updateExperimental(record.identity, action: "start") }
+                case .awaitingConfirmation:
+                    Button(AppCopy.value(.experimentalConfirmAction)) { state.updateExperimental(record.identity, action: "confirm") }
+                    Button(AppCopy.value(.experimentalDisable)) { state.updateExperimental(record.identity, action: "disable") }
+                case .requested, .testing, .enabled:
+                    Button(AppCopy.value(.experimentalDisable)) { state.updateExperimental(record.identity, action: "disable") }
+                case .revoking:
+                    ProgressView().controlSize(.small)
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        .padding(.vertical, 14)
+    }
+
+    private func status(_ phase: ExperimentalKeyboardRecord.Phase) -> AppCopyKey {
+        switch phase {
+        case .available: .experimentalAvailable
+        case .requested, .testing: .experimentalTesting
+        case .awaitingConfirmation: .experimentalConfirm
+        case .enabled: .experimentalEnabled
+        case .revoking: .experimentalRevoking
+        case .disabled: .experimentalDisabled
+        case .failed: .experimentalFailed
+        }
     }
 }
