@@ -7,6 +7,7 @@ struct SignalSettingsView: View {
     let checkForUpdates: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
+    @State private var selectedTab: SettingsTab = .lights
     @State private var editingSignal: CodexSignal = .execution
     @State private var showColorWheel = false
 
@@ -14,30 +15,42 @@ struct SignalSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(AppCopy.value(.settings)).font(.system(size: 22, weight: .semibold))
-                .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 22)
+            SettingsTabPicker(selection: $selectedTab)
+                .frame(width: 320, height: 64)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 8).padding(.bottom, 12)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    section(.settingsDevice) { device }
-                    section(.deviceCheckTitle) {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text(AppCopy.value(.deviceCheckIntro)).font(.caption).foregroundStyle(.secondary)
-                            SignalPreviewFeedback(state: state, allowsRestart: true)
-                            Divider()
-                            DiagnosticsView(state: state)
-                        }.padding(.vertical, 14)
+                    switch selectedTab {
+                    case .lights:
+                        section(.settingsSignals) { signals }
+                    case .device:
+                        section(.settingsDevice) { device }
+                        section(.deviceCheckTitle) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text(AppCopy.value(.deviceCheckIntro)).font(.caption).foregroundStyle(.secondary)
+                                SignalPreviewFeedback(state: state, allowsRestart: true)
+                                Divider()
+                                DiagnosticsView(state: state)
+                            }.padding(.vertical, 14)
+                        }
+                    case .general:
+                        section(.settingsGeneral) { general }
+                        if state.canManageRemoval {
+                            Button(AppCopy.value(.removalAction), role: .destructive) { state.presentManagedRemoval() }
+                                .buttonStyle(.borderless)
+                        }
+                    case .about:
+                        about
                     }
-                    section(.settingsSignals) { signals }
-                    section(.settingsGeneral) { general }
-                    if state.canManageRemoval {
-                        Button(AppCopy.value(.removalAction), role: .destructive) { state.presentManagedRemoval() }
-                            .buttonStyle(.borderless)
-                    }
-                    errors
-                }.padding(.horizontal, 28).padding(.bottom, 24)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28).padding(.bottom, 24)
             }
+            .id(selectedTab)
+            VStack(alignment: .leading, spacing: 6) { errors }
+                .font(.caption).padding(.horizontal, 28)
             HStack {
-                Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
                 Spacer()
                 Button(AppCopy.value(.quit)) { NSApp.terminate(nil) }
             }
@@ -48,13 +61,48 @@ struct SignalSettingsView: View {
                     .padding(.horizontal, 28).padding(.bottom, 12)
             }
         }
-        .frame(minWidth: 480, idealWidth: 480, minHeight: 680)
+        .frame(minWidth: 480, idealWidth: 480, minHeight: 600)
         .background(colorScheme == .dark ? Color(white: 0.11) : Color(white: 0.965))
         .tint(Color(red: 0.16, green: 0.36, blue: 0.96))
         .navigationTitle(AppCopy.value(.settings))
         .onAppear(perform: state.refresh)
         .onChange(of: editingSignal) { _ in showColorWheel = false }
+        .onChange(of: selectedTab) { _ in showColorWheel = false }
         .sheet(isPresented: $state.removalIsPresented) { ManagedRemovalView(state: state) }
+    }
+
+    private var about: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 8) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().scaledToFit().frame(width: 88, height: 88)
+                    .accessibilityHidden(true)
+                Text("Keyphore").font(.system(size: 25, weight: .semibold))
+                Text(AppCopy.value(.aboutDescription))
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Text(String(format: AppCopy.value(.aboutVersion),
+                            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—",
+                            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
+                Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
+                    .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity).padding(.top, 12)
+            VStack(spacing: 0) {
+                row(.aboutWebsite) {
+                    Link("GitHub", destination: URL(string: "https://github.com/BarryBarrywu/Keyphore")!)
+                }
+                Divider()
+                row(.aboutMoreApps) {
+                    Link("barrybarywu.com", destination: URL(string: "https://barrybarywu.com")!)
+                }
+            }
+            .font(.system(size: 13)).padding(.horizontal, 14)
+            .frame(maxWidth: 360)
+            Text("© 2026 Barry Barry Wu")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+        }
     }
 
     private func section<Content: View>(_ title: AppCopyKey, @ViewBuilder content: () -> Content) -> some View {
@@ -265,6 +313,77 @@ struct SignalSettingsView: View {
             isVisible: isVisible ?? current.isVisible, color: color ?? current.color,
             brightness: brightness ?? current.brightness, pattern: pattern ?? current.pattern
         ), for: editingSignal)
+    }
+}
+
+private struct SettingsTabPicker: View {
+    @Binding var selection: SettingsTab
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(SettingsTab.allCases, id: \.self) { tab in
+                Button { selection = tab } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tab.symbolName)
+                            .font(.system(size: 23, weight: .regular))
+                            .frame(width: 30, height: 28)
+                            .accessibilityHidden(true)
+                        Text(AppCopy.value(tab.copyKey))
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 64)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(SettingsTabButtonStyle(isSelected: selection == tab))
+                .accessibilityAddTraits(selection == tab ? [.isSelected] : [])
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(AppCopy.value(.settings))
+    }
+}
+
+private struct SettingsTabButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isSelected ? Color(nsColor: .controlAccentColor) : .secondary)
+            .background {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.12 : isSelected ? 0.07 : 0))
+            }
+            .overlay {
+                if isSelected && contrast == .increased {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1)
+                }
+            }
+    }
+}
+
+private enum SettingsTab: CaseIterable {
+    case lights, device, general, about
+
+    var symbolName: String {
+        switch self {
+        case .lights: "lightbulb"
+        case .device: "keyboard"
+        case .general: "gearshape"
+        case .about: "info.circle"
+        }
+    }
+
+    var copyKey: AppCopyKey {
+        switch self {
+        case .lights: .settingsTabLights
+        case .device: .settingsTabDevice
+        case .general: .settingsGeneral
+        case .about: .settingsTabAbout
+        }
     }
 }
 

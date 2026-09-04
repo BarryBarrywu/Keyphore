@@ -213,3 +213,11 @@
 "device_check.retry" = "重新测试";
 "device_check.recent" = "最近一次灯效测试";
 "device_check.intro" = "点击开始后，键盘会依次展示三种任务信号。请观察键盘，再确认显示是否正确。";
+
+"settings.tab.lights" = "灯效";
+"settings.tab.device" = "设备";
+"settings.tab.about" = "关于";
+"about.description" = "用键盘灯光，看见 Codex 的任务状态。";
+"about.version" = "版本 %@（%@）";
+"about.website" = "项目主页";
+"about.more_apps" = "发现更多应用";

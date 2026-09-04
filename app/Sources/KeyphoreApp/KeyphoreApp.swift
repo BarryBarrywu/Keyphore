@@ -27,7 +27,7 @@ struct KeyphoreApp: App {
         Settings {
             SignalSettingsView(state: state, checkForUpdates: appDelegate.checkForUpdates)
         }
-        .defaultSize(width: 480, height: 740)
+        .defaultSize(width: 480, height: 640)
     }
 
     private func applyAppearance() {

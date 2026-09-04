@@ -6,6 +6,13 @@ public enum AppLanguage: String, CaseIterable, Codable, Sendable {
 }
 
 public enum AppCopyKey: String, CaseIterable, Sendable {
+    case settingsTabLights = "settings.tab.lights"
+    case settingsTabDevice = "settings.tab.device"
+    case settingsTabAbout = "settings.tab.about"
+    case aboutDescription = "about.description"
+    case aboutVersion = "about.version"
+    case aboutWebsite = "about.website"
+    case aboutMoreApps = "about.more_apps"
     case settingsDevice = "settings.device"
     case settingsSignals = "settings.signals"
     case settingsGeneral = "settings.general"

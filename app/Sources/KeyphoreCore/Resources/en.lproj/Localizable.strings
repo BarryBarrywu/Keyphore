@@ -213,3 +213,11 @@
 "device_check.retry" = "Test again";
 "device_check.recent" = "Most recent lighting test";
 "device_check.intro" = "Start the test to show the three task signals on your keyboard. Watch the keyboard, then confirm whether they look correct.";
+
+"settings.tab.lights" = "Lights";
+"settings.tab.device" = "Device";
+"settings.tab.about" = "About";
+"about.description" = "Codex task status on your keyboard.";
+"about.version" = "Version %@ (%@)";
+"about.website" = "Project website";
+"about.more_apps" = "Discover more apps";
