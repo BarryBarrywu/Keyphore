@@ -375,6 +375,10 @@ final class KeyphoreAppState: ObservableObject {
         )
     }
 
+    var reviewedDiagnosticReport: DiagnosticReport {
+        DiagnosticReport(snapshot: latestDiagnosticSnapshot, language: diagnosticLanguage, preview: previewRecord)
+    }
+
     func beginSignalPreview() {
         guard menuState == .ready, let previewStore else { return }
         do {

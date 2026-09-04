@@ -88,8 +88,8 @@
 "preview.confirm_prompt" = "Did all three signals look correct on the keyboard?";
 "preview.confirm" = "Yes, they looked correct";
 "preview.reject" = "No, something looked wrong";
-"preview.confirmed" = "Visual confirmation recorded separately from protocol validation.";
-"preview.rejected" = "Visual rejection recorded. Review the settings or connection and try again.";
+"preview.confirmed" = "Lighting test passed.";
+"preview.rejected" = "Lighting test did not pass. Test again or export diagnostics for troubleshooting.";
 "preview.failed" = "Preview failed safely. Normal Companion control has resumed.";
 "preview.state_error" = "The saved preview result could not be read. Start a new preview to replace it.";
 "diagnostic.field.app_version" = "App version";
@@ -207,3 +207,9 @@
 "experimental.revoking" = "Turning off before disabling…";
 "experimental.disabled" = "Experimental control is disabled.";
 "experimental.failed" = "Check failed; automatic control is blocked. If the lights remain on, use the keyboard controls to turn them off. Export diagnostics to help adaptation.";
+
+"device_check.title" = "Device check";
+"device_check.start" = "Start test";
+"device_check.retry" = "Test again";
+"device_check.recent" = "Most recent lighting test";
+"device_check.intro" = "Start the test to show the three task signals on your keyboard. Watch the keyboard, then confirm whether they look correct.";

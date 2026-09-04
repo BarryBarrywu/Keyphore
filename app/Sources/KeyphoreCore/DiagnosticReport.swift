@@ -67,8 +67,19 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
     public let language: AppLanguage
     public let fields: [DiagnosticField]
     public let privacyNotice: String
+    public let preview: [String]?
 
-    public init(snapshot: DiagnosticSnapshot, language: AppLanguage) {
+    public init(snapshot: DiagnosticSnapshot, language: AppLanguage, preview: SignalPreviewRecord? = nil) {
+        self.preview = preview.map { record in
+            [
+                AppCopy.value(.deviceCheckRecent, language: language),
+                ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: Double(record.requestedAt.millisecondsSince1970) / 1000)),
+                record.phase.rawValue,
+                "protocolReadbackSucceeded: \(record.protocolReadbackSucceeded)",
+                "rhythmLightPreserved: \(record.rhythmLightPreserved)",
+                "visualConfirmation: \(record.visualConfirmation.rawValue)",
+            ]
+        }
         schemaVersion = 1
         self.language = language
         privacyNotice = AppCopy.value(.diagnosticPrivacyNotice, language: language)

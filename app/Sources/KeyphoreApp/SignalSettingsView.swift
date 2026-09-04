@@ -8,7 +8,6 @@ struct SignalSettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var editingSignal: CodexSignal = .execution
-    @State private var showDiagnostics = false
     @State private var showColorWheel = false
 
     private var appearance: SignalAppearance { state.snapshot.profile.appearance(for: editingSignal) }
@@ -20,6 +19,14 @@ struct SignalSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     section(.settingsDevice) { device }
+                    section(.deviceCheckTitle) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text(AppCopy.value(.deviceCheckIntro)).font(.caption).foregroundStyle(.secondary)
+                            SignalPreviewFeedback(state: state, allowsRestart: true)
+                            Divider()
+                            DiagnosticsView(state: state)
+                        }.padding(.vertical, 14)
+                    }
                     section(.settingsSignals) { signals }
                     section(.settingsGeneral) { general }
                     if state.canManageRemoval {
@@ -82,25 +89,12 @@ struct SignalSettingsView: View {
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { showDiagnostics.toggle() } label: {
-                    HStack(spacing: 5) {
-                        Text(AppCopy.value(showDiagnostics ? .settingsHideDetails : .settingsDiagnosticDetails))
-                        Image(systemName: showDiagnostics ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
-                    }.font(.system(size: 12)).padding(.vertical, 8)
-                }.buttonStyle(.borderless)
             }.padding(.vertical, 14)
             Divider()
             CandidateKeyboardCatalogView()
-            Divider()
-            ExperimentalKeyboardSettingsView(state: state)
-            if showDiagnostics {
+            if state.experimentalRecords.contains(where: { $0.identity.isEligible && $0.identity.model?.rawValue == connectedDeviceName }) {
                 Divider()
-                DiagnosticsView(state: state).padding(.vertical, 14)
-            }
-            if state.migrationRequiresSignalPreview || state.previewRecord != nil {
-                Divider()
-                SignalPreviewFeedback(state: state, allowsRestart: true).padding(.vertical, 14)
+                ExperimentalKeyboardSettingsView(state: state)
             }
         }
     }

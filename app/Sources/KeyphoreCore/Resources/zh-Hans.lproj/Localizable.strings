@@ -88,8 +88,8 @@
 "preview.confirm_prompt" = "键盘上的三种信号看起来都正确吗？";
 "preview.confirm" = "是，显示正确";
 "preview.reject" = "否，显示有误";
-"preview.confirmed" = "视觉确认已与协议验证分开记录。";
-"preview.rejected" = "已记录视觉未通过。请检查设置或连接后重试。";
+"preview.confirmed" = "灯效测试通过。";
+"preview.rejected" = "灯效测试未通过。你可以重新测试，或导出诊断以协助排查。";
 "preview.failed" = "预览已安全失败，Companion 已恢复正常控制。";
 "preview.state_error" = "无法读取已保存的预览结果。请开始新的预览以替换它。";
 "diagnostic.field.app_version" = "App 版本";
@@ -207,3 +207,9 @@
 "experimental.revoking" = "正在关灯并关闭试用…";
 "experimental.disabled" = "实验性控制已关闭。";
 "experimental.failed" = "检查未通过，已阻止自动控制。如灯光仍亮，请用键盘自身按键关灯；可导出诊断协助适配。";
+
+"device_check.title" = "设备检查";
+"device_check.start" = "开始测试";
+"device_check.retry" = "重新测试";
+"device_check.recent" = "最近一次灯效测试";
+"device_check.intro" = "点击开始后，键盘会依次展示三种任务信号。请观察键盘，再确认显示是否正确。";

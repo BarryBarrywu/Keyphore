@@ -25,14 +25,6 @@ struct KeyphorePopover: View {
             && presentation.appearance?.pattern == .slowFlashing && !reduceMotion
     }
 
-    private var showsPreviewFeedback: Bool {
-        if state.migrationRequiresSignalPreview { return true }
-        return switch state.previewRecord?.phase {
-        case .pending?, .presenting?, .awaitingVisualConfirmation?, .failed?: true
-        case .confirmed?, .rejected?, nil: false
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -93,18 +85,7 @@ struct KeyphorePopover: View {
                         }
                     }
                     Spacer()
-                    Button(action: state.beginSignalPreview) {
-                        Label(AppCopy.value(presentation.isPreviewing ? .previewRunningShort : .previewButtonTitle),
-                              systemImage: "play.fill")
-                            .font(.system(size: 11, weight: .medium))
-                            .padding(.horizontal, 12).frame(height: 30)
-                    }
-                    .buttonStyle(SecondaryPreviewStyle())
-                    .disabled(state.menuState != .ready || presentation.isPreviewing
-                              || state.previewRecord?.phase == .awaitingVisualConfirmation)
-                }
-                if showsPreviewFeedback {
-                    SignalPreviewFeedback(state: state).padding(.top, 14)
+
                 }
             }
             if state.previewStateFailed {
@@ -201,18 +182,17 @@ struct SignalPreviewFeedback: View {
                 Text(AppCopy.value(.migrationPreviewDescription)).foregroundStyle(.secondary)
             }
             if allowsRestart {
-                Button(AppCopy.value(.previewStart), action: state.beginSignalPreview)
+                Button(AppCopy.value(state.previewRecord == nil ? .deviceCheckStart : .deviceCheckRetry), action: state.beginSignalPreview)
                     .disabled(state.menuState != .ready || state.previewRecord?.phase == .pending
                               || state.previewRecord?.phase == .presenting
                               || state.previewRecord?.phase == .awaitingVisualConfirmation)
             }
             if let preview = state.previewRecord {
+                Text(AppCopy.value(.deviceCheckRecent)).font(.caption).foregroundStyle(.secondary)
                 switch preview.phase {
                 case .pending, .presenting:
                     Text(AppCopy.value(.previewRunning)).foregroundStyle(.secondary)
                 case .awaitingVisualConfirmation:
-                    if preview.protocolReadbackSucceeded { Text(AppCopy.value(.previewProtocolVerified)) }
-                    if preview.rhythmLightPreserved { Text(AppCopy.value(.previewRhythmPreserved)) }
                     Text(AppCopy.value(.previewConfirmPrompt)).fontWeight(.medium)
                     HStack {
                         Button(AppCopy.value(.previewConfirm)) { state.confirmSignalPreview(.confirmed) }
@@ -241,20 +221,6 @@ private struct ForegroundSettingsButton: View {
                 .frame(width: 24, height: 24)
         }
         .accessibilityLabel(title).help(title)
-    }
-}
-
-private struct SecondaryPreviewStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    @State private var hovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(isEnabled ? Color.primary : .secondary)
-            .background(Color.primary.opacity(configuration.isPressed ? 0.10 : hovered && isEnabled ? 0.075 : 0.045),
-                        in: RoundedRectangle(cornerRadius: 8))
-            .contentShape(RoundedRectangle(cornerRadius: 8))
-            .onHover { hovered = $0 }
     }
 }
 

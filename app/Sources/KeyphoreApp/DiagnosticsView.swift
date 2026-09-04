@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct DiagnosticsView: View {
     @ObservedObject var state: KeyphoreAppState
     @State private var saveFailed = false
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) { content }
@@ -15,20 +16,37 @@ struct DiagnosticsView: View {
 
     private var content: some View {
         Group {
-            ForEach(state.diagnosticReport.fields) { field in
-                LabeledContent(field.label) {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(field.value)
-                        if let action = field.action {
-                            Text(action)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            Button { isExpanded.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(AppCopy.value(.settingsDiagnosticDetails))
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isExpanded {
+                ForEach(state.reviewedDiagnosticReport.fields) { field in
+                    LabeledContent(field.label) {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(field.value)
+                            if let action = field.action {
+                                Text(action)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .multilineTextAlignment(.trailing)
                     }
-                    .multilineTextAlignment(.trailing)
+                }
+                if let preview = state.reviewedDiagnosticReport.preview {
+                    ForEach(Array(preview.enumerated()), id: \.offset) { _, line in Text(line).font(.caption) }
                 }
             }
-            Text(state.diagnosticReport.privacyNotice)
+            Text(state.reviewedDiagnosticReport.privacyNotice)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if !state.diagnosticReportIsReady || state.diagnosticReportIsRefreshing {
@@ -44,7 +62,7 @@ struct DiagnosticsView: View {
     }
 
     private func save() {
-        let reviewedReport = state.diagnosticReport
+        let reviewedReport = state.reviewedDiagnosticReport
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.zip]
         panel.nameFieldStringValue = "Keyphore-Diagnostics.zip"
