@@ -59,6 +59,34 @@ Once you have a Keyphore App build:
 
 Closing settings leaves Keyphore running. **Quit Keyphore** stops its background component, disables its Hooks, and turns the signal lights off. For removal, use the in-App removal action before trashing the App.
 
+## Prefer a Rust Plugin without the App?
+
+Developers who do not want the macOS App can build the standalone Rust Codex Plugin from [`src/`](./src) and [`Cargo.toml`](./Cargo.toml). It runs a background Companion without a menu bar interface. The Swift App is a separate native implementation, not a wrapper around this Rust binary.
+
+**The Rust route has a narrower scope:** macOS on Apple Silicon, a stock NuPhy Air65 V3 over wired USB, and fixed blue/orange/green signals with a five-second completion window. Do not assume the App’s Air75 V3 support, signal settings, previews, or updater are available in the Rust Plugin. Not using the App does not imply Windows or Linux support.
+
+With a Rust toolchain supporting edition 2024, Xcode Command Line Tools, and a Codex installation with Plugin/Hook support, run these commands from the repository root. They replace the bundled Rust binary with your local build, ad-hoc sign it for local use, and install the Plugin from this checkout:
+
+```bash
+cargo build --release --target-dir /private/tmp/codex-builds/keyphore-rust
+install -m 755 /private/tmp/codex-builds/keyphore-rust/release/keyphore plugin/bin/keyphore
+codesign --force --sign - --identifier keyphore plugin/bin/keyphore
+codex plugin marketplace add .
+codex plugin add keyphore@keyphore
+```
+
+Start a new Codex task and ask:
+
+```text
+Use $setup-keyphore to install and validate my NuPhy Air65 V3 status lights.
+```
+
+The [bundled setup Skill](./plugin/skills/setup-keyphore/SKILL.md) handles Companion installation, explicit review/trust of the eight Hooks, diagnostics, updates, and removal. Reload Codex as prompted after Hook approval. Building the executable alone does not configure the integration.
+
+**Choose one runtime for the keyboard.** Do not run the Rust Companion and Swift App together. Use the active installation’s removal action before switching; do not manually run a lighting exercise while a Companion owns HID.
+
+The Rust tests also serve as a reference for the Swift implementation. [`tools/keyphore-rewrite-acceptance`](./tools/keyphore-rewrite-acceptance) compares their behavior and audits the App artifact; automated parity is not a substitute for physical lighting confirmation.
+
 ## Local by design
 
 Keyphore has no product account or cloud sync and does not automatically upload telemetry or diagnostics. Its Hook handlers retain only allowlisted event and task-identity fields, not prompts, conversation text, or tool content. Diagnostic exports are reviewed and saved locally by you.
@@ -71,7 +99,7 @@ The Companion is the only component that opens the keyboard’s HID connection. 
 
 ## Build from source
 
-The production App, Hook runtime, and Companion are written in **Swift 6**. The Rust code remains as a migration reference and parity oracle; it is not the current App runtime.
+The App, its Hook runtime, and its Companion are written in **Swift 6**. The separately buildable Rust Plugin also serves as a behavioral reference; it is not embedded in the App.
 
 Core tests require a Swift 6 toolchain:
 
@@ -105,7 +133,7 @@ That workflow requires the configured signing identity and `codex-temp-guard`. I
 | [`app/Sources/KeyphoreCore`](./app/Sources/KeyphoreCore) | Task state, signal profiles, lifecycle, USB protocol |
 | [`runtime/Sources`](./runtime/Sources) | Swift Hook handler and Companion entry points |
 | [`app/Tests`](./app/Tests) | Core and App contracts |
-| [`src`](./src) | Rust migration reference |
+| [`src`](./src) | Standalone Rust Plugin and behavioral reference |
 
 [`tools/keyphore-rewrite-acceptance`](./tools/keyphore-rewrite-acceptance) collects software and parity evidence. Automated tests and protocol readback do not replace physical lighting confirmation. The [original Air65 V3 acceptance record](./docs/acceptance/issue-9.md) describes that earlier hardware check; it is not an Air75 V3 acceptance report.
 

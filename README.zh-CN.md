@@ -59,6 +59,34 @@ App 能识别并展示更多 NuPhy 型号。**能够识别，不代表支持灯�
 
 关闭设置窗口后，Keyphore 仍会运行。**退出 Keyphore** 会停止后台组件、禁用它的 Hook，并熄灭信号灯。卸载时，请先使用 App 内的移除功能，再将 App 移到废纸篓。
 
+## 不想使用 App？也可以构建 Rust 插件
+
+开发者可以从 [`src/`](./src) 和 [`Cargo.toml`](./Cargo.toml) 构建独立的 Rust Codex 插件，不使用 macOS App。它通过后台 Companion 控制灯光，没有菜单栏界面。Swift App 是独立的原生实现，并不是这个 Rust 二进制的界面包装。
+
+**Rust 方案的功能范围更小：** Apple Silicon Mac、原厂固件 NuPhy Air65 V3、USB 有线连接，以及固定的蓝／橙／绿信号和五秒完成提示。不要将 App 的 Air75 V3 支持、信号设置、预览和自动更新能力套用到 Rust 插件上。不使用 App，也不意味着支持 Windows 或 Linux。
+
+准备支持 edition 2024 的 Rust 工具链、Xcode Command Line Tools，以及支持 Plugin／Hook 的 Codex，然后在仓库根目录运行以下命令。它们会用本地构建替换随附的 Rust 二进制，进行本地使用的 ad-hoc 签名，再从当前检出目录安装插件：
+
+```bash
+cargo build --release --target-dir /private/tmp/codex-builds/keyphore-rust
+install -m 755 /private/tmp/codex-builds/keyphore-rust/release/keyphore plugin/bin/keyphore
+codesign --force --sign - --identifier keyphore plugin/bin/keyphore
+codex plugin marketplace add .
+codex plugin add keyphore@keyphore
+```
+
+启动一个新的 Codex 任务并输入：
+
+```text
+使用 $setup-keyphore 安装并验证我的 NuPhy Air65 V3 状态灯。
+```
+
+[随附的设置 Skill](./plugin/skills/setup-keyphore/SKILL.md) 负责 Companion 安装、八个 Hook 的显式审阅与授权，以及诊断、更新和移除。授权后按提示重新加载 Codex；仅编译可执行文件不会完成集成配置。
+
+**同一把键盘只选择一套运行时。** 不要同时运行 Rust Companion 和 Swift App。切换前先使用当前安装方案的移除功能；Companion 持有 HID 时，不要手动运行灯光测试。
+
+Rust 测试也用于对照 Swift 实现的行为。[`tools/keyphore-rewrite-acceptance`](./tools/keyphore-rewrite-acceptance) 会比较两者的行为并审计 App 构建产物；自动化一致性测试不能替代实际灯光确认。
+
 ## 数据留在本机
 
 Keyphore 无需产品账户，不提供云同步，也不会自动上传遥测或诊断。Hook 处理程序仅保留允许范围内的事件和任务标识字段，不保留提示词、对话正文或工具内容。诊断报告由你审阅并导出到本地。
@@ -71,7 +99,7 @@ Companion 是唯一会打开键盘 HID 连接的组件。它汇总活动任务�
 
 ## 从源码构建
 
-生产版本的 App、Hook 运行时和 Companion 均使用 **Swift 6** 编写。仓库中的 Rust 代码保留为迁移参考及行为一致性对照，不是当前 App 的运行时。
+App 及其 Hook 运行时和 Companion 均使用 **Swift 6** 编写。可独立构建的 Rust 插件也作为行为对照，但不会嵌入 App。
 
 核心测试需要 Swift 6 工具链：
 
@@ -105,7 +133,7 @@ tools/keyphore-development-app build-open
 | [`app/Sources/KeyphoreCore`](./app/Sources/KeyphoreCore) | 任务状态、信号配置、生命周期和 USB 协议 |
 | [`runtime/Sources`](./runtime/Sources) | Swift Hook 处理程序及 Companion 入口 |
 | [`app/Tests`](./app/Tests) | 核心模块和 App 的行为测试 |
-| [`src`](./src) | Rust 迁移参考实现 |
+| [`src`](./src) | 独立 Rust 插件及行为对照实现 |
 
 [`tools/keyphore-rewrite-acceptance`](./tools/keyphore-rewrite-acceptance) 用于收集软件验证和行为一致性证据。自动化测试与协议回读不能替代对实际灯光的目视确认。[最初的 Air65 V3 验收记录](./docs/acceptance/issue-9.md) 描述了当时的硬件检查，不是 Air75 V3 的验收报告。
 
