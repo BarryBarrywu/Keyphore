@@ -346,12 +346,6 @@ struct CandidateKeyboardCatalogView: View {
             }
         }
 
-        var status: AppCopyKey {
-            switch self {
-            case .air65ANSI, .candidate(.air75V3): .catalogVerified
-            default: .catalogPending
-            }
-        }
     }
 
     private let models = ([Model.air65ANSI] + CandidateKeyboardModel.allCases.map(Model.candidate))
@@ -379,10 +373,9 @@ struct CandidateKeyboardCatalogView: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Picker(AppCopy.value(.candidateModel), selection: $selection) {
                         ForEach(models, id: \.self) { model in
-                            Text("\(model.name) · \(AppCopy.value(model.status))").tag(model)
+                            Text(model.name).tag(model)
                         }
                     }
-                    Text(AppCopy.value(selection.status)).font(.caption).foregroundStyle(.secondary)
                     Group {
                         switch selection {
                         case .air65ANSI:
@@ -397,7 +390,6 @@ struct CandidateKeyboardCatalogView: View {
                     .padding(.vertical, 8)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(selection.name)
-                    .accessibilityValue(AppCopy.value(selection.status))
                 }.padding(.bottom, 14)
             }
         }

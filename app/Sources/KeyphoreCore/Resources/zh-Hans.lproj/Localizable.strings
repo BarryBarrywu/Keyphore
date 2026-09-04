@@ -190,7 +190,7 @@
 "keyboard.air75_ansi_illustration" = "Air75 V3 ANSI 键盘示意图";
 "keyboard.kick75_ansi_illustration" = "Kick75 IO ANSI 键盘示意图";
 "candidate.catalog" = "键盘型号与外观";
-"candidate.catalog_detail" = "已验证表示该型号的 USB 有线灯光控制已通过实机测试；待验证型号仅提供识别和外观。选择型号只切换示意图，不改变连接或灯光。";
+"candidate.catalog_detail" = "选择型号仅切换示意图。";
 "candidate.model" = "型号";
 "candidate.illustration" = "键盘示意图";
 "candidate.multiple" = "识别到多款候选键盘";
@@ -213,5 +213,3 @@
 "device_check.retry" = "重新测试";
 "device_check.recent" = "最近一次灯效测试";
 "device_check.intro" = "点击开始后，键盘会依次展示三种任务信号。请观察键盘，再确认显示是否正确。";
-"catalog.verified" = "已验证";
-"catalog.pending" = "待验证";
