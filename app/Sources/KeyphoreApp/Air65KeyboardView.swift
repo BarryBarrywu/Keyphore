@@ -159,9 +159,9 @@ struct Air65KeyboardView: View {
         .aspectRatio(416 / layout.height, contentMode: .fit)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(AppCopy.value(layout.illustrationKey))
-        .accessibilityValue(AppCopy.value(layout != .air65 ? .keyboardUnverified : presentation.signal.presentation(in: .default).copyKey))
-        .accessibilityHint(AppCopy.value(layout != .air65 ? .keyboardUnverifiedDetail : .rhythmLightUnchanged))
-        .help(AppCopy.value(layout != .air65 ? .keyboardUnverifiedDetail : .rhythmLightUnchanged))
+        .accessibilityValue(AppCopy.value(!presentation.isControlAvailable ? .keyboardUnverified : presentation.signal.presentation(in: .default).copyKey))
+        .accessibilityHint(AppCopy.value(!presentation.isControlAvailable ? .keyboardUnverifiedDetail : .rhythmLightUnchanged))
+        .help(AppCopy.value(!presentation.isControlAvailable ? .keyboardUnverifiedDetail : .rhythmLightUnchanged))
     }
 
     @ViewBuilder
@@ -230,7 +230,7 @@ struct Air65KeyboardView: View {
     }
 
     private var lightOpacity: Double {
-        layout == .air65 && presentation.isLit && isPatternLit ? Double(presentation.appearance?.brightness.percent ?? 0) / 100 : 0
+        presentation.isLit && isPatternLit ? Double(presentation.appearance?.brightness.percent ?? 0) / 100 : 0
     }
 
     private func surfaceColor(_ key: Key) -> Color {
@@ -334,7 +334,29 @@ struct CandidateKeyboardIllustration: View {
 }
 
 struct CandidateKeyboardCatalogView: View {
-    @State private var selection: CandidateKeyboardModel = .air75V3
+    private enum Model: Hashable {
+        case air65ANSI
+        case candidate(CandidateKeyboardModel)
+
+        var name: String {
+            switch self {
+            case .air65ANSI: "Air65 V3 ANSI"
+            case .candidate(.air75V3): "Air75 V3 ANSI"
+            case .candidate(let model): model.rawValue
+            }
+        }
+
+        var status: AppCopyKey {
+            switch self {
+            case .air65ANSI, .candidate(.air75V3): .catalogVerified
+            default: .catalogPending
+            }
+        }
+    }
+
+    private let models = ([Model.air65ANSI] + CandidateKeyboardModel.allCases.map(Model.candidate))
+        .sorted { $0.name < $1.name }
+    @State private var selection: Model = .air65ANSI
     @State private var isExpanded = false
 
     var body: some View {
@@ -356,12 +378,26 @@ struct CandidateKeyboardCatalogView: View {
                     Text(AppCopy.value(.candidateCatalogDetail))
                         .font(.caption).foregroundStyle(.secondary)
                     Picker(AppCopy.value(.candidateModel), selection: $selection) {
-                        ForEach(CandidateKeyboardModel.allCases.sorted { $0.rawValue < $1.rawValue }, id: \.self) { model in
-                            Text(model.rawValue).tag(model)
+                        ForEach(models, id: \.self) { model in
+                            Text("\(model.name) · \(AppCopy.value(model.status))").tag(model)
                         }
                     }
-                    CandidateKeyboardIllustration(model: selection)
-                        .padding(.vertical, 8)
+                    Text(AppCopy.value(selection.status)).font(.caption).foregroundStyle(.secondary)
+                    Group {
+                        switch selection {
+                        case .air65ANSI:
+                            Air65KeyboardView(presentation: KeyboardSignalPresentation(snapshot: LifecycleSnapshot(
+                                health: .configured(keyboard: .disconnected), menuState: .configured,
+                                durableStatus: .signalOff, currentSignal: .signalOff, profile: .default
+                            ), preview: nil))
+                        case .candidate(let model):
+                            CandidateKeyboardIllustration(model: model)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(selection.name)
+                    .accessibilityValue(AppCopy.value(selection.status))
                 }.padding(.bottom, 14)
             }
         }

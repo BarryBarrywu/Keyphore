@@ -189,8 +189,8 @@
 "keyboard.unverified_detail" = "Lighting control is not enabled for this keyboard. Export diagnostics to help verify support.";
 "keyboard.air75_ansi_illustration" = "Air75 V3 ANSI keyboard illustration";
 "keyboard.kick75_ansi_illustration" = "Kick75 IO ANSI keyboard illustration";
-"candidate.catalog" = "Candidate keyboards and layouts";
-"candidate.catalog_detail" = "These models can be recognized, but lighting control still needs hardware validation. Selecting a model only changes the illustration.";
+"candidate.catalog" = "Keyboard models and layouts";
+"candidate.catalog_detail" = "Verified models have passed wired USB lighting tests on hardware. Pending models offer recognition and illustrations only. Selecting a model changes only the illustration, not the connection or lighting.";
 "candidate.model" = "Model";
 "candidate.illustration" = "Keyboard illustration";
 "candidate.multiple" = "Candidate keyboards detected";
@@ -213,3 +213,5 @@
 "device_check.retry" = "Test again";
 "device_check.recent" = "Most recent lighting test";
 "device_check.intro" = "Start the test to show the three task signals on your keyboard. Watch the keyboard, then confirm whether they look correct.";
+"catalog.verified" = "Verified";
+"catalog.pending" = "Pending verification";

@@ -4,6 +4,7 @@ import KeyphoreCore
 struct KeyboardSignalPresentation {
     let signal: AggregateSignal
     let appearance: SignalAppearance?
+    let isControlAvailable: Bool
     let isLit: Bool
     let isPreviewing: Bool
 
@@ -25,7 +26,8 @@ struct KeyboardSignalPresentation {
         case .completion: appearance = snapshot.profile.completion
         case .signalOff: appearance = nil
         }
-        isLit = snapshot.menuState == .ready
+        isControlAvailable = snapshot.menuState == .ready
+        isLit = isControlAvailable
             && appearance?.isVisible == true
             && (!isPreviewing || preview?.presentationIsLit == true)
     }

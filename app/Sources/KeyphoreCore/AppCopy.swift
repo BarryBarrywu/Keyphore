@@ -73,6 +73,8 @@ public enum AppCopyKey: String, CaseIterable, Sendable {
     case experimentalRevoking = "experimental.revoking"
     case experimentalDisabled = "experimental.disabled"
     case experimentalFailed = "experimental.failed"
+    case catalogVerified = "catalog.verified"
+    case catalogPending = "catalog.pending"
     case candidateCatalog = "candidate.catalog"
     case candidateCatalogDetail = "candidate.catalog_detail"
     case candidateModel = "candidate.model"
