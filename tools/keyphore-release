@@ -211,6 +211,7 @@ def notarize(args, manifest):
             run("ditto", app, staging / app.name)
             shutil.copy2(ROOT / "release/Install.html", staging / "Install.html")
             shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", staging / "NUPHYIO-NOTICE.txt")
+            shutil.copy2(ROOT / "LICENSE", staging / "LICENSE")
             temporary_dmg = Path(temporary) / dmg.name
             run("hdiutil", "create", "-volname", "Keyphore", "-srcfolder", staging, "-format", "UDZO", temporary_dmg)
             run("codesign", "--sign", signing_identity(app), "--timestamp", temporary_dmg)
@@ -302,6 +303,7 @@ def write_channel(args, manifest, public, dmg, bin_dir):
         content = content.replace("{{DOWNLOAD_URL}}", html.escape(manifest["base_url"] + dmg.name, quote=True))
         (public / name).write_text(content)
     shutil.copy2(ROOT / "LICENSES/NUPHYIO-NOTICE.txt", public / "NUPHYIO-NOTICE.txt")
+    shutil.copy2(ROOT / "LICENSE", public / "LICENSE")
     shutil.copy2(ROOT / "release/Install.html", public / "Install.html")
 
 

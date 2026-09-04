@@ -1,108 +1,116 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Keyphore turns Codex lifecycle events into status lights on a NuPhy Air65 V3 keyboard">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Keyphore — Codex task status on your NuPhy keyboard. Blue for working, orange for attention, green for complete, and lights off when idle.">
 </p>
 
-**Keyphore** (pronounced “key-for”) is a macOS Codex Plugin that shows aggregate task state on the main backlight of a stock NuPhy Air65 V3. It keeps Hook handling fast, persists state locally, and gives the keyboard to one long-lived companion process instead of opening HID from every event.
+# Keyphore
 
-## Status at a glance
+**See when Codex is working, needs you, or has finished—right on your keyboard.**
 
-| Keyboard signal | Codex state | Behavior |
-| --- | --- | --- |
-| Blue | Working | A task or subagent is executing |
-| Orange | Attention | A permission request needs a response |
-| Green | Complete | The most recent task completed; clears after five seconds |
-| Off | Idle | No active status remains |
+Keyphore (pronounced “key-for”) is a native macOS menu bar app that turns Codex task events into NuPhy keyboard backlighting. Configure your signals in the App, then keep working while the keyboard shows the current state.
 
-Attention wins over completion from another concurrent task, and each main task or subagent keeps an independent owner in durable state. If the keyboard disconnects or the companion restarts, the current aggregate state is replayed when the device becomes available again.
+[Get started](#get-started) · [Compatibility](#compatibility) · [Build from source](#build-from-source) · [GPL v3](#license)
 
-## How it works
+## One glance, three signals
+
+| Default light | What it means |
+| --- | --- |
+| **Blue · Working** | A Codex task or subagent is executing. |
+| **Orange · Attention** | Codex needs your approval or input. |
+| **Green · Complete** | A turn finished. The signal lasts five seconds by default. |
+| **Off** | No visible task signal is active. |
+
+Concurrent tasks share one keyboard signal: **attention → working → complete → off**. A completed turn cannot hide another task that is still working or waiting for you. Disabling a signal reveals the next eligible state.
+
+*The illustration shows signal states, not a photograph of physical lighting. Actual appearance depends on your keyboard and settings.*
+
+## Make the signals yours
+
+- **Tune each signal independently.** Choose its color, brightness from 1–100%, steady light or slow flashing, and whether it appears at all.
+- **Choose how long completion stays visible.** Set it from 1–60 seconds; working and attention follow task activity.
+- **Check the keyboard from the menu bar.** See the current signal, connection state, and a keyboard illustration; open settings without a Dock window.
+- **Preview on the actual keyboard.** Run a lighting test from the App, check protocol readback, and confirm the result you can see.
+- **Use the appearance and language you prefer.** Light, dark, or system appearance; English, Simplified Chinese, or system language.
+
+## Compatibility
+
+| Component | Current support |
+| --- | --- |
+| Mac | Apple Silicon · macOS 13 or later |
+| Codex | Desktop App or CLI with Plugin and Hook support |
+| Keyboards | **NuPhy Air65 V3 and Air75 V3**, stock firmware, supported USB identities |
+| Connection | Wired USB · one supported keyboard at a time |
+
+Air65 V3 uses USB ID `19f5:102b`; Air75 V3 uses `19f5:1028`. ISO/JIS variants, Bluetooth, 2.4 GHz receivers, Intel Macs, and custom firmware are outside current support. Claude Code and automatic terminal-failure signals are not integrated.
+
+The App can recognize and illustrate additional NuPhy models. **Recognition is not lighting support**: the current experimental lighting allowlist is empty. The [bundled model catalog](./app/Sources/KeyphoreCore/Resources/candidate-keyboards.json) records the recognized identities and layouts.
+
+## Get started
+
+This repository contains the App source. A packaged public download is not linked here yet; use [the source build below](#build-from-source) for development.
+
+Once you have a Keyphore App build:
+
+1. **Open Keyphore and follow Guided setup.** The App manages its Codex Plugin and background component for your macOS user.
+2. **Review and approve the Hooks.** Setup presents the eight task-event definitions before enabling them. Follow any macOS permission prompts shown by the App.
+3. **Connect one supported keyboard over USB.** Run Signal preview and confirm the visible lighting result.
+4. **Start a new Codex task.** Adjust the three signals from Keyphore’s settings whenever you like.
+
+Closing settings leaves Keyphore running. **Quit Keyphore** stops its background component, disables its Hooks, and turns the signal lights off. For removal, use the in-App removal action before trashing the App.
+
+## Local by design
+
+Keyphore has no product account or cloud sync and does not automatically upload telemetry or diagnostics. Its Hook handlers retain only allowlisted event and task-identity fields, not prompts, conversation text, or tool content. Diagnostic exports are reviewed and saved locally by you.
 
 ```text
-Codex lifecycle event
-        │
-        ▼
-privacy-allowlisted Hook ──► durable status.json
-                                  │
-                                  ▼
-                        background companion
-                                  │
-                                  ▼
-                      verified NuPhyIO adapter
-                                  │
-                                  ▼
-                    Air65 V3 main backlight
+Codex task events → local task state → Companion → keyboard backlight
 ```
 
-- Hooks record only event, session, agent, turn, and receipt-time fields. They never open the keyboard.
-- The companion is the sole HID owner and reduces all active owners to one visible state.
-- Protocol readback verifies the intended main-backlight state while leaving the rhythm light bar unchanged.
-- Sleep, restart, reconnect, concurrent sessions, and real subagents are covered by automated contracts and real-device acceptance.
+The Companion is the only component that opens the keyboard’s HID connection. It combines active task signals, applies your settings, and verifies lighting writes through protocol readback. The supported lighting profiles preserve the separate side/rhythm-light state. Keyphore’s idle state turns its main-backlight signal off; it does not restore a previous lighting effect.
 
-See the [Air65 V3 acceptance record](./docs/acceptance/issue-9.md) for the observed hardware evidence.
+## Build from source
 
-## Requirements
+The production App, Hook runtime, and Companion are written in **Swift 6**. The Rust code remains as a migration reference and parity oracle; it is not the current App runtime.
 
-- Apple Silicon Mac running macOS
-- Codex with Plugin and Hook support
-- NuPhy Air65 V3 with stock firmware
-- Wired USB connection
-
-Bluetooth, 2.4 GHz, other NuPhy models, custom firmware, Claude Code, and automatic terminal-failure signals are not supported in this release.
-
-## Install
-
-Add this repository as a Codex marketplace and install the Plugin:
+Core tests require a Swift 6 toolchain:
 
 ```bash
-codex plugin marketplace add BarryBarrywu/Keyphore
-codex plugin add keyphore@keyphore
+swift test --package-path app --scratch-path /private/tmp/codex-builds/keyphore-core
 ```
 
-Start a new Codex task and ask it to use the bundled setup Skill:
-
-```text
-Use $setup-keyphore to install and validate my NuPhy Air65 V3 status lights.
-```
-
-The setup flow installs the companion, asks you to review the eight bundled Hook definitions, and requires a separate trust step before those Hooks can run. Start another new Codex task after trusting the Hooks so the current process reloads them.
-
-> Migrating from the private pre-release `nuphy-codex` build? Uninstall that Plugin with its bundled setup Skill before installing Keyphore. The two Plugin IDs and application-support directories are intentionally separate.
-
-## Verify
-
-Start a new Codex task and ask the installed setup Skill to run diagnostics:
-
-```text
-Use $setup-keyphore to run diagnostics for my NuPhy Air65 V3 status lights.
-```
-
-A ready installation reports these surfaces independently:
-
-```text
-hook_ownership=owned
-hook_trust=trusted
-durable_status=healthy
-companion=running
-keyboard_discovery=air65-v3
-verified_transport=wired-usb
-protocol_health=healthy
-```
-
-From a repository checkout, the same read-only report is available as `./plugin/bin/keyphore diagnostics`. For an isolated physical lighting exercise, stop the companion first, then run `diagnose --exercise`. Do not run the exercise while the companion owns HID.
-
-## Develop
-
-The project is a Rust binary and library with a bundled Codex Plugin:
+Build the App with Xcode on Apple Silicon:
 
 ```bash
-cargo fmt --check
-cargo check --all-targets
-cargo clippy --all-targets -- -D warnings
-cargo test
+xcodebuild -project Keyphore.xcodeproj -scheme Keyphore \
+  -configuration Debug \
+  -derivedDataPath /private/tmp/codex-builds/keyphore-app \
+  build
 ```
 
-The main boundaries are documented in the [Hook lifecycle ADR](./docs/adr/0001-own-an-independent-codex-hook-lifecycle.md), [Plugin distribution ADR](./docs/adr/0003-distribute-a-plugin-with-a-rust-companion.md), and [durable-status ADR](./docs/adr/0004-persist-status-before-controlling-hardware.md).
+For maintainers opening a development build or testing a physical keyboard, use the repository’s stable installation workflow:
+
+```bash
+tools/keyphore-development-app build-open
+```
+
+That workflow requires the configured signing identity and `codex-temp-guard`. It checks for an existing Companion before installing in `~/Applications/Keyphore.app`. Do not launch a development App directly from DerivedData. After hardware testing, quit through the App so it can turn the signal off and stop the Companion.
+
+<details>
+<summary>Code map and validation boundaries</summary>
+
+| Path | Purpose |
+| --- | --- |
+| [`app/Sources/KeyphoreApp`](./app/Sources/KeyphoreApp) | Menu bar, settings, Guided setup, diagnostics, updates |
+| [`app/Sources/KeyphoreCore`](./app/Sources/KeyphoreCore) | Task state, signal profiles, lifecycle, USB protocol |
+| [`runtime/Sources`](./runtime/Sources) | Swift Hook handler and Companion entry points |
+| [`app/Tests`](./app/Tests) | Core and App contracts |
+| [`src`](./src) | Rust migration reference |
+
+[`tools/keyphore-rewrite-acceptance`](./tools/keyphore-rewrite-acceptance) collects software and parity evidence. Automated tests and protocol readback do not replace physical lighting confirmation. The [original Air65 V3 acceptance record](./docs/acceptance/issue-9.md) describes that earlier hardware check; it is not an Air75 V3 acceptance report.
+
+</details>
 
 ## License
 
-Keyphore is available under the [MIT License](./LICENSE). The minimal NuPhyIO protocol implementation retains its required notice in [LICENSES/NUPHYIO-NOTICE.txt](./LICENSES/NUPHYIO-NOTICE.txt).
+Keyphore’s first-party code, including the Swift App, Companion, and bundled Plugin, is licensed under the [GNU General Public License v3.0 only](./LICENSE) (`GPL-3.0-only`). When distributing covered binaries, provide their corresponding source under the license terms.
+
+Third-party components retain their original licenses and attribution: [NuPhyIO protocol notice](./LICENSES/NUPHYIO-NOTICE.txt) · [Sparkle and bundled dependencies](./app/Sources/KeyphoreCore/Resources/SPARKLE-NOTICE.txt).

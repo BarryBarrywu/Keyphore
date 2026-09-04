@@ -47,7 +47,8 @@ fn plugin_bundles_only_the_keyphore_companion_and_owned_hooks() {
     assert!(notice.contains("codex-kick75-status-lights"));
     assert!(notice.contains("MIT License"));
     let license = fs::read_to_string("LICENSE").unwrap();
-    assert!(license.contains("MIT License"));
+    assert!(license.contains("GNU GENERAL PUBLIC LICENSE"));
+    assert!(license.contains("SPDX-License-Identifier: GPL-3.0-only"));
     assert!(license.contains("Copyright (c) 2026 Barry Barry Wu"));
 
     let hooks: Value =

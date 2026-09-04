@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/BarryBarrywu/Keyphore",
   "repository": "https://github.com/BarryBarrywu/Keyphore",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "keywords": ["codex", "nuphy", "air65-v3", "keyboard", "status-light"],
   "skills": "./skills/",
   "interface": {
