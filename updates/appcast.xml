@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss xmlns:keyphore="https://keyphore.app/xml-namespaces/keyphore" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><item><title>Keyphore 0.1.0</title><sparkle:version>6</sparkle:version><sparkle:shortVersionString>0.1.0</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.0
+--><rss xmlns:keyphore="https://keyphore.app/xml-namespaces/keyphore" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><item><title>Keyphore 0.1.1</title><sparkle:version>7</sparkle:version><sparkle:shortVersionString>0.1.1</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.1
+
+Adds nine App languages: English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Italian, and Spanish.
+
+System language follows the first supported language in your macOS preference list, falling back to English. Manual language changes apply immediately and are saved. Diagnostic test details and dates are localized, and longer status text can wrap.
+
+Sparkle update windows and macOS file dialogs continue to use the system language. Keyphore’s own update messages follow the App language.
+</description><description sparkle:format="plain-text" xml:lang="zh-Hans">Keyphore 0.1.1
+
+App 现支持英语、简体中文、繁体中文、日语、韩语、法语、德语、意大利语和西班牙语，共 9 种语言。
+
+跟随系统时按 macOS 首选语言列表依次匹配，无匹配时使用英文。手动切换立即生效并保存。诊断测试详情和日期已本地化，较长的状态文字可自动换行。
+
+Sparkle 更新窗口和 macOS 文件对话框继续跟随系统语言；Keyphore 自己的更新提示跟随 App 语言。
+</description><enclosure url="https://github.com/BarryBarrywu/Keyphore/releases/download/v0.1.1/Keyphore-0.1.1.dmg" sparkle:edSignature="vHhdzJblIU8TujZZ9e5qBpYaitpG6MjPYpxX3LwlHrYl4pMy/4b/wKN3DPBOHNmJSxgxBHVK3MVmshzFFpdgDg==" length="8762040" type="application/octet-stream"></enclosure></item><item><title>Keyphore 0.1.0</title><sparkle:version>6</sparkle:version><sparkle:shortVersionString>0.1.0</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.0
 
 Show Codex task status on the NuPhy Air65 V3 main backlight. Supports Apple Silicon Macs with macOS 13 or later and a wired USB connection.
 
@@ -15,6 +29,6 @@ The App and DMG are Developer ID signed and Apple notarized.
 
 App 和 DMG 均已使用 Developer ID 签名并通过 Apple 公证。
 </description><enclosure url="https://github.com/BarryBarrywu/Keyphore/releases/download/v0.1.0/Keyphore-0.1.0.dmg" sparkle:edSignature="yXnZtklHxh4rMn05DvV4ZP2yf0owDUXPTsSQNFU9zhRugnSJum+JIG+eLtSf7+ylt4Go+avjN9gl7o9DdlxNCw==" length="8666947" type="application/octet-stream"></enclosure></item><title>Keyphore</title><link>https://github.com/BarryBarrywu/Keyphore</link><description>Keyphore signed updates</description></channel></rss><!-- sparkle-signatures:
-edSignature: R8o5Kv2yiqW3QQ04ro9IX3LgTEFWMrtKwdjCigkNX2gmbfZ94/M70KhIeRxs8oLDscYXUw7IosGrL9lUc7N6Aw==
-length: 2416
+edSignature: 3DPt8bIpir7oL7fgibrVWtePY3pSQCwZTozv/GioDQQO8E07j785pDK2Y/DmHmBCJtfDDhw+dV3uLl8ypGYtBA==
+length: 4254
 -->

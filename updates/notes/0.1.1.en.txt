@@ -1,0 +1,7 @@
+Keyphore 0.1.1
+
+Adds nine App languages: English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Italian, and Spanish.
+
+System language follows the first supported language in your macOS preference list, falling back to English. Manual language changes apply immediately and are saved. Diagnostic test details and dates are localized, and longer status text can wrap.
+
+Sparkle update windows and macOS file dialogs continue to use the system language. Keyphore’s own update messages follow the App language.
