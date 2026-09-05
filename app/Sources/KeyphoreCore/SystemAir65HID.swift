@@ -75,7 +75,8 @@ public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
 
     private static func makeManager() -> IOHIDManager {
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        IOHIDManagerSetDeviceMatching(manager, nil)
+        // Unrelated HID services can fail to open even when no NuPhy keyboard is attached.
+        IOHIDManagerSetDeviceMatching(manager, [kIOHIDVendorIDKey: Int(Air65DeviceSelector.vendorID)] as CFDictionary)
         return manager
     }
 
