@@ -5,6 +5,13 @@ import XCTest
 
 @MainActor
 final class PopoverLayoutTests: XCTestCase {
+    func testDisconnectedKeyboardUsesGenericPresentation() {
+        let state = KeyphoreAppState(environment: ["KEYPHORE_ACCEPTANCE_FIXTURE": "configured"])
+        let popover = KeyphorePopover(state: state)
+
+        XCTAssertTrue(popover.usesGenericKeyboardPresentation)
+    }
+
     func testMenuBarPanelRetainsKeyboardSpaceUnderCompressedHeightProposal() {
         for fixture in ["ready-execution", "ready-attention", "ready-completion", "configured", "ready-off"] {
             let state = KeyphoreAppState(environment: ["KEYPHORE_ACCEPTANCE_FIXTURE": fixture])

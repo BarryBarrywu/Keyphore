@@ -17,7 +17,7 @@
 "signal.hidden" = "This signal is hidden";
 "keyboard.illustration" = "Air65 V3 keyboard illustration";
 "preview.running_short" = "Previewing…";
-"keyboard.disconnected" = "Air65 V3 / Air75 V3 disconnected";
+"keyboard.disconnected" = "NuPhy keyboard disconnected";
 "keyboard.unavailable" = "Keyboard status unavailable";
 "keyboard.connected" = "Air65 V3 / Air75 V3 connected";
 "keyboard.ambiguous" = "Multiple Air65 V3 / Air75 V3 keyboards found. Leave only the target connected.";
@@ -81,7 +81,7 @@
 "settings.validation_error" = "The saved profile is invalid. Default values are shown until you save valid settings.";
 "preview.title" = "Signal preview";
 "preview.start" = "Preview all signals";
-"preview.unavailable" = "Connect one supported keyboard over wired USB before starting preview.";
+"preview.unavailable" = "Connect a supported NuPhy keyboard over wired USB before starting preview.";
 "preview.running" = "Presenting execution, attention, and completion on the keyboard…";
 "preview.protocol_verified" = "Correlated protocol readback passed";
 "preview.rhythm_preserved" = "Rhythm-light bytes stayed unchanged";

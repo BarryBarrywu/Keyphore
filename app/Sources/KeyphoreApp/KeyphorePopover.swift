@@ -52,7 +52,19 @@ struct KeyphorePopover: View {
                 .frame(height: 62, alignment: .top)
                 .padding(.bottom, 22)
 
-                if !candidateModels.isEmpty {
+                if usesGenericKeyboardPresentation {
+                    VStack(spacing: 10) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 38, weight: .light))
+                            .foregroundStyle(.secondary)
+                        Text(AppCopy.value(.statusWaitingForUSB))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 344, height: 132)
+                    .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 18))
+                    .padding(.bottom, 18)
+                } else if !candidateModels.isEmpty {
                     ScrollView {
                         VStack(spacing: 14) {
                             ForEach(candidateModels, id: \.self) { model in
@@ -80,7 +92,7 @@ struct KeyphorePopover: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(hasUnverifiedKeyboard ? statusTitle : (state.snapshot.keyboardHealth.model?.rawValue ?? AppCopy.value(.deviceName))).font(.system(size: 12, weight: .medium))
+                        Text(displayedDeviceName).font(.system(size: 12, weight: .medium))
                         HStack(spacing: 5) {
                             Circle().fill(state.menuState == .ready ? Color.green : .secondary)
                                 .frame(width: 4, height: 4)
@@ -110,6 +122,10 @@ struct KeyphorePopover: View {
         .onAppear(perform: state.refresh)
     }
 
+    var usesGenericKeyboardPresentation: Bool {
+        state.snapshot.keyboardHealth == .disconnected
+    }
+
     private var candidateModels: [CandidateKeyboardModel] {
         if let model = state.snapshot.keyboardHealth.model, model.isExperimental,
            let candidate = CandidateKeyboardModel(rawValue: model.rawValue) { return [candidate] }
@@ -123,6 +139,7 @@ struct KeyphorePopover: View {
     }
 
     private var statusTitle: String {
+        if usesGenericKeyboardPresentation { return AppCopy.value(.keyboardDisconnected) }
         if candidateModels.count > 1 { return AppCopy.value(.candidateMultiple) }
         if case .unverified(let interfaces) = state.snapshot.keyboardHealth {
             return Array(Set(interfaces.map { $0.model?.rawValue ?? $0.product })).sorted().joined(separator: ", ")
@@ -146,6 +163,7 @@ struct KeyphorePopover: View {
     }
 
     private var statusDetail: String {
+        if usesGenericKeyboardPresentation { return AppCopy.value(.previewUnavailable) }
         if state.snapshot.keyboardHealth.model?.isExperimental == true { return AppCopy.value(.experimentalEnabled) }
         if case .unverified = state.snapshot.keyboardHealth { return AppCopy.value(.keyboardUnverifiedDetail) }
         if state.menuState != .ready { return AppCopy.value(.previewUnavailable) }
@@ -158,6 +176,13 @@ struct KeyphorePopover: View {
         case .completion: return AppCopy.value(.statusCompletionDetail)
         case .signalOff: return AppCopy.value(.signalOffDescription)
         }
+    }
+
+    private var displayedDeviceName: String {
+        if usesGenericKeyboardPresentation { return "NuPhy" }
+        return hasUnverifiedKeyboard
+            ? statusTitle
+            : (state.snapshot.keyboardHealth.model?.rawValue ?? AppCopy.value(.deviceName))
     }
 
     private var settingsButton: some View {

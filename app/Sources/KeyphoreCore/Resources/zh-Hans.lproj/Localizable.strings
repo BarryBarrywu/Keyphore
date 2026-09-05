@@ -17,7 +17,7 @@
 "signal.hidden" = "此信号已隐藏";
 "keyboard.illustration" = "Air65 V3 键盘示意";
 "preview.running_short" = "正在预览…";
-"keyboard.disconnected" = "Air65 V3 / Air75 V3 未连接";
+"keyboard.disconnected" = "NuPhy 键盘未连接";
 "keyboard.unavailable" = "键盘状态暂不可用";
 "keyboard.connected" = "Air65 V3 / Air75 V3 已连接";
 "keyboard.ambiguous" = "检测到多把 Air65 V3 / Air75 V3，请只保留目标键盘连接。";
@@ -81,7 +81,7 @@
 "settings.validation_error" = "已保存的配置无效。保存有效设置前将显示默认值。";
 "preview.title" = "信号预览";
 "preview.start" = "预览全部信号";
-"preview.unavailable" = "请先通过有线 USB 连接一把受支持的键盘，再开始预览。";
+"preview.unavailable" = "请先通过有线 USB 连接一把受支持的 NuPhy 键盘，再开始预览。";
 "preview.running" = "正在依次在键盘上显示执行、注意和完成信号…";
 "preview.protocol_verified" = "相关协议读回已通过";
 "preview.rhythm_preserved" = "节奏灯字节保持不变";
