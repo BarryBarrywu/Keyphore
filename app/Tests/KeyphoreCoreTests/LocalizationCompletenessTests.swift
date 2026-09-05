@@ -2,7 +2,7 @@ import XCTest
 @testable import KeyphoreCore
 
 final class LocalizationCompletenessTests: XCTestCase {
-    func testBothResourceTablesContainEveryVisibleKeyWithoutUsingFallback() throws {
+    func testAllResourceTablesContainEveryVisibleKeyWithoutUsingFallback() throws {
         let resources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "Sources/KeyphoreCore/Resources")
@@ -14,7 +14,17 @@ final class LocalizationCompletenessTests: XCTestCase {
             XCTAssertEqual(Set(table.keys), Set(AppCopyKey.allCases.map(\.rawValue)))
             for key in AppCopyKey.allCases {
                 XCTAssertFalse(try XCTUnwrap(table[key.rawValue]).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                XCTAssertEqual(AppCopy.value(key, language: language), table[key.rawValue])
             }
+        }
+    }
+
+    func testVersionPlaceholderFormattingInEveryLanguage() {
+        for language in AppLanguage.allCases {
+            let formatted = String(format: AppCopy.value(.aboutVersion, language: language), "1.2.3", "456")
+            XCTAssertTrue(formatted.contains("1.2.3"))
+            XCTAssertTrue(formatted.contains("456"))
+            XCTAssertFalse(formatted.contains("%@"))
         }
     }
 

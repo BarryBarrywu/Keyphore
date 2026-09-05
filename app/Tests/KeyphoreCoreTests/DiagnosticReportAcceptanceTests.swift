@@ -244,14 +244,14 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
             let json = try unzip(arguments: ["-p", zip.path, "diagnostic-report.json"])
             let decoded = try JSONDecoder().decode(DiagnosticReport.self, from: Data(json.utf8))
             XCTAssertEqual(decoded, report)
-            XCTAssertTrue(try XCTUnwrap(decoded.preview).contains("visualConfirmation: \(confirmation.rawValue)"))
+            XCTAssertTrue(try XCTUnwrap(decoded.preview).contains(confirmation == .confirmed ? "Visual confirmation: Yes, they looked correct" : "Visual confirmation: No, something looked wrong"))
             XCTAssertFalse(json.contains(record.id))
             XCTAssertFalse(json.contains(root.path))
         }
         let fresh = try store.begin()
         let report = DiagnosticReport(snapshot: snapshot, language: .english, preview: fresh)
-        XCTAssertTrue(try XCTUnwrap(report.preview).contains("pending"))
-        XCTAssertTrue(try XCTUnwrap(report.preview).contains("visualConfirmation: notRequested"))
+        XCTAssertTrue(try XCTUnwrap(report.preview).contains("Waiting to start"))
+        XCTAssertTrue(try XCTUnwrap(report.preview).contains("Visual confirmation: Not yet confirmed"))
         XCTAssertFalse(try XCTUnwrap(report.preview).contains("rejected"))
     }
 

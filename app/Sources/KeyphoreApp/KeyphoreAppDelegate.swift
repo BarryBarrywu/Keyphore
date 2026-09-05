@@ -85,6 +85,7 @@ final class KeyphoreAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     private func updateStatusItem() {
+        settingsWindow?.title = AppCopy.value(.settings)
         statusItem?.button?.image = state.currentSignalPresentation.menuBarImage
         statusItem?.button?.setAccessibilityLabel(state.currentSignalPresentation.menuBarAccessibilityLabel)
         guard appliedAppearance != state.preferences.appearance else { return }

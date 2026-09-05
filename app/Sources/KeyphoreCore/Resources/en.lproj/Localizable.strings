@@ -230,3 +230,8 @@
 "about.tutti_tagline" = "Every sound. Every screen.";
 "about.explore_tutti" = "Explore Tutti";
 "about.follow_developer" = "Follow the developer";
+
+"diagnostic.preview.pending" = "Waiting to start";
+"diagnostic.preview.rhythm" = "Rhythm lights unchanged";
+"diagnostic.preview.visual" = "Visual confirmation";
+"diagnostic.preview.unconfirmed" = "Not yet confirmed";

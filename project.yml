@@ -71,6 +71,13 @@ targets:
         CFBundleLocalizations:
           - en
           - zh-Hans
+          - zh-Hant
+          - ja
+          - ko
+          - fr
+          - de
+          - it
+          - es
         LSApplicationCategoryType: public.app-category.utilities
         LSUIElement: true
         SUAllowsAutomaticUpdates: false

@@ -11,10 +11,19 @@ struct KeyphoreApp: App {
         }
         .defaultSize(width: 480, height: 640)
         .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button(AppCopy.value(.settings)) { appDelegate.showSettings() }
-                    .keyboardShortcut(",", modifiers: .command)
-            }
+            KeyphoreCommands(state: appDelegate.state, showSettings: appDelegate.showSettings)
+        }
+    }
+}
+
+private struct KeyphoreCommands: Commands {
+    @ObservedObject var state: KeyphoreAppState
+    let showSettings: () -> Void
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button(AppCopy.value(.settings, language: state.preferences.resolvedLanguage()), action: showSettings)
+                .keyboardShortcut(",", modifiers: .command)
         }
     }
 }

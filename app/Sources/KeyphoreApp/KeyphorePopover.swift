@@ -48,11 +48,12 @@ struct KeyphorePopover: View {
             } else {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(statusTitle).font(.system(size: 25, weight: .semibold)).tracking(-0.6)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(statusDetail).font(.system(size: 12)).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 62, alignment: .top)
+                .frame(minHeight: 62, alignment: .top)
                 .padding(.bottom, 22)
 
                 if usesGenericKeyboardPresentation {
@@ -122,6 +123,7 @@ struct KeyphorePopover: View {
                 .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05), lineWidth: 0.5)
                 .allowsHitTesting(false)
         }
+        .environment(\.locale, Locale(identifier: state.preferences.resolvedLanguage().rawValue))
         .preferredColorScheme(state.preferences.appearance.preferredColorScheme)
         .onAppear(perform: state.refresh)
     }

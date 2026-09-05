@@ -5,7 +5,22 @@ public enum AppAppearance: String, CaseIterable, Sendable {
 }
 
 public enum AppLanguageChoice: String, CaseIterable, Sendable {
-    case system, english, simplifiedChinese
+    case system, english, simplifiedChinese, traditionalChinese, japanese, korean, french, german, italian, spanish
+
+    public var language: AppLanguage? {
+        switch self {
+        case .system: nil
+        case .english: .english
+        case .simplifiedChinese: .simplifiedChinese
+        case .traditionalChinese: .traditionalChinese
+        case .japanese: .japanese
+        case .korean: .korean
+        case .french: .french
+        case .german: .german
+        case .italian: .italian
+        case .spanish: .spanish
+        }
+    }
 }
 
 public struct AppPreferences: Equatable, Sendable {
@@ -18,13 +33,17 @@ public struct AppPreferences: Equatable, Sendable {
     }
 
     public func resolvedLanguage(preferredLanguages: [String] = Locale.preferredLanguages) -> AppLanguage {
-        switch language {
-        case .english: .english
-        case .simplifiedChinese: .simplifiedChinese
-        case .system:
-            Locale(identifier: preferredLanguages.first ?? "en").language.script?.identifier == "Hans"
-                ? .simplifiedChinese : .english
+        if let selected = language.language { return selected }
+        for identifier in preferredLanguages {
+            let locale = Locale(identifier: identifier).language
+            if locale.languageCode?.identifier == "zh" {
+                return locale.script?.identifier == "Hant" ? .traditionalChinese : .simplifiedChinese
+            }
+            if let code = locale.languageCode?.identifier, let supported = AppLanguage(rawValue: code) {
+                return supported
+            }
         }
+        return .english
     }
 }
 

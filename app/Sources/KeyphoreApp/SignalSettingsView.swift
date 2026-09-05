@@ -14,7 +14,7 @@ struct SignalSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingsTabPicker(selection: $state.selectedSettingsTab)
+            SettingsTabPicker(selection: $state.selectedSettingsTab, language: state.preferences.resolvedLanguage())
                 .frame(width: 320, height: 64)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 8).padding(.bottom, 12)
@@ -66,6 +66,7 @@ struct SignalSettingsView: View {
         .frame(minWidth: 480, idealWidth: 480, minHeight: 600)
         .background(colorScheme == .dark ? Color(white: 0.11) : Color(white: 0.965))
         .tint(Color(red: 0.16, green: 0.36, blue: 0.96))
+        .environment(\.locale, Locale(identifier: state.preferences.resolvedLanguage().rawValue))
         .navigationTitle(AppCopy.value(.settings))
         .onAppear(perform: state.refresh)
         .onChange(of: editingSignal) { _ in showColorWheel = false }
@@ -247,8 +248,11 @@ struct SignalSettingsView: View {
                     set: { state.updatePreferences(AppPreferences(appearance: state.preferences.appearance, language: $0)) }
                 )) {
                     Text(AppCopy.value(.settingsFollowSystem)).tag(AppLanguageChoice.system)
-                    Text("简体中文").tag(AppLanguageChoice.simplifiedChinese)
-                    Text("English").tag(AppLanguageChoice.english)
+                    ForEach(AppLanguageChoice.allCases.filter { $0 != .system }, id: \.self) { choice in
+                        if let language = choice.language {
+                            Text(language.nativeName).tag(choice)
+                        }
+                    }
                 }.labelsHidden().frame(width: 152)
             }
             Divider()
@@ -295,6 +299,7 @@ struct SignalSettingsView: View {
 
 private struct SettingsTabPicker: View {
     @Binding var selection: SettingsTab
+    let language: AppLanguage
 
     var body: some View {
         HStack(spacing: 4) {
@@ -305,7 +310,7 @@ private struct SettingsTabPicker: View {
                             .font(.system(size: 23, weight: .regular))
                             .frame(width: 30, height: 28)
                             .accessibilityHidden(true)
-                        Text(AppCopy.value(tab.copyKey))
+                        Text(AppCopy.value(tab.copyKey, language: language))
                             .font(.system(size: 12))
                             .lineLimit(1)
                     }
@@ -318,7 +323,7 @@ private struct SettingsTabPicker: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(AppCopy.value(.settings))
+        .accessibilityLabel(AppCopy.value(.settings, language: language))
     }
 }
 

@@ -3,9 +3,35 @@ import Foundation
 public enum AppLanguage: String, CaseIterable, Codable, Sendable {
     case english = "en"
     case simplifiedChinese = "zh-Hans"
+    case traditionalChinese = "zh-Hant"
+    case japanese = "ja"
+    case korean = "ko"
+    case french = "fr"
+    case german = "de"
+    case italian = "it"
+    case spanish = "es"
+
+    public var nativeName: String {
+        switch self {
+        case .english: "English"
+        case .simplifiedChinese: "简体中文"
+        case .traditionalChinese: "繁體中文"
+        case .japanese: "日本語"
+        case .korean: "한국어"
+        case .french: "Français"
+        case .german: "Deutsch"
+        case .italian: "Italiano"
+        case .spanish: "Español"
+        }
+    }
 }
 
 public enum AppCopyKey: String, CaseIterable, Sendable {
+    case diagnosticPreviewPending = "diagnostic.preview.pending"
+    case diagnosticPreviewRhythm = "diagnostic.preview.rhythm"
+    case diagnosticPreviewVisual = "diagnostic.preview.visual"
+    case diagnosticPreviewUnconfirmed = "diagnostic.preview.unconfirmed"
+
     case aboutMenu = "menu.about"
     case startupProgress = "startup.progress"
     case settingsTabLights = "settings.tab.lights"

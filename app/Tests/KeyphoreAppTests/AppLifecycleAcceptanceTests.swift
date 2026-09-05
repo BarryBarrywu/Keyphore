@@ -148,14 +148,15 @@ final class AppLifecycleAcceptanceTests: XCTestCase {
             preferencesStore: store
         )
 
-        state.updatePreferences(AppPreferences(appearance: .dark, language: .simplifiedChinese))
-
-        XCTAssertFalse(state.diagnosticReportIsRefreshing)
-        XCTAssertFalse(state.diagnosticReportIsReady)
-        XCTAssertEqual(provider.callCount, 0)
-        XCTAssertEqual(store.load(), state.preferences)
-        XCTAssertEqual(state.diagnosticReport.language, .simplifiedChinese)
-        XCTAssertEqual(state.snapshot.profile, .default)
+        for choice in AppLanguageChoice.allCases where choice != .system {
+            state.updatePreferences(AppPreferences(appearance: .dark, language: choice))
+            XCTAssertFalse(state.diagnosticReportIsRefreshing)
+            XCTAssertFalse(state.diagnosticReportIsReady)
+            XCTAssertEqual(provider.callCount, 0)
+            XCTAssertEqual(store.load(), state.preferences)
+            XCTAssertEqual(state.diagnosticReport.language, choice.language)
+            XCTAssertEqual(state.snapshot.profile, .default)
+        }
     }
 
     func testResettingSignalColorPersistsWithoutResettingOtherSignalSettings() throws {

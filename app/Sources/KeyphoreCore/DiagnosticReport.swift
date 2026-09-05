@@ -71,13 +71,32 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
 
     public init(snapshot: DiagnosticSnapshot, language: AppLanguage, preview: SignalPreviewRecord? = nil) {
         self.preview = preview.map { record in
-            [
-                AppCopy.value(.deviceCheckRecent, language: language),
-                ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: Double(record.requestedAt.millisecondsSince1970) / 1000)),
-                record.phase.rawValue,
-                "protocolReadbackSucceeded: \(record.protocolReadbackSucceeded)",
-                "rhythmLightPreserved: \(record.rhythmLightPreserved)",
-                "visualConfirmation: \(record.visualConfirmation.rawValue)",
+            func text(_ key: AppCopyKey) -> String { AppCopy.value(key, language: language) }
+            let phase: AppCopyKey = switch record.phase {
+            case .pending: .diagnosticPreviewPending
+            case .presenting: .previewRunning
+            case .awaitingVisualConfirmation: .previewConfirmPrompt
+            case .confirmed: .previewConfirmed
+            case .rejected: .previewRejected
+            case .failed: .previewFailed
+            }
+            let confirmation: AppCopyKey = switch record.visualConfirmation {
+            case .notRequested: .diagnosticPreviewUnconfirmed
+            case .confirmed: .previewConfirm
+            case .rejected: .previewReject
+            }
+            let unfinished = record.phase == .pending || record.phase == .presenting
+            func result(_ passed: Bool) -> String {
+                text(passed ? .diagnosticHealthy : unfinished ? .diagnosticNotAvailable : .diagnosticFailed)
+            }
+            return [
+                text(.deviceCheckRecent),
+                Date(timeIntervalSince1970: Double(record.requestedAt.millisecondsSince1970) / 1000)
+                    .formatted(Date.FormatStyle(date: .numeric, time: .standard).locale(Locale(identifier: language.rawValue))),
+                text(phase),
+                "\(text(.diagnosticFieldProtocol)): \(result(record.protocolReadbackSucceeded))",
+                "\(text(.diagnosticPreviewRhythm)): \(result(record.rhythmLightPreserved))",
+                "\(text(.diagnosticPreviewVisual)): \(text(confirmation))",
             ]
         }
         schemaVersion = 1

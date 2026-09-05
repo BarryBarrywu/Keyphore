@@ -230,3 +230,8 @@
 "about.tutti_tagline" = "每个声音，每块屏幕";
 "about.explore_tutti" = "了解 Tutti";
 "about.follow_developer" = "关注开发者";
+
+"diagnostic.preview.pending" = "等待开始";
+"diagnostic.preview.rhythm" = "节奏灯保持不变";
+"diagnostic.preview.visual" = "目视确认";
+"diagnostic.preview.unconfirmed" = "尚未确认";
