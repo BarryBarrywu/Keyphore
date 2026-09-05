@@ -12,6 +12,10 @@ Keyphore (pronounced “key-for”) is a native macOS menu bar app that turns Co
 
 [Get started](#get-started) · [Compatibility](#compatibility) · [Build from source](#build-from-source) · [GPL v3](#license)
 
+<p align="center">
+  <img src="./assets/readme/app-en.png" width="460" alt="Keyphore App showing Codex task status and the connected NuPhy Air65 V3.">
+</p>
+
 ## One glance, three signals
 
 | Default light | What it means |

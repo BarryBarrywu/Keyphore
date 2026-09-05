@@ -12,6 +12,10 @@ Keyphore（读作“key-for”）是一款原生 macOS 菜单栏应用，把 Cod
 
 [开始使用](#开始使用) · [兼容性](#兼容性) · [从源码构建](#从源码构建) · [GPL v3 许可](#许可证)
 
+<p align="center">
+  <img src="./assets/readme/app-zh-CN.png" width="460" alt="Keyphore App 显示 Codex 任务状态与已连接的 NuPhy Air65 V3。">
+</p>
+
 ## 一眼看懂三种信号
 
 | 默认灯光 | 含义 |
