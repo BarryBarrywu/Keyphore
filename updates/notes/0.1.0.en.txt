@@ -1,6 +1,7 @@
 Keyphore 0.1.0
 
-See Codex task status on NuPhy Air65 V3 and Air75 V3 keyboards over wired USB.
-Customize the color, brightness, visibility, and steady or slow-flashing pattern of each signal.
-Use the native menu bar App for setup, lighting previews, diagnostics, and managed removal.
-Choose English or Simplified Chinese and light, dark, or system appearance.
+Show Codex task status on the NuPhy Air65 V3 main backlight. Supports Apple Silicon Macs with macOS 13 or later and a wired USB connection.
+
+This release fixes interrupted tasks remaining active, late Hook events reviving completed tasks, managed removal of Codex configuration, quit during setup, and unavailable keyboard health reporting. It reduces background setup polling and refines the About page, Quit button, and panel icon.
+
+The App and DMG are Developer ID signed and Apple notarized.

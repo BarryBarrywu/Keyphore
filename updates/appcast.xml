@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss version="2.0"><channel><title>Keyphore</title><link>https://github.com/BarryBarrywu/Keyphore</link><description>Keyphore signed updates</description></channel></rss><!-- sparkle-signatures:
-edSignature: S7jYbvp3Rnt5vP9I1tDxzFe0Wj7CGUuQHTTlQqDdP6M/lDVQrHBGDyK2s4OHVm8urBEoWzWdo12tFA7GJ/oPBw==
-length: 461
+--><rss xmlns:keyphore="https://keyphore.app/xml-namespaces/keyphore" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><item><title>Keyphore 0.1.0</title><sparkle:version>6</sparkle:version><sparkle:shortVersionString>0.1.0</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.0
+
+Show Codex task status on the NuPhy Air65 V3 main backlight. Supports Apple Silicon Macs with macOS 13 or later and a wired USB connection.
+
+This release fixes interrupted tasks remaining active, late Hook events reviving completed tasks, managed removal of Codex configuration, quit during setup, and unavailable keyboard health reporting. It reduces background setup polling and refines the About page, Quit button, and panel icon.
+
+The App and DMG are Developer ID signed and Apple notarized.
+</description><description sparkle:format="plain-text" xml:lang="zh-Hans">Keyphore 0.1.0
+
+通过 NuPhy Air65 V3 主背光显示 Codex 任务状态。支持 macOS 13 或更高版本的 Apple Silicon Mac，键盘需使用 USB 有线连接。
+
+修复中断任务仍显示运行、迟到的 Hook 事件重新激活已完成任务、移除托管配置、设置期间退出及键盘健康状态显示问题。减少后台配置检查，重新排版关于页面，并改进退出按钮和面板图标。
+
+App 和 DMG 均已使用 Developer ID 签名并通过 Apple 公证。
+</description><enclosure url="https://github.com/BarryBarrywu/Keyphore/releases/download/v0.1.0/Keyphore-0.1.0.dmg" sparkle:edSignature="yXnZtklHxh4rMn05DvV4ZP2yf0owDUXPTsSQNFU9zhRugnSJum+JIG+eLtSf7+ylt4Go+avjN9gl7o9DdlxNCw==" length="8666947" type="application/octet-stream"></enclosure></item><title>Keyphore</title><link>https://github.com/BarryBarrywu/Keyphore</link><description>Keyphore signed updates</description></channel></rss><!-- sparkle-signatures:
+edSignature: R8o5Kv2yiqW3QQ04ro9IX3LgTEFWMrtKwdjCigkNX2gmbfZ94/M70KhIeRxs8oLDscYXUw7IosGrL9lUc7N6Aw==
+length: 2416
 -->
