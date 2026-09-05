@@ -1,0 +1,3 @@
+# Rewrite the production runtime in Swift
+
+The Keyphore App will be a native macOS product whose production UI, Hook handling, durable status core, background Companion, and Air65 V3 HID control are implemented in Swift using macOS frameworks, rather than a Swift interface over the existing Rust executable. The Rust implementation remains a migration oracle until Swift reproduces its Hook, state, concurrency, recovery, privacy, protocol-fixture, and real-device evidence; it does not remain in the shipped runtime. This accepts the rewrite cost in exchange for one native application architecture, lifecycle, signing model, and settings experience.

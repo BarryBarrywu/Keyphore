@@ -1,44 +1,71 @@
 <!doctype html>
-<html lang="zh-Hans">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Keyphore 把 Codex 的执行、等待和完成状态映射到 NuPhy Air65 V3 键盘灯光。免费的原生 Mac App。">
-  <title>Keyphore — 让键盘告诉你，Codex 进行到哪了。</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="icon.png" type="image/png">
+<meta name="description" content="Keyphore 把 Codex 任务状态显示在 NuPhy 键盘上。免费的原生 Mac 菜单栏 App。">
+<title>Keyphore — 把 Codex 状态，显示在键盘上。</title>
+<script src="language.js?v=9"></script>
+<script src="translations.js"></script>
+<link rel="stylesheet" href="style.css?v=20260905-i18n">
+<script src="keyboard.js" defer></script>
+<script src="site.js?v=9" defer></script>
 </head>
 <body>
-  <header><a class="wordmark" href="./">Keyphore<span class="light" aria-hidden="true"></span></a><a href="#install">安装说明</a></header>
-  <main>
-    <section class="hero">
-      <div class="intro">
-        <p class="eyebrow">CODEX × NUPHY AIR65 V3</p>
-        <h1>继续手头的事。<br>让键盘告诉你<br><span>任务的进度。</span></h1>
-        <p class="lead">执行中、需要回应、已完成。<br>把 Codex 的任务状态，变成余光就能看到的键盘灯光。</p>
-        <a class="download" href="{{DOWNLOAD_URL}}">免费下载 Mac 版 <span aria-hidden="true">↓</span></a>
-        <p class="compatibility">v{{VERSION}} · Apple Silicon · macOS 13 或更高版本</p>
-      </div>
-      <div class="signals" aria-label="默认灯光：蓝色执行中、橙色需要回应、绿色已完成，无活动时熄灯">
-        <div class="signal blue"><span class="keycap" aria-hidden="true">⌘</span><div><strong>执行中</strong><span>Codex 正在处理任务</span></div></div>
-        <div class="signal orange"><span class="keycap" aria-hidden="true">?</span><div><strong>需要回应</strong><span>有审批或输入等你确认</span></div></div>
-        <div class="signal green"><span class="keycap" aria-hidden="true">↵</span><div><strong>已完成</strong><span>这一轮任务结束了</span></div></div>
-        <p class="signal-note">无活动时熄灯。颜色、亮度和慢闪都由你设置。<br>图示为信号示意，实际效果以键盘为准。</p>
-      </div>
-    </section>
-    <section class="details" aria-label="使用要求与隐私">
-      <article><h2>为你的桌面而生</h2><p>支持一把通过 USB 有线连接的 NuPhy Air65 V3。首次使用需已安装 Codex 桌面 App 或 CLI；蓝牙、2.4 GHz 和其他键盘型号暂不支持。</p></article>
-      <article><h2>留在这台 Mac 上</h2><p>无需 Keyphore 账户，不自动上传遥测或诊断。仅处理任务状态所需的事件字段，不读取对话、提示词或工具内容。</p></article>
-      <article><h2>由你决定</h2><p>免费使用，源代码不公开。自动检查更新，下载与安装需你批准；任务事件的授权会单独说明。支持简体中文和英文。</p></article>
-    </section>
-    <section class="installation" id="install">
-      <h2>从下载到亮灯。</h2>
-      <ol>
-        <li><strong>放入你自己的应用程序文件夹</strong><p>打开 DMG。在访达中打开个人文件夹，创建或打开其中的 Applications 文件夹，再将 Keyphore 拖入。<a href="Install.html">查看详细步骤</a>。</p></li>
-        <li><strong>打开 Keyphore，完成引导</strong><p>按 App 中的说明连接 Codex、查看任务事件并授权。若 macOS 要求输入监控权限，请按引导完成。</p></li>
-        <li><strong>连接键盘，确认灯光</strong><p>用 USB 连接 Air65 V3，运行信号预览并确认目视效果。菜单栏可打开设置；退出 Keyphore 会停止信号并熄灯。</p></li>
-      </ol>
-    </section>
-  </main>
-  <footer><span>Keyphore · 免费的原生 Mac App</span><a href="NUPHYIO-NOTICE.txt">NuPhyIO 协议致谢与许可</a></footer>
+<a class="skip-link" href="#main"><span data-i18n="skip">Skip to content</span></a>
+<header class="nav-shell"><div class="site-header">
+<a class="wordmark" href="./" aria-label="Keyphore"><img class="brand-mark" src="icon.png" width="34" height="34" alt="">Keyphore</a>
+<button class="menu-toggle" type="button" aria-label="Navigation" aria-expanded="false" aria-controls="nav-panel" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+<div class="nav-panel" id="nav-panel"><nav aria-label="导航"><a href="https://barrybarrywu.com"><span data-i18n="about">About me</span></a><a href="https://tutti.barrybarrywu.com/" data-tutti data-i18n="tutti">Tutti</a><a href="install.html"><span data-i18n="setup">Setup guide</span></a></nav>
+<div class="nav-actions"><details class="language-picker" hidden><summary aria-label="Choose language"><span class="language-current">English</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div class="language-options"><button type="button" data-language="en" lang="en">English</button><button type="button" data-language="zh-Hans" lang="zh-Hans">简体中文</button><button type="button" data-language="zh-Hant" lang="zh-Hant">繁體中文</button><button type="button" data-language="ja" lang="ja">日本語</button><button type="button" data-language="ko" lang="ko">한국어</button><button type="button" data-language="fr" lang="fr">Français</button><button type="button" data-language="de" lang="de">Deutsch</button><button type="button" data-language="it" lang="it">Italiano</button><button type="button" data-language="es" lang="es">Español</button></div></details><a class="nav-download primary-button" href="https://github.com/BarryBarrywu/Keyphore/releases/latest"><span class="nav-button-content"><span class="nav-button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"> <path d="M17.05 12.54c-.02-2.16 1.76-3.21 1.84-3.26a3.94 3.94 0 0 0-3.1-1.68c-1.3-.14-2.57.78-3.23.78-.67 0-1.69-.77-2.78-.75a4.11 4.11 0 0 0-3.46 2.1c-1.5 2.59-.38 6.4 1.05 8.49.72 1.02 1.55 2.16 2.64 2.12 1.06-.04 1.46-.68 2.75-.68 1.27 0 1.65.68 2.76.65 1.15-.02 1.87-1.03 2.56-2.06a8.43 8.43 0 0 0 1.17-2.38 3.75 3.75 0 0 1-2.2-3.33ZM14.94 6.22a3.78 3.78 0 0 0 .87-2.72 3.86 3.86 0 0 0-2.5 1.3 3.62 3.62 0 0 0-.9 2.62 3.18 3.18 0 0 0 2.53-1.2Z"/> </svg></span><span class="nav-button-label"><span data-i18n="download">Download</span></span><span class="nav-button-arrow" aria-hidden="true">→</span></span></a>
+<a class="nav-download primary-button" href="https://github.com/BarryBarrywu/Keyphore"><span class="nav-button-content"><span class="nav-button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18"/></svg></span><span class="nav-button-label"><span data-i18n="source">Source code</span></span><span class="nav-button-arrow" aria-hidden="true">→</span></span></a></div>
+</div></div></header>
+<main id="main">
+<section class="hero">
+<p class="eyebrow"><span class="tiny-dot" aria-hidden="true"></span><span data-i18n="eyebrow">Lives in your menu bar. Lights up your keyboard.</span></p>
+<h1><span data-i18n="headline">Codex status.<br>Right on your keyboard.</span></h1>
+<p class="lead"><span data-i18n="lead">Working, needs your input, or just finished.<br>See it at a glance, without switching windows.</span></p>
+<div class="actions"><a class="primary-button download-button" href="https://github.com/BarryBarrywu/Keyphore/releases/latest"><span class="download-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M21.5 2c.3 3-1.7 5.5-4.5 5.7-.4-2.7 1.8-5.2 4.5-5.7ZM25.5 10.4c-1.8-2.1-4.2-2.3-5.6-1.9-1.5.4-2.4 1.1-3.8 1.1-1.3 0-2.6-.9-4.2-1.1-2.7-.4-5.8 1.6-6.7 4.9-1.4 5 1.4 11.9 4.3 15 1.2 1.3 2.3 1.8 3.7 1.2 1.5-.6 2.1-.9 3.2-.9s1.8.3 3.2.9c1.6.6 2.7-.1 3.8-1.3 1.5-1.8 2.7-4 3.3-5.8-4.8-1.8-5.9-8.4-1.2-12.1Z"/></svg></span><span class="download-copy"><span class="download-label"><span data-i18n="downloadApp">Download app for</span></span><strong>macOS</strong></span></a><span class="release-note"><span data-i18n="free">Free & open source</span></span></div>
+<p class="requirements">Apple Silicon · macOS 13+ · USB</p>
+</section>
+<section class="demo" data-signal="execution" aria-label="键盘状态灯光示意">
+<div class="demo-topline"><span>KEYPHORE / <span id="model-name">AIR65 V3 ANSI</span></span><span><span data-i18n="illustration">Interactive illustration · Not actual lighting</span></span></div>
+<div class="model-picker" hidden>
+<label for="keyboard-model"><span data-i18n="chooseKeyboard">Choose a keyboard</span></label>
+<select id="keyboard-model" aria-describedby="model-status catalog-note"><optgroup id="supported-models" label="已支持 · USB"><option value="Air65V3">Air65 V3 ANSI</option><option value="Air75V3">Air75 V3 ANSI</option></optgroup><optgroup id="candidate-models" label="候选型号 · 待验证"></optgroup></select>
+<span id="model-status" class="model-status" role="status"></span>
+</div>
+<div class="keyboard-stage"><svg id="keyboard" viewBox="0 0 832 320" aria-hidden="true"></svg></div>
+<p id="catalog-note" class="catalog-note"><span data-i18n="catalog">Air65 V3 / Air75 V3 (ANSI) have been tested over USB. Other listed models are expected to work with the same settings; compatibility still awaits hands-on testing.</span></p>
+<noscript><p><span data-i18n="noscript">Enable JavaScript to try the lights: blue for working, orange for attention, green for complete, and off when no signal is active.</span></p></noscript>
+<div class="signal-controls" role="group" aria-label="选择灯光状态" hidden>
+<button type="button" data-state="execution" aria-pressed="true"><i class="dot blue" aria-hidden="true"></i><span data-i18n="working">Working</span></button>
+<button type="button" data-state="attention" aria-pressed="false"><i class="dot orange" aria-hidden="true"></i><span data-i18n="attention">Attention</span></button>
+<button type="button" data-state="completion" aria-pressed="false"><i class="dot green" aria-hidden="true"></i><span data-i18n="complete">Complete</span></button>
+<button type="button" data-state="off" aria-pressed="false"><i class="dot unlit" aria-hidden="true"></i><span data-i18n="off">Off</span></button>
+</div>
+<p class="signal-description" aria-live="polite" aria-atomic="true"><span data-i18n="execution">Codex is working. Carry on with what you were doing.</span></p>
+<p class="demo-caption"><span data-i18n="demoCaption">Pick a state to try the lights. Set your own colors, brightness, and slow flashing in the app.</span></p>
+</section>
+<section class="details">
+<figure class="app-preview"><img id="app-preview" src="app-preview-en.png" width="928" height="854" loading="lazy" alt="Keyphore menu bar app showing a task in progress and Air65 V3 connected over USB"><figcaption data-i18n="appScreenshot">Actual app screenshot · English interface</figcaption></figure>
+<div class="details-copy">
+<article><h2><span data-i18n="customize">Make the signals yours.</span></h2><p><span data-i18n="customizeBody">Choose a color, brightness, and steady or slow-flashing light for each state. Completion stays on for 5 seconds by default, adjustable from 1–60 seconds.</span></p></article>
+<article><h2><span data-i18n="local">Task signals stay local.</span></h2><p><span data-i18n="localBody">No Keyphore account or automatic telemetry uploads. Only necessary task-event fields are handled—not prompts, conversations, or tool content.</span></p></article>
+</div>
+</section>
+<aside class="compatibility"><p><span data-i18n="compatibility">Requires Codex desktop or CLI and one keyboard with stock firmware connected over USB. See the catalog above for model verification status. Bluetooth and 2.4 GHz connections are not supported.</span></p><a href="install.html"><span data-i18n="permissions">About setup & permissions</span> <span aria-hidden="true">↗</span></a></aside>
+<aside class="tutti-card" aria-labelledby="tutti-title">
+<img src="tutti.png" width="64" height="64" alt="" loading="lazy">
+<div class="tutti-card-copy"><p class="tutti-kicker" data-i18n="tuttiKicker">Also by Barry Barry Wu</p><h2 id="tutti-title">Tutti</h2><p data-i18n="tuttiNote">Tutti brings app volume, audio output, and display brightness into your Mac’s menu bar. Turn down music during a call or adjust your display without hunting through separate settings.</p></div>
+<a class="tutti-card-link" href="https://tutti.barrybarrywu.com/" data-tutti data-i18n="exploreTutti">Explore Tutti</a>
+</aside>
+</main>
+<footer>
+<div class="footer-row"><span class="footer-credit">© 2026 Barry Barry Wu</span><div class="footer-links footer-social"><a href="https://x.com/BarryBarrywu">X</a><a href="https://space.bilibili.com/217963572"><span data-i18n="bilibili">Bilibili</span></a><a href="https://www.xiaohongshu.com/user/profile/64c9b594000000000e0263f1"><span data-i18n="xiaohongshu">Xiaohongshu</span></a></div></div>
+<div class="footer-row"><div class="footer-links footer-legal"><a href="https://github.com/BarryBarrywu/Keyphore">GitHub</a><a href="https://github.com/BarryBarrywu/Keyphore/blob/main/LICENSE">GPL v3</a><a href="https://github.com/BarryBarrywu/Keyphore/blob/main/LICENSES/NUPHYIO-NOTICE.txt"><span data-i18n="attribution">Attribution</span></a></div></div>
+</footer>
 </body>
 </html>
