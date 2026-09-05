@@ -72,37 +72,8 @@ struct SignalSettingsView: View {
     }
 
     private var about: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 8) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable().scaledToFit().frame(width: 88, height: 88)
-                    .accessibilityHidden(true)
-                Text("Keyphore").font(.system(size: 25, weight: .semibold))
-                Text(AppCopy.value(.aboutDescription))
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                Text(String(format: AppCopy.value(.aboutVersion),
-                            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—",
-                            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))
-                    .font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
-                Button(AppCopy.value(.checkForUpdates), action: checkForUpdates)
-                    .padding(.top, 4)
-            }
-            .frame(maxWidth: .infinity).padding(.top, 12)
-            VStack(spacing: 0) {
-                row(.aboutWebsite) {
-                    Link("GitHub", destination: URL(string: "https://github.com/BarryBarrywu/Keyphore")!)
-                }
-                Divider()
-                row(.aboutMoreApps) {
-                    Link("barrybarywu.com", destination: URL(string: "https://barrybarywu.com")!)
-                }
-            }
-            .font(.system(size: 13)).padding(.horizontal, 14)
-            .frame(maxWidth: 360)
-            Text("© 2026 Barry Barry Wu")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-        }
+        KeyphoreAboutView(language: state.preferences.resolvedLanguage(),
+                          checkForUpdates: checkForUpdates)
     }
 
     private func section<Content: View>(_ title: AppCopyKey, @ViewBuilder content: () -> Content) -> some View {
@@ -534,5 +505,129 @@ struct ExperimentalKeyboardSettingsView: View {
         case .disabled: .experimentalDisabled
         case .failed: .experimentalFailed
         }
+    }
+}
+
+private struct KeyphoreAboutView: View {
+    let language: AppLanguage
+    let checkForUpdates: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private func copy(_ key: AppCopyKey) -> String {
+        AppCopy.value(key, language: language)
+    }
+
+    var body: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 7) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().scaledToFit().frame(width: 78, height: 78)
+                    .accessibilityHidden(true)
+                Text("Keyphore").font(.system(size: 24, weight: .semibold))
+                Text(copy(.aboutDescription))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Text(String(format: copy(.aboutVersion),
+                            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—",
+                            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+                HStack(spacing: 16) {
+                    Button(copy(.checkForUpdates), action: checkForUpdates)
+                    Divider().frame(height: 12)
+                    Link(destination: URL(string: "https://github.com/BarryBarrywu/Keyphore")!) {
+                        Label("GitHub", systemImage: "arrow.up.right")
+                    }
+                }
+                .buttonStyle(.borderless).font(.system(size: 11))
+                .padding(.top, 6)
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text(copy(.aboutMyWork)).font(.system(size: 11)).foregroundStyle(.secondary)
+                HStack(spacing: 11) {
+                    Image("TuttiIcon")
+                        .resizable().scaledToFit().frame(width: 51, height: 51)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Tutti").font(.system(size: 16, weight: .semibold))
+                        Text(copy(.aboutTuttiTagline))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Link(destination: URL(string: language == .simplifiedChinese
+                         ? "https://tutti.barrybarrywu.com/zh/"
+                         : "https://tutti.barrybarrywu.com/")!) {
+                        Label(copy(.aboutExploreTutti), systemImage: "arrow.up.right")
+                    }
+                    .buttonStyle(.borderless).font(.system(size: 11))
+                    .fixedSize()
+                }
+                .padding(14).frame(maxWidth: .infinity, minHeight: 90)
+                .background(cardBackground, in: RoundedRectangle(cornerRadius: 11))
+                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(borderColor))
+                HStack {
+                    Spacer()
+                    Link(destination: URL(string: "https://barrybarrywu.com")!) {
+                        Label(copy(.aboutMoreApps), systemImage: "arrow.up.right")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless).font(.system(size: 11))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 9) {
+                Text(copy(.aboutFollowDeveloper)).font(.system(size: 11)).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    if language == .simplifiedChinese {
+                        socialLink("小红书", image: nil, tint: Color(red: 0.92, green: 0.22, blue: 0.33),
+                                   url: "https://www.xiaohongshu.com/user/profile/64c9b594000000000e0263f1")
+                        socialLink("哔哩哔哩", image: "BrandBilibili", tint: Color(red: 0, green: 0.64, blue: 0.85),
+                                   url: "https://space.bilibili.com/217963572")
+                    } else {
+                        socialLink("X", image: "BrandX", tint: .primary,
+                                   url: "https://x.com/BarryBarrywu")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("© 2026 Barry Barry Wu")
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: 400).frame(maxWidth: .infinity)
+        .padding(.top, 4)
+        .tint(colorScheme == .dark
+              ? Color(red: 0.51, green: 0.65, blue: 1)
+              : Color(red: 0.16, green: 0.36, blue: 0.96))
+    }
+
+    private var cardBackground: Color {
+        colorScheme == .dark ? Color(white: 0.15) : .white
+    }
+
+    private var borderColor: Color {
+        Color.primary.opacity(contrast == .increased ? 0.45 : 0.09)
+    }
+
+    private func socialLink(_ title: String, image: String?, tint: Color, url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            HStack(spacing: 7) {
+                if let image {
+                    Image(image).renderingMode(.template)
+                        .resizable().scaledToFit().frame(width: 16, height: 16)
+                        .foregroundStyle(tint).accessibilityHidden(true)
+                }
+                Text(verbatim: title).foregroundStyle(image == nil ? tint : .primary)
+            }
+            .font(.system(size: 11)).foregroundStyle(.primary)
+            .padding(.horizontal, 12).frame(height: 32)
+            .background(cardBackground, in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(borderColor))
+            .contentShape(RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.borderless)
     }
 }

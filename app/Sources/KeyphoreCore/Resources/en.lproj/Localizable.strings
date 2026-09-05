@@ -220,8 +220,13 @@
 "about.description" = "Codex task status on your keyboard.";
 "about.version" = "Version %@ (%@)";
 "about.website" = "Project website";
-"about.more_apps" = "Discover more apps";
+"about.more_apps" = "More of my work";
 
 "startup.progress" = "Initializing Keyphore…";
 
 "menu.about" = "About Keyphore";
+
+"about.my_work" = "Also by Barry";
+"about.tutti_tagline" = "Every sound. Every screen.";
+"about.explore_tutti" = "Explore Tutti";
+"about.follow_developer" = "Follow the developer";

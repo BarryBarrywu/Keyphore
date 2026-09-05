@@ -220,8 +220,13 @@
 "about.description" = "用键盘灯光，看见 Codex 的任务状态。";
 "about.version" = "版本 %@（%@）";
 "about.website" = "项目主页";
-"about.more_apps" = "发现更多应用";
+"about.more_apps" = "我的其他作品";
 
 "startup.progress" = "正在初始化 Keyphore…";
 
 "menu.about" = "关于 Keyphore";
+
+"about.my_work" = "我的作品";
+"about.tutti_tagline" = "每个声音，每块屏幕";
+"about.explore_tutti" = "了解 Tutti";
+"about.follow_developer" = "关注开发者";
