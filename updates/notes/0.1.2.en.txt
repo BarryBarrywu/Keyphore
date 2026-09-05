@@ -1,0 +1,5 @@
+Keyphore 0.1.2
+
+Fixes an issue where Keyphore could refuse to quit when no NuPhy keyboard was connected. HID discovery now matches only NuPhy devices, so errors from unrelated HID services cannot prevent detection of a disconnected keyboard.
+
+Validated with 17 device and connection lifecycle tests, plus an installed-App quit check confirming both the App and Companion stop normally.

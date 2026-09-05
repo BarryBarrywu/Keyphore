@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss xmlns:keyphore="https://keyphore.app/xml-namespaces/keyphore" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><item><title>Keyphore 0.1.1</title><sparkle:version>7</sparkle:version><sparkle:shortVersionString>0.1.1</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.1
+--><rss xmlns:keyphore="https://keyphore.app/xml-namespaces/keyphore" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><item><title>Keyphore 0.1.2</title><sparkle:version>8</sparkle:version><sparkle:shortVersionString>0.1.2</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.2
+
+Fixes an issue where Keyphore could refuse to quit when no NuPhy keyboard was connected. HID discovery now matches only NuPhy devices, so errors from unrelated HID services cannot prevent detection of a disconnected keyboard.
+
+Validated with 17 device and connection lifecycle tests, plus an installed-App quit check confirming both the App and Companion stop normally.
+</description><description sparkle:format="plain-text" xml:lang="zh-Hans">Keyphore 0.1.2
+
+修复未连接 NuPhy 键盘时可能无法退出的问题。HID 设备发现现在仅匹配 NuPhy，避免无关设备的打开错误干扰键盘断开状态识别。
+
+已通过 17 项设备选择和连接生命周期测试，并在本机安装版验证 App 与 Companion 均可正常退出。
+</description><enclosure url="https://github.com/BarryBarrywu/Keyphore/releases/download/v0.1.2/Keyphore-0.1.2.dmg" sparkle:edSignature="tqhJNx17iNn8zjVPztECKO3wSqnPqMTw7H2VOwwLG5l9UmPC63vangyauGf286YhShGVw0MZ4dM90iJy3m6lAg==" length="8766216" type="application/octet-stream"></enclosure></item><item><title>Keyphore 0.1.1</title><sparkle:version>7</sparkle:version><sparkle:shortVersionString>0.1.1</sparkle:shortVersionString><sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion><sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements><keyphore:hookDefinitionsDigest>96f7fc9b54467caf3ba19b1ea309e8e2abcfc8b7ae1c083e72655e27d434c03a</keyphore:hookDefinitionsDigest><description sparkle:format="plain-text" xml:lang="en">Keyphore 0.1.1
 
 Adds nine App languages: English, Simplified Chinese, Traditional Chinese, Japanese, Korean, French, German, Italian, and Spanish.
 
@@ -29,6 +39,6 @@ The App and DMG are Developer ID signed and Apple notarized.
 
 App 和 DMG 均已使用 Developer ID 签名并通过 Apple 公证。
 </description><enclosure url="https://github.com/BarryBarrywu/Keyphore/releases/download/v0.1.0/Keyphore-0.1.0.dmg" sparkle:edSignature="yXnZtklHxh4rMn05DvV4ZP2yf0owDUXPTsSQNFU9zhRugnSJum+JIG+eLtSf7+ylt4Go+avjN9gl7o9DdlxNCw==" length="8666947" type="application/octet-stream"></enclosure></item><title>Keyphore</title><link>https://github.com/BarryBarrywu/Keyphore</link><description>Keyphore signed updates</description></channel></rss><!-- sparkle-signatures:
-edSignature: 3DPt8bIpir7oL7fgibrVWtePY3pSQCwZTozv/GioDQQO8E07j785pDK2Y/DmHmBCJtfDDhw+dV3uLl8ypGYtBA==
-length: 4254
+edSignature: 2U6BmAD3Hb+OUrr8/NRPEyjphkS0Pt4GkkdH0UOmFUZd6irzIzaGaqb8mpAyjRzPYPzgpPtkDMT3V/Uw+2QbAQ==
+length: 5770
 -->
