@@ -5,6 +5,20 @@ const path = require('node:path');
 const { test } = require('node:test');
 const { chromium } = require('playwright');
 
+async function openNavigation(page) {
+  if (!await page.locator('.nav-panel').isVisible()) {
+    await page.locator('.menu-toggle').click();
+    assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'), 'true');
+  }
+}
+
+async function switchLanguage(page) {
+  await openNavigation(page);
+  await page.locator('.language-picker summary').click();
+  const language = await page.locator('html').getAttribute('lang');
+  await page.locator(`[data-language="${language === 'en' ? 'zh-Hans' : 'en'}"]`).click();
+}
+
 test('multilingual website, system appearance, signals and navigation', async () => {
   const root = path.resolve(__dirname, '../release/site');
   const files = new Set(['index.html', 'install.html', 'style.css', 'language.js', 'translations.js', 'site.js', 'keyboard.js', 'keyboards.json', 'icon.png', 'tutti.png', 'app-preview-zh.png', 'app-preview-en.png']);
@@ -34,7 +48,14 @@ test('multilingual website, system appearance, signals and navigation', async ()
           await page.goto(url);
           const language = ({ 'zh-CN': 'zh-Hans', 'zh-TW': 'zh-Hant', 'en-US': 'en', 'de-DE': 'de' })[locale];
           assert.equal(await page.locator('html').getAttribute('lang'), language);
+          assert.equal(await page.locator('.language-picker').isVisible(), width > 960);
+          await openNavigation(page);
           assert.equal(await page.locator('.language-picker').isVisible(), true);
+          if (width <= 960) {
+            await page.keyboard.press('Escape');
+            assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'), 'false');
+            assert.equal(await page.locator('.nav-panel').isVisible(), false);
+          }
           assert.equal(await page.locator('.download-button').getAttribute('href'), 'https://github.com/BarryBarrywu/Keyphore/releases/latest');
           assert.equal(await page.locator('[data-i18n="downloadApp"]').innerText(), await page.evaluate(() => keyphoreTranslations[document.documentElement.lang].downloadApp));
           assert.doesNotMatch(await page.locator('body').innerText(), /安装包尚未|Download coming later|此型号仅展示布局|Layout preview only/);
@@ -78,22 +99,20 @@ test('multilingual website, system appearance, signals and navigation', async ()
             }), true);
           }
           await page.selectOption('#keyboard-model', 'Node100HighJIS');
-          await page.locator('.language-picker summary').click();
-          await page.locator(`[data-language="${await page.locator('html').getAttribute('lang') === 'en' ? 'zh-Hans' : 'en'}"]`).click();
+          await switchLanguage(page);
           assert.equal(await page.locator('#keyboard').getAttribute('data-model'), 'Node100HighJIS');
           assert.equal(await page.locator('#model-status').innerText(), language === 'en' ? '候选型号 · 待验证' : 'Candidate · Unverified');
           assert.equal(await page.locator('[data-state="attention"]').isDisabled(), false);
-          await page.locator('.language-picker summary').click();
-          await page.locator(`[data-language="${await page.locator('html').getAttribute('lang') === 'en' ? 'zh-Hans' : 'en'}"]`).click();
+          await switchLanguage(page);
           await page.selectOption('#keyboard-model', 'Air65V3');
           assert.equal(await page.locator('.demo').getAttribute('data-signal'), 'attention');
-          await page.locator('.language-picker summary').click();
-          await page.locator(`[data-language="${await page.locator('html').getAttribute('lang') === 'en' ? 'zh-Hans' : 'en'}"]`).click();
+          await switchLanguage(page);
           const switched = language === 'en' ? 'zh-Hans' : 'en';
           assert.equal(await page.locator('html').getAttribute('lang'), switched);
           assert.equal(await page.locator('.demo').getAttribute('data-signal'), 'attention');
           await page.reload();
           assert.equal(await page.locator('html').getAttribute('lang'), switched);
+          await openNavigation(page);
           await page.locator('nav a[href="install.html"]').click();
           assert.equal(new URL(page.url()).pathname, '/install.html');
           assert.equal(await page.locator('html').getAttribute('lang'), switched);
@@ -118,8 +137,7 @@ test('multilingual website, system appearance, signals and navigation', async ()
     const page = await context.newPage();
     await page.goto(url);
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
-    await page.locator('.language-picker summary').click();
-          await page.locator(`[data-language="${await page.locator('html').getAttribute('lang') === 'en' ? 'zh-Hans' : 'en'}"]`).click();
+    await switchLanguage(page);
     assert.equal(await page.locator('html').getAttribute('lang'), 'zh-Hans');
     await context.close();
     const failedCatalog = await browser.newContext({ locale: 'en-US' });
