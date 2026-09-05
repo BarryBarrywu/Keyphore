@@ -209,17 +209,33 @@ public struct CurrentOwnerTurn: Codable, Equatable, Sendable {
     public let id: SignalOwnerID
     public var currentTurnID: String
     public var previousTurnIDs: [String]
+    public var isTerminal: Bool
 
-    public init(id: SignalOwnerID, currentTurnID: String, previousTurnIDs: [String] = []) {
+    public init(
+        id: SignalOwnerID,
+        currentTurnID: String,
+        previousTurnIDs: [String] = [],
+        isTerminal: Bool = false
+    ) {
         self.id = id
         self.currentTurnID = currentTurnID
         self.previousTurnIDs = previousTurnIDs
+        self.isTerminal = isTerminal
     }
 
     private enum CodingKeys: String, CodingKey {
         case id
         case currentTurnID = "current_turn_id"
         case previousTurnIDs = "previous_turn_ids"
+        case isTerminal = "is_terminal"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(SignalOwnerID.self, forKey: .id)
+        currentTurnID = try container.decode(String.self, forKey: .currentTurnID)
+        previousTurnIDs = try container.decode([String].self, forKey: .previousTurnIDs)
+        isTerminal = try container.decodeIfPresent(Bool.self, forKey: .isTerminal) ?? false
     }
 }
 
@@ -266,7 +282,19 @@ public final class DurableStatusStore: @unchecked Sendable {
 
     public func load() throws -> DurableStatus {
         do {
-            return try JSONDecoder().decode(DurableStatus.self, from: Data(contentsOf: url))
+            var status = try JSONDecoder().decode(DurableStatus.self, from: Data(contentsOf: url))
+            for owner in status.owners {
+                if !status.currentOwnerTurns.contains(where: { $0.id == owner.id }) {
+                    status.currentOwnerTurns.append(
+                        CurrentOwnerTurn(id: owner.id, currentTurnID: owner.turnID)
+                    )
+                }
+                // Completion owners are terminal evidence in status files written before this flag.
+                if owner.signal == .completion {
+                    status.markTerminal(turnID: owner.turnID, for: owner.id)
+                }
+            }
+            return status
         } catch CocoaError.fileReadNoSuchFile {
             return DurableStatus()
         }
@@ -278,10 +306,15 @@ public final class DurableStatusStore: @unchecked Sendable {
         signal: CodexSignal,
         expiresAt: StatusTimestamp,
         replacingSession: Bool,
+        advancingTurn: Bool = false,
         lockBudget: Duration
     ) throws {
         try update(lockBudget: lockBudget) { status in
-            guard status.accepts(turnID: turnID, for: ownerID, advancing: replacingSession) else {
+            guard status.accepts(
+                turnID: turnID,
+                for: ownerID,
+                advancing: replacingSession || advancingTurn
+            ) else {
                 return
             }
             status.generation =
@@ -289,6 +322,13 @@ public final class DurableStatusStore: @unchecked Sendable {
                 ? UInt64.max
                 : status.generation + 1
             if replacingSession {
+                for index in status.currentOwnerTurns.indices
+                where status.currentOwnerTurns[index].id.product == ownerID.product
+                    && status.currentOwnerTurns[index].id.sessionID == ownerID.sessionID
+                    && status.currentOwnerTurns[index].id != ownerID
+                {
+                    status.currentOwnerTurns[index].isTerminal = true
+                }
                 status.owners.removeAll {
                     $0.id.product == ownerID.product && $0.id.sessionID == ownerID.sessionID
                 }
@@ -303,6 +343,9 @@ public final class DurableStatusStore: @unchecked Sendable {
                     generation: status.generation,
                     expiresAt: expiresAt
                 ))
+            if signal == .completion {
+                status.markTerminal(turnID: turnID, for: ownerID)
+            }
         }
     }
 
@@ -314,6 +357,7 @@ public final class DurableStatusStore: @unchecked Sendable {
         try update(lockBudget: lockBudget) { status in
             guard status.accepts(turnID: turnID, for: ownerID, advancing: false) else { return }
             status.owners.removeAll { $0.id == ownerID }
+            status.markTerminal(turnID: turnID, for: ownerID)
         }
     }
 
@@ -322,9 +366,20 @@ public final class DurableStatusStore: @unchecked Sendable {
             status.owners.removeAll {
                 $0.id.product == product && $0.id.sessionID == sessionID
             }
-            status.currentOwnerTurns.removeAll {
-                $0.id.product == product && $0.id.sessionID == sessionID
+            for index in status.currentOwnerTurns.indices
+            where status.currentOwnerTurns[index].id.product == product
+                && status.currentOwnerTurns[index].id.sessionID == sessionID
+            {
+                status.currentOwnerTurns[index].isTerminal = true
             }
+        }
+    }
+
+    public func removeInterruptedOwner(_ owner: SignalOwner, lockBudget: Duration) throws {
+        try update(lockBudget: lockBudget) { status in
+            guard status.owners.contains(owner) else { return }
+            status.markTerminal(turnID: owner.turnID, for: owner.id)
+            status.owners.removeAll { $0 == owner }
         }
     }
 
@@ -392,6 +447,17 @@ public final class DurableStatusStore: @unchecked Sendable {
 }
 
 extension DurableStatus {
+    fileprivate mutating func markTerminal(turnID: String, for ownerID: SignalOwnerID) {
+        if let index = currentOwnerTurns.firstIndex(where: { $0.id == ownerID }) {
+            guard currentOwnerTurns[index].currentTurnID == turnID else { return }
+            currentOwnerTurns[index].isTerminal = true
+        } else {
+            currentOwnerTurns.append(
+                CurrentOwnerTurn(id: ownerID, currentTurnID: turnID, isTerminal: true)
+            )
+        }
+    }
+
     fileprivate mutating func accepts(turnID: String, for ownerID: SignalOwnerID, advancing: Bool)
         -> Bool
     {
@@ -400,13 +466,14 @@ extension DurableStatus {
             return true
         }
         if currentOwnerTurns[index].currentTurnID == turnID {
-            return true
+            return !currentOwnerTurns[index].isTerminal
         }
         if !advancing || currentOwnerTurns[index].previousTurnIDs.contains(turnID) {
             return false
         }
         currentOwnerTurns[index].previousTurnIDs.append(currentOwnerTurns[index].currentTurnID)
         currentOwnerTurns[index].currentTurnID = turnID
+        currentOwnerTurns[index].isTerminal = false
         return true
     }
 }
@@ -512,6 +579,7 @@ public final class ProductionHookHandler: @unchecked Sendable {
                 signal: .execution,
                 expiresAt: receivedAt.adding(Self.executionLifetime),
                 replacingSession: record.event == .userPromptSubmit,
+                advancingTurn: record.event == .subagentStart,
                 lockBudget: lockBudget
             )
         case .permissionRequest:
@@ -610,6 +678,7 @@ public final class CompanionRecoveryController {
 
 public final class KeyphoreCompanion {
     private let store: DurableStatusStore
+    private let interruptionReconciler: CodexInterruptionReconciler?
     private let profileProvider: () throws -> LocalProfile
     private let lighting: any CompanionLightingApplying
     private let keyboardHealthStore: KeyboardHealthStore?
@@ -625,7 +694,8 @@ public final class KeyphoreCompanion {
         keyboardHealthStore: KeyboardHealthStore? = nil,
         lockBudget: Duration = .milliseconds(100),
         previewStore: SignalPreviewStore? = nil,
-        signalOffAcknowledgement: SignalOffAcknowledgementStore? = nil
+        signalOffAcknowledgement: SignalOffAcknowledgementStore? = nil,
+        interruptionReconciler: CodexInterruptionReconciler? = nil
     ) {
         self.init(
             store: store,
@@ -634,7 +704,8 @@ public final class KeyphoreCompanion {
             keyboardHealthStore: keyboardHealthStore,
             lockBudget: lockBudget,
             previewStore: previewStore,
-            signalOffAcknowledgement: signalOffAcknowledgement
+            signalOffAcknowledgement: signalOffAcknowledgement,
+            interruptionReconciler: interruptionReconciler
         )
     }
 
@@ -645,9 +716,11 @@ public final class KeyphoreCompanion {
         keyboardHealthStore: KeyboardHealthStore? = nil,
         lockBudget: Duration = .milliseconds(100),
         previewStore: SignalPreviewStore? = nil,
-        signalOffAcknowledgement: SignalOffAcknowledgementStore? = nil
+        signalOffAcknowledgement: SignalOffAcknowledgementStore? = nil,
+        interruptionReconciler: CodexInterruptionReconciler? = nil
     ) {
         self.store = store
+        self.interruptionReconciler = interruptionReconciler
         self.profileProvider = profileProvider
         self.lighting = lighting
         self.keyboardHealthStore = keyboardHealthStore
@@ -665,6 +738,7 @@ public final class KeyphoreCompanion {
     }
 
     public func sync(at now: StatusTimestamp = .now) throws {
+        try interruptionReconciler?.reconcile(store: store, at: now)
         if let previewController {
             switch try previewController.poll(at: now) {
             case .active:

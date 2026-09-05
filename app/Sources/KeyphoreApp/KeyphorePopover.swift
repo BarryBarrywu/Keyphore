@@ -27,7 +27,10 @@ struct KeyphorePopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 9) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().scaledToFit().frame(width: 30, height: 30)
+                    .accessibilityHidden(true)
                 Text("KEYPHORE")
                     .font(.system(size: 10, weight: .semibold)).tracking(1.1)
                     .foregroundStyle(.secondary)
@@ -119,6 +122,7 @@ struct KeyphorePopover: View {
                 .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05), lineWidth: 0.5)
                 .allowsHitTesting(false)
         }
+        .preferredColorScheme(state.preferences.appearance.preferredColorScheme)
         .onAppear(perform: state.refresh)
     }
 
@@ -195,6 +199,16 @@ struct KeyphorePopover: View {
         }.accessibilityLabel(AppCopy.value(.settings)).help(AppCopy.value(.settings))
     }
 
+}
+
+extension AppAppearance {
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
 }
 
 struct SignalPreviewFeedback: View {

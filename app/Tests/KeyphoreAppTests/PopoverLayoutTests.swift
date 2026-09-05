@@ -12,6 +12,12 @@ final class PopoverLayoutTests: XCTestCase {
         XCTAssertTrue(popover.usesGenericKeyboardPresentation)
     }
 
+    func testPopoverMapsEveryAppAppearanceToAColorScheme() {
+        XCTAssertNil(AppAppearance.system.preferredColorScheme)
+        XCTAssertEqual(AppAppearance.dark.preferredColorScheme, .dark)
+        XCTAssertEqual(AppAppearance.light.preferredColorScheme, .light)
+    }
+
     func testMenuBarPanelRetainsKeyboardSpaceUnderCompressedHeightProposal() {
         for fixture in ["ready-execution", "ready-attention", "ready-completion", "configured", "ready-off"] {
             let state = KeyphoreAppState(environment: ["KEYPHORE_ACCEPTANCE_FIXTURE": fixture])

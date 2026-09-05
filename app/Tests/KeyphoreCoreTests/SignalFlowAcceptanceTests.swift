@@ -4,6 +4,86 @@ import KeyphoreCore
 import XCTest
 
 final class SignalFlowAcceptanceTests: XCTestCase {
+    func testCompletedTurnRejectsLateExecutionAndAttentionEvenAfterExpiry() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
+        for event in ["PostToolUse", "PermissionRequest", "UserPromptSubmit"] {
+            try fixture.handle(event, session: "session-1", turn: "turn-1", at: 200)
+            XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.completion])
+        }
+        try fixture.companion.sync(at: .milliseconds(5_100))
+        try fixture.handle("PostToolUse", session: "session-1", turn: "turn-1", at: 6_000)
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-2", at: 7_000)
+        XCTAssertEqual(try fixture.store.load().owners.map(\.turnID), ["turn-2"])
+    }
+
+    func testStoppedChildRejectsLateEventsWithoutClearingMain() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "main-turn", at: 0)
+        try fixture.handle("SubagentStart", session: "session-1", agent: "child", turn: "child-turn", at: 10)
+        try fixture.handle("SubagentStop", session: "session-1", agent: "child", turn: "child-turn", at: 20)
+        try fixture.handle("PostToolUse", session: "session-1", agent: "child", turn: "child-turn", at: 30)
+        XCTAssertEqual(try fixture.store.load().owners.map(\.id.agentID), ["main"])
+    }
+
+    func testSessionEndAndNextPromptKeepKnownOldChildTerminal() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("SubagentStart", session: "session-1", agent: "child", turn: "child-turn", at: 10)
+        try fixture.handle("SessionEnd", session: "session-1", turn: "turn-1", at: 20)
+        try fixture.handle("PostToolUse", session: "session-1", turn: "turn-1", at: 30)
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-2", at: 40)
+        try fixture.handle("PostToolUse", session: "session-1", agent: "child", turn: "child-turn", at: 50)
+        XCTAssertEqual(try fixture.store.load().owners.map(\.turnID), ["turn-2"])
+    }
+
+    func testInterruptedOwnerRejectsLateEventsButStaleReadCannotEndNewTurn() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        let interrupted = try XCTUnwrap(fixture.store.load().owners.first)
+        try fixture.store.removeInterruptedOwner(interrupted, lockBudget: .milliseconds(100))
+        try fixture.handle("PostToolUse", session: "session-1", turn: "turn-1", at: 10)
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-2", at: 20)
+        try fixture.store.removeInterruptedOwner(interrupted, lockBudget: .milliseconds(100))
+        try fixture.handle("PostToolUse", session: "session-1", turn: "turn-2", at: 30)
+        XCTAssertEqual(try fixture.store.load().owners.map(\.turnID), ["turn-2"])
+    }
+
+    func testLegacyCompletionRemainsTerminalAfterCompanionExpiresIt() throws {
+        let fixture = try SignalFixture()
+        try Data(
+            """
+            {"current_owner_turns":[{"id":{"agent_id":"main","product":"codex","session_id":"session-1"},"current_turn_id":"turn-1","previous_turn_ids":[]}],"generation":1,"owners":[{"expires_at":{"millisecondsSince1970":100},"generation":1,"id":{"agent_id":"main","product":"codex","session_id":"session-1"},"turn_id":"turn-1","signal":"completion"}]}
+            """.utf8
+        ).write(to: fixture.statusURL)
+        try fixture.companion.sync(at: .milliseconds(100))
+        try fixture.handle("PostToolUse", session: "session-1", turn: "turn-1", at: 200)
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+    }
+
+    func testNextPromptDoesNotLetSupersededChildRecreateExecution() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
+        try fixture.handle("SubagentStart", session: "session-1", agent: "child", turn: "child-turn", at: 10)
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-2", at: 20)
+        try fixture.handle("PostToolUse", session: "session-1", agent: "child", turn: "child-turn", at: 30)
+        XCTAssertEqual(try fixture.store.load().owners.map(\.turnID), ["turn-2"])
+    }
+
+    func testNewChildTurnCanStartAfterPreviousTurnEnded() throws {
+        let fixture = try SignalFixture()
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "main-turn", at: 0)
+        try fixture.handle("SubagentStart", session: "session-1", agent: "child", turn: "child-1", at: 10)
+        try fixture.handle("SubagentStop", session: "session-1", agent: "child", turn: "child-1", at: 20)
+        try fixture.handle("SubagentStart", session: "session-1", agent: "child", turn: "child-2", at: 30)
+        try fixture.handle("SubagentStart", session: "session-1", agent: "child", turn: "child-1", at: 40)
+        XCTAssertEqual(Set(try fixture.store.load().owners.map(\.turnID)), ["main-turn", "child-2"])
+    }
+
     func testRuntimeReplacementClearsOwnersAndTurnHistory() throws {
         let fixture = try SignalFixture()
         try fixture.handle("UserPromptSubmit", session: "stale-session", turn: "turn-1", at: 0)
@@ -83,13 +163,14 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
     }
 
-    func testRenewedAttentionSurvivesAStaleCompletionTimer() throws {
+    func testNewTurnAttentionSurvivesAStaleCompletionTimer() throws {
         let fixture = try SignalFixture()
         try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-1", at: 0)
         try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
         let staleExpiry = try XCTUnwrap(fixture.store.load().expiries.first)
 
-        try fixture.handle("PermissionRequest", session: "session-1", turn: "turn-1", at: 1_000)
+        try fixture.handle("UserPromptSubmit", session: "session-1", turn: "turn-2", at: 900)
+        try fixture.handle("PermissionRequest", session: "session-1", turn: "turn-2", at: 1_000)
         try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(5_100))
 
         XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.attention])

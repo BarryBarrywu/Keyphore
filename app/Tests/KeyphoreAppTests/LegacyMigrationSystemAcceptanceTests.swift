@@ -436,6 +436,47 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         }
     }
 
+    func testManagedRemovalPreservesTableExamplesInsideMultilineValues() throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        try fixture.prepareCurrentInstallation()
+        try FileManager.default.removeItem(at: fixture.currentService)
+        try FileManager.default.removeItem(at: fixture.currentLaunchAgent)
+        let preserved = [
+            "instructions = \"\"\"",
+            "[marketplaces.keyphore-app]",
+            "source = \"example\"",
+            "\"\"\"",
+            "examples = [",
+            "[\"nested array\"],",
+            "'''",
+            "[plugins.\"keyphore@keyphore-app\"]",
+            "'''",
+            "]",
+            "model = \"preserve-me\"",
+            "",
+        ].joined(separator: "\r\n")
+        let owned = "[ 'marketplaces' . 'keyphore-app' ]\r\nsource = \"managed\"\r\n"
+            + "description = '''\r\n[unrelated]\r\n# still owned content\r\n'''\r\n"
+            + "[ \"plugins\" . 'keyphore@keyphore-app' ]\r\nenabled = true\r\n"
+        let other = "[plugins.'other]product'] # unrelated\r\nenabled = true\r\n"
+        try (preserved + owned + other).write(to: fixture.codexConfiguration,
+            atomically: true, encoding: .utf8)
+        let detector = SystemCodexHostDetector(
+            environment: ["PATH": fixture.root.appending(path: "missing-bin").path],
+            homeDirectory: fixture.home, registeredDesktopAppURL: nil, desktopAppURLs: [])
+        let loginLaunch = RemovalLoginLaunchState()
+        let integration = SystemGuidedSetupIntegration(detector: detector,
+            homeDirectory: fixture.home, launchctlURL: fixture.launchctl,
+            processListURL: fixture.processList,
+            loginLaunchDisabler: { loginLaunch.isEnabled = false },
+            loginLaunchIsEnabled: { loginLaunch.isEnabled })
+
+        XCTAssertEqual(try ManagedRemoval(integration: integration).removeAfterConfirmation().status, .completed)
+        XCTAssertEqual(try String(contentsOf: fixture.codexConfiguration, encoding: .utf8), preserved + other)
+        XCTAssertTrue(try integration.verifyManagedRemoval())
+    }
+
     func testInterruptedRemovalCompletesWithoutReinstallingACodexHost() throws {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }

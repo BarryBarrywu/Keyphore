@@ -8,6 +8,8 @@ final class KeyphoreAppState: ObservableObject {
     @Published private(set) var isStarting = false
     private var startupTask: Task<Void, Never>?
     private var inspectionIsRunning = false
+    private var inspectionTask: Task<Void, Never>?
+    private var lastSetupInspection: ContinuousClock.Instant?
     @Published private(set) var snapshot: LifecycleSnapshot
     @Published private(set) var setupSnapshot: GuidedSetupSnapshot
     @Published private(set) var setupFailed = false
@@ -98,6 +100,7 @@ final class KeyphoreAppState: ObservableObject {
             }
         }
         if !deferSystemStartup, let guidedSetup, let inspected = try? guidedSetup.inspect() {
+            lastSetupInspection = .now
             setupSnapshot = inspected
             systemHealth?.isConfigured = inspected.phase.isConfigured
             if inspected.phase.isConfigured {
@@ -118,6 +121,7 @@ final class KeyphoreAppState: ObservableObject {
                 switch result {
                 case .success(let result):
                     self.apply(result.setup)
+                    self.lastSetupInspection = .now
                     self.loginLaunchEnabled = result.loginLaunchEnabled
                     self.removalSnapshot = result.removal
                     self.removalIsPresented = result.removal.status == .repairRequired
@@ -242,7 +246,7 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func configureAfterReview() {
-        guard let guidedSetup, !setupIsWorking else { return }
+        guard let guidedSetup, !isStarting, !setupIsWorking, !removalIsWorking else { return }
         setupIsWorking = true
         setupFailed = false
         setupHooksChanged = false
@@ -255,6 +259,7 @@ final class KeyphoreAppState: ObservableObject {
                     )
                 }.value
                 apply(configured)
+                lastSetupInspection = .now
                 self.loginLaunchEnabled = guidedSetup.loginLaunchEnabled()
                 snapshot = lifecycle.refresh()
                 refreshDiagnosticReport()
@@ -267,7 +272,7 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func migrateLegacyAfterReview() {
-        guard let guidedSetup, !setupIsWorking else { return }
+        guard let guidedSetup, !isStarting, !setupIsWorking, !removalIsWorking else { return }
         setupIsWorking = true
         setupFailed = false
         setupHooksChanged = false
@@ -277,6 +282,7 @@ final class KeyphoreAppState: ObservableObject {
                     try guidedSetup.migrateLegacyAfterReview()
                 }.value
                 apply(configured)
+                lastSetupInspection = .now
                 snapshot = lifecycle.refresh()
                 refreshDiagnosticReport()
             } catch {
@@ -293,6 +299,10 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func prepareToQuit() -> Bool {
+        guard !isStarting, !setupIsWorking, !removalIsWorking else {
+            quitFailed = true
+            return false
+        }
         if removalSnapshot.status == .completed {
             return true
         }
@@ -333,7 +343,7 @@ final class KeyphoreAppState: ObservableObject {
     }
 
     func confirmManagedRemoval() {
-        guard let managedRemoval, !removalIsWorking else { return }
+        guard let managedRemoval, !isStarting, !setupIsWorking, !removalIsWorking else { return }
         removalIsWorking = true
         removalFailed = false
         Task {
@@ -423,7 +433,7 @@ final class KeyphoreAppState: ObservableObject {
             try previewStore.recordVisualConfirmation(confirmation)
             try guidedSetup?.completeLegacySignalPreview(confirmation)
             previewRecord = try previewStore.load()
-            refreshSetupSnapshot()
+            refreshSetupSnapshot(force: true)
             settingsFailed = false
             previewStateFailed = false
         } catch {
@@ -450,20 +460,28 @@ final class KeyphoreAppState: ObservableObject {
         }
     }
 
-    private func refreshDurableStatus() {
+    func refreshDurableStatus(at now: ContinuousClock.Instant = .now) {
         guard !isStarting else { return }
         if setupSnapshot.phase.isConfigured {
-            refreshSetupSnapshot()
+            refreshSetupSnapshot(at: now)
         }
         snapshot = lifecycle.refresh()
         refreshStoredState()
     }
 
-    private func refreshSetupSnapshot() {
+    func waitForSetupInspection() async {
+        await inspectionTask?.value
+    }
+
+    private func refreshSetupSnapshot(at now: ContinuousClock.Instant = .now, force: Bool = false) {
         guard !isStarting, !inspectionIsRunning, !setupIsWorking, !removalIsWorking,
               let guidedSetup else { return }
+        if !force, let lastSetupInspection, lastSetupInspection.duration(to: now) < .seconds(60) {
+            return
+        }
+        lastSetupInspection = now
         inspectionIsRunning = true
-        Task { [weak self] in
+        inspectionTask = Task { [weak self] in
             let inspected = await Task.detached { try? guidedSetup.inspect() }.value
             guard let self else { return }
             if !self.setupIsWorking, !self.removalIsWorking, let inspected { self.apply(inspected) }

@@ -724,18 +724,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     private func removeOwnedCodexConfiguration() throws {
         if fileManager.fileExists(atPath: codexConfigurationURL.path) {
             let original = try String(contentsOf: codexConfigurationURL, encoding: .utf8)
-            let filtered = original
-                .split(separator: "\n", omittingEmptySubsequences: false)
-                .reduce(into: (lines: [Substring](), dropping: false)) { result, line in
-                    if let table = codexTableHeader(String(line)) {
-                        result.dropping = isOwnedCodexTable(table)
-                    }
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    if !result.dropping || trimmed.isEmpty || trimmed.hasPrefix("#") {
-                        result.lines.append(line)
-                    }
-                }
-                .lines
+            let filtered = codexConfigurationLines(original)
+                .filter { !$0.owned || $0.isStandaloneCommentOrBlank }
+                .map(\.text)
                 .joined(separator: "\n")
             if filtered != original {
                 try filtered.write(to: codexConfigurationURL, atomically: true, encoding: .utf8)
@@ -756,10 +747,60 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         ) else {
             return false
         }
-        return configuration
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .compactMap { codexTableHeader(String($0)) }
-            .contains(where: isOwnedCodexTable)
+        return codexConfigurationLines(configuration).contains { $0.owned }
+    }
+
+    private func codexConfigurationLines(_ configuration: String)
+        -> [(text: String, owned: Bool, isStandaloneCommentOrBlank: Bool)] {
+        var quote: UInt8?
+        var multiline = false
+        var depth = 0
+        var dropping = false
+        return configuration.components(separatedBy: "\n").map { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let standalone = quote == nil && depth == 0
+            if standalone, let table = codexTableHeader(trimmed) {
+                dropping = isOwnedCodexTable(table)
+            }
+            let commentOrBlank = standalone && (trimmed.isEmpty || trimmed.hasPrefix("#"))
+            let bytes = Array(line.utf8)
+            var index = 0
+            while index < bytes.count {
+                let byte = bytes[index]
+                if let delimiter = quote {
+                    if delimiter == 34, byte == 92 {
+                        index += 2
+                        continue
+                    }
+                    if byte == delimiter {
+                        if multiline {
+                            var end = index
+                            while end < bytes.count, bytes[end] == delimiter { end += 1 }
+                            if end - index >= 3 {
+                                quote = nil
+                                multiline = false
+                            }
+                            index = end
+                            continue
+                        }
+                        quote = nil
+                    }
+                } else if byte == 35 {
+                    break
+                } else if byte == 34 || byte == 39 {
+                    quote = byte
+                    multiline = index + 2 < bytes.count
+                        && bytes[index + 1] == byte && bytes[index + 2] == byte
+                    if multiline { index += 2 }
+                } else if byte == 91 || byte == 123 {
+                    depth += 1
+                } else if byte == 93 || byte == 125 {
+                    depth -= 1
+                }
+                index += 1
+            }
+            return (line, dropping, commentOrBlank)
+        }
     }
 
     private func codexTableHeader(_ line: String) -> String? {
@@ -798,12 +839,68 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     private func isOwnedCodexTable(_ table: String) -> Bool {
-        table == "[marketplaces.keyphore-app]"
-            || table.hasPrefix("[marketplaces.keyphore-app.")
-            || table == "[marketplaces.\"keyphore-app\"]"
-            || table.hasPrefix("[marketplaces.\"keyphore-app\".")
-            || table == "[plugins.\"\(Self.pluginID)\"]"
-            || table.hasPrefix("[plugins.\"\(Self.pluginID)\".")
+        let bracketCount = table.hasPrefix("[[") ? 2 : 1
+        let path = String(table.dropFirst(bracketCount).dropLast(bracketCount))
+        var components: [String] = []
+        var token = ""
+        var quote: Character?
+        var escaped = false
+        for character in path {
+            if let delimiter = quote {
+                token.append(character)
+                if character == delimiter, !escaped { quote = nil }
+                if delimiter == "\"", character == "\\", !escaped {
+                    escaped = true
+                } else {
+                    escaped = false
+                }
+            } else if character == "\"" || character == "'" {
+                quote = character
+                token.append(character)
+            } else if character == "." {
+                components.append(token.trimmingCharacters(in: .whitespaces))
+                token = ""
+            } else {
+                token.append(character)
+            }
+        }
+        components.append(token.trimmingCharacters(in: .whitespaces))
+        let keys = components.compactMap { token -> String? in
+            if token.hasPrefix("'"), token.hasSuffix("'") {
+                return String(token.dropFirst().dropLast())
+            }
+            if token.hasPrefix("\"") {
+                // TOML's eight-digit Unicode escape is the only key escape JSON lacks.
+                let characters = Array(token)
+                var json = ""
+                var index = 0
+                while index < characters.count {
+                    let character = characters[index]
+                    if character == "\\", index + 1 < characters.count {
+                        if characters[index + 1] == "U" {
+                            guard index + 9 < characters.count,
+                                  let value = UInt32(String(characters[(index + 2)...(index + 9)]), radix: 16),
+                                  let scalar = UnicodeScalar(value),
+                                  let encoded = try? JSONEncoder().encode(String(scalar)),
+                                  let string = String(data: encoded, encoding: .utf8)
+                            else { return nil }
+                            json += string.dropFirst().dropLast()
+                            index += 10
+                            continue
+                        }
+                        json.append(character)
+                        index += 1
+                    }
+                    json.append(characters[index])
+                    index += 1
+                }
+                return try? JSONDecoder().decode(String.self, from: Data(json.utf8))
+            }
+            return token
+        }
+        guard keys.count == components.count, keys.count >= 2 else { return false }
+        return (keys[0] == "marketplaces" && keys[1] == "keyphore-app")
+            || (keys[0] == "plugins" && keys[1] == Self.pluginID)
     }
 
     private func disableOwnedHooks(

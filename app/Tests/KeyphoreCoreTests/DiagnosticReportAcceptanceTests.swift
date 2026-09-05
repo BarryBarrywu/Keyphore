@@ -132,12 +132,17 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = KeyboardHealthStore(url: root.appending(path: "keyboard-health.json"))
 
-        XCTAssertEqual(store.load(), .disconnected)
+        XCTAssertEqual(store.load(), .unavailable)
         XCTAssertEqual(store.loadDiagnosticHealth(), .unavailable)
 
         try store.save(.disconnected)
 
         XCTAssertEqual(store.loadDiagnosticHealth(), .disconnected)
+        XCTAssertEqual(store.load(), .disconnected)
+        try store.save(.connected(protocolHealthy: true), at: .milliseconds(100))
+        XCTAssertEqual(store.load(at: .milliseconds(3_101)), .unavailable)
+        try Data("broken".utf8).write(to: store.url)
+        XCTAssertEqual(store.load(), .unavailable)
     }
 
     func testFinalZipContainsOnlyTheReviewedReportAndNoPrivateNeighboringData() throws {

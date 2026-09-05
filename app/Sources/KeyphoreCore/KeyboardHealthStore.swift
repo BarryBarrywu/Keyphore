@@ -37,7 +37,7 @@ public final class KeyboardHealthStore: @unchecked Sendable {
     }
 
     public func load(at now: StatusTimestamp = .now) -> KeyboardHealth {
-        loadFreshHealth(at: now) ?? .disconnected
+        loadFreshHealth(at: now) ?? .unavailable
     }
 
     public func loadDiagnosticHealth(at now: StatusTimestamp = .now) -> KeyboardHealth {

@@ -69,7 +69,8 @@ case "companion":
         previewStore: previewStore,
         signalOffAcknowledgement: SignalOffAcknowledgementStore(
             url: KeyphoreRuntimePaths.signalOffAcknowledgementURL()
-        )
+        ),
+        interruptionReconciler: CodexInterruptionReconciler()
     )
     let recovery = CompanionRecoveryController(companion: companion)
     let powerEvents = SystemPowerEventMonitor { event in

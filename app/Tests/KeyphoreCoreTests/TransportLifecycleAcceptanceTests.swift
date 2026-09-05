@@ -76,7 +76,7 @@ final class TransportLifecycleAcceptanceTests: XCTestCase {
             keyboardHealthStore: fixture.healthStore
         )
 
-        XCTAssertEqual(fixture.healthStore.load(at: .milliseconds(0)), .disconnected)
+        XCTAssertEqual(fixture.healthStore.load(at: .milliseconds(0)), .unavailable)
 
         try companion.sync(at: .milliseconds(100))
         let lifecycle = KeyphoreLifecycle(

@@ -5,6 +5,50 @@ import KeyphoreCore
 
 @MainActor
 final class AppLifecycleAcceptanceTests: XCTestCase {
+    func testStatusPollingDoesNotRepeatInstallationInspectionWithinOneMinute() async {
+        let integration = AppSetupIntegration(configured: true)
+        let setup = GuidedSetup(hosts: AppHostDetector(), integration: integration,
+                                keyboard: AppKeyboardHealth())
+        let state = makeState(runtime: AppRecordingRuntime(), guidedSetup: setup)
+        let initialChecks = integration.healthChecks
+        let now = ContinuousClock.now
+        for second in 0..<10 {
+            state.refreshDurableStatus(at: now + .seconds(second))
+            await state.waitForSetupInspection()
+        }
+        XCTAssertEqual(integration.healthChecks, initialChecks)
+        state.refreshDurableStatus(at: now + .seconds(61))
+        await state.waitForSetupInspection()
+        XCTAssertEqual(integration.healthChecks, initialChecks + 1)
+    }
+
+    func testQuitDoesNotRaceConfigurationOrMigration() async {
+        for migration in [false, true] {
+            let runtime = AppRecordingRuntime()
+            let setup = GuidedSetup(hosts: AppHostDetector(), integration: AppSetupIntegration(),
+                                    keyboard: AppKeyboardHealth())
+            let state = makeState(runtime: runtime, guidedSetup: setup)
+            if migration { state.migrateLegacyAfterReview() } else { state.configureAfterReview() }
+            XCTAssertTrue(state.setupIsWorking)
+            XCTAssertFalse(state.prepareToQuit())
+            XCTAssertTrue(runtime.actions.isEmpty)
+            while state.setupIsWorking { await Task.yield() }
+            XCTAssertTrue(state.prepareToQuit())
+        }
+    }
+
+    func testQuitDoesNotRaceRemoval() async {
+        let runtime = AppRecordingRuntime()
+        let state = makeState(runtime: runtime,
+                              managedRemoval: ManagedRemoval(integration: AppManagedRemovalIntegration()))
+        state.confirmManagedRemoval()
+        XCTAssertTrue(state.removalIsWorking)
+        XCTAssertFalse(state.prepareToQuit())
+        XCTAssertTrue(runtime.actions.isEmpty)
+        while state.removalIsWorking { await Task.yield() }
+        XCTAssertTrue(state.prepareToQuit())
+    }
+
     func testStatusMenuOpensAboutInSharedSettingsSelection() {
         let state = KeyphoreAppState(environment: ["KEYPHORE_ACCEPTANCE_FIXTURE": "ready"])
         let delegate = KeyphoreAppDelegate(state: state)
@@ -403,10 +447,17 @@ private struct AppKeyboardHealth: SetupKeyboardHealthProviding {
 }
 
 private final class AppSetupIntegration: GuidedSetupIntegrating {
+    let configured: Bool
+    private(set) var healthChecks = 0
     private(set) var loginLaunchSelections: [Bool] = []
     private var loginLaunch = true
 
-    func health() -> SetupIntegrationHealth { .notConfigured }
+    init(configured: Bool = false) { self.configured = configured }
+    func health() -> SetupIntegrationHealth {
+        healthChecks += 1
+        return configured ? SetupIntegrationHealth(pluginInstalled: true, hooksTrusted: true,
+                                                   companionRegistered: true, managedStatePresent: true) : .notConfigured
+    }
     func stage(_ hooks: [HookDefinition]) {}
     func installedHookHashes() -> [HookEvent: String] { HookDefinition.reviewedHashes }
     func trust(_ hooks: [HookDefinition]) {}
