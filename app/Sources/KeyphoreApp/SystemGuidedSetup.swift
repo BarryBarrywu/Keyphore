@@ -32,6 +32,8 @@ struct SystemCodexHostDetector: CodexHostDetecting {
         self.desktopAppURLs = desktopAppURLs ?? [
             URL(fileURLWithPath: "/Applications/Codex.app"),
             homeDirectory.appending(path: "Applications/Codex.app"),
+            URL(fileURLWithPath: "/Applications/ChatGPT.app"),
+            homeDirectory.appending(path: "Applications/ChatGPT.app"),
         ]
     }
 
@@ -58,11 +60,22 @@ struct SystemCodexHostDetector: CodexHostDetecting {
             registeredDesktopAppURL,
         ].compactMap { $0 } + desktopAppURLs
         return applications
-            .map { $0.appending(path: "Contents/Resources/codex") }
+            .flatMap { application in
+                [
+                    application.appending(
+                        path: "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+                    ),
+                    application.appending(path: "Contents/Resources/codex"),
+                ]
+            }
             .first(where: isExecutable)
     }
 
     private var commandLineCodexURL: URL? {
+        commandLineURL(named: "codex")
+    }
+
+    func commandLineURL(named name: String) -> URL? {
         let path = environment["PATH"] ?? "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
         let searchDirectories = path
             .split(separator: ":")
@@ -70,10 +83,42 @@ struct SystemCodexHostDetector: CodexHostDetecting {
                 homeDirectory.appending(path: ".local/bin"),
                 URL(fileURLWithPath: "/opt/homebrew/bin"),
                 URL(fileURLWithPath: "/usr/local/bin"),
+                environmentDirectory("VOLTA_HOME")?.appending(path: "bin")
+                    ?? homeDirectory.appending(path: ".volta/bin"),
+                miseShimsDirectory,
             ]
         return searchDirectories
-            .map { $0.appending(path: "codex") }
+            .map { $0.appending(path: name) }
             .first(where: isExecutable)
+    }
+
+    private var miseShimsDirectory: URL {
+        if let directory = environmentDirectory("MISE_SHIMS_DIR") {
+            return directory
+        }
+        if let directory = environmentDirectory("MISE_DATA_DIR") {
+            return directory.appending(path: "shims")
+        }
+        if let directory = environmentDirectory("XDG_DATA_HOME") {
+            return directory.appending(path: "mise/shims")
+        }
+        return homeDirectory.appending(path: ".local/share/mise/shims")
+    }
+
+    private func environmentDirectory(_ name: String) -> URL? {
+        environment[name].flatMap(directoryURL)
+    }
+
+    private func directoryURL(_ path: String) -> URL? {
+        guard !path.isEmpty else { return nil }
+        if path == "~" {
+            return homeDirectory
+        }
+        if path.hasPrefix("~/") {
+            return homeDirectory.appending(path: String(path.dropFirst(2)))
+        }
+        guard path.hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath: path)
     }
 
     private func isExecutable(_ url: URL) -> Bool {
@@ -113,6 +158,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     private static let legacyLaunchLabel = "com.barrybarrywu.keyphore"
 
     private let fileManager: FileManager
+    private let environment: [String: String]
     private let codexURL: URL?
     private let helperURL: URL
     private let companionExecutableURL: URL
@@ -138,6 +184,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         loginLaunchIsEnabled: (() -> Bool)? = nil
     ) {
         self.fileManager = fileManager
+        environment = detector.environment
         codexURL = detector.preferredCodexURL
         self.helperURL = helperURL
             ?? bundle.bundleURL.appending(path: "Contents/Helpers/keyphore")
@@ -164,6 +211,18 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func health() throws -> SetupIntegrationHealth {
+        if try nativeIntegrations.hasReadySource() {
+            return SetupIntegrationHealth(pluginInstalled: true, hooksTrusted: true,
+                companionRegistered: try companionIsRunningForDiagnostics(), managedStatePresent: true)
+        }
+        if hasNativeInstallation, !hasManagedCodexInstallation {
+            return SetupIntegrationHealth(pluginInstalled: true, hooksTrusted: false,
+                companionRegistered: try companionIsRunningForDiagnostics(), managedStatePresent: false)
+        }
+        return try healthForCodexConfiguration()
+    }
+
+    func healthForCodexConfiguration() throws -> SetupIntegrationHealth {
         let pluginInstalled = try allInstalledPluginIDs().contains(Self.pluginID)
         let hooks = pluginInstalled ? try hookMetadata() : []
         let actual = Dictionary(uniqueKeysWithValues: hooks.compactMap { metadata in
@@ -175,7 +234,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         return SetupIntegrationHealth(
             pluginInstalled: pluginInstalled,
             hooksTrusted: hooksTrusted,
-            companionRegistered: companionRegistrationIsCurrent(),
+            companionRegistered: try nativeIntegrations.hasReadySource()
+                ? companionIsRunningForDiagnostics() : companionRegistrationIsCurrent(),
             managedStatePresent: managedStateIsCurrent(hooks: hooks)
         )
     }
@@ -193,16 +253,25 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         }
 
         var components: Set<LegacyComponent> = []
-        let installedLegacyIDs = try allInstalledPluginIDs().filter(isLegacyPluginID)
+        let inspectCodex = codexURL != nil && !(hasNativeInstallation && !hasManagedCodexInstallation)
+        let installedLegacyIDs: [String]
+        do {
+            installedLegacyIDs = inspectCodex ? try allInstalledPluginIDs().filter(isLegacyPluginID) : []
+        } catch {
+            guard try nativeIntegrations.hasReadySource() else { throw error }
+            installedLegacyIDs = []
+        }
         if !installedLegacyIDs.isEmpty {
             components.formUnion([.plugin, .hooks])
         }
         if fileManager.fileExists(atPath: legacyStateURL.path) {
             components.insert(.managedRuntimeState)
-            if let legacy = try? legacyLifecycleState(),
-               !(try legacyHookMetadata(legacy)).isEmpty
-            {
-                components.insert(.hooks)
+            if let legacy = try? legacyLifecycleState(), codexURL != nil {
+                do {
+                    if try !legacyHookMetadata(legacy).isEmpty { components.insert(.hooks) }
+                } catch {
+                    guard try nativeIntegrations.hasReadySource() else { throw error }
+                }
             }
         }
         if companionIsRegistered(target: legacyLaunchTarget)
@@ -423,13 +492,43 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
 
     var isQuitGateActive: Bool { quitGate.isActive }
 
+    private var nativeIntegrations: SystemAgentIntegrations {
+        SystemAgentIntegrations(homeDirectory: homeDirectory, environment: environment, helperURL: helperURL)
+    }
+
+    private var hasNativeInstallation: Bool {
+        let store = AgentIntegrationConsentStore(url: KeyphoreRuntimePaths.agentIntegrationsURL(homeDirectory: homeDirectory))
+        return (try? store.load().sources.keys.contains { $0 != AgentSource.codex.rawValue }) == true
+    }
+
+    private var hasManagedCodexInstallation: Bool {
+        [stateURL, legacyStateURL, marketplaceRoot].contains { fileManager.fileExists(atPath: $0.path) }
+            || ownedCodexConfigurationRemains()
+    }
+
+    func hasAdditionalHost() throws -> Bool { try nativeIntegrations.hasReadySource() }
+
+    func prepareNativeRuntime() throws {
+        guard try nativeIntegrations.hasReadySource() else {
+            throw GuidedSetupError.configurationIncomplete
+        }
+        if try !companionIsRunningForDiagnostics() { try startCompanion() }
+        if quitGate.isActive { try quitGate.clear() }
+    }
+
     func activateQuitGate() throws {
         try quitGate.activate()
     }
 
     func disableOwnedHooks() throws {
-        let metadata = try hookMetadata()
-        try disableOwnedHooks(metadata, requiringReviewedRelease: true)
+        guard codexURL != nil else { return }
+        if hasNativeInstallation, !hasManagedCodexInstallation { return }
+        do {
+            let metadata = try hookMetadata()
+            try disableOwnedHooks(metadata, requiringReviewedRelease: true)
+        } catch {
+            guard try nativeIntegrations.hasReadySource() else { throw error }
+        }
     }
 
     func stopCompanion() throws {
@@ -479,6 +578,19 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func enableOwnedHooksIfTrusted() throws -> Bool {
+        try nativeIntegrations.revalidateApprovals()
+        let nativeReady = try nativeIntegrations.hasReadySource()
+        guard codexURL != nil else { return nativeReady }
+        if hasNativeInstallation, !hasManagedCodexInstallation { return nativeReady }
+        do {
+            return try enableCodexHooksIfTrusted() || nativeReady
+        } catch {
+            guard nativeReady else { throw error }
+            return true
+        }
+    }
+
+    private func enableCodexHooksIfTrusted() throws -> Bool {
         if fileManager.fileExists(atPath: migrationJournalURL.path) {
             guard let journal = try? migrationJournal(),
                   journal.phase == .awaitingSignalPreview
@@ -530,19 +642,26 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         {
             return .repairRequired
         }
-        let pluginIsInstalled = (try? allInstalledPluginIDs().contains(Self.pluginID))
-            ?? fileManager.fileExists(atPath: stateURL.path)
+        let pluginIsInstalled: Bool
+        if hasNativeInstallation, !hasManagedCodexInstallation {
+            pluginIsInstalled = false
+        } else {
+            pluginIsInstalled = (try? allInstalledPluginIDs().contains(Self.pluginID))
+                ?? fileManager.fileExists(atPath: stateURL.path)
+        }
         let hasManagedFiles = managedRemovalURLs.contains {
             fileManager.fileExists(atPath: $0.path)
         }
-        return pluginIsInstalled || companionIsRegistered() || loginLaunchIsEnabled()
+        let nativeInstalled = hasNativeInstallation
+        return pluginIsInstalled || nativeInstalled || companionIsRegistered() || loginLaunchIsEnabled()
             || hasManagedFiles ? .reviewRequired : .completed
     }
 
     func beginManagedRemoval() throws {
         try quitGate.activate()
         try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
-        try Data().write(to: removalJournalURL, options: .atomic)
+        let scope = hasNativeInstallation && !hasManagedCodexInstallation ? "native-only" : ""
+        try Data(scope.utf8).write(to: removalJournalURL, options: .atomic)
     }
 
     func requestSignalOffForRemoval() throws {
@@ -554,6 +673,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
 
     func disableOwnedHooksForRemoval() throws {
         guard codexURL != nil else { return }
+        if hasNativeInstallation, !hasManagedCodexInstallation { return }
         guard try allInstalledPluginIDs().contains(Self.pluginID) else { return }
         let metadata = try hookMetadata()
         try disableOwnedHooks(metadata, requiringReviewedRelease: false)
@@ -565,7 +685,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     func removePluginAndHooks() throws {
-        if codexURL != nil {
+        let manageCodex = !removalIsNativeOnly && (!hasNativeInstallation || hasManagedCodexInstallation)
+        try nativeIntegrations.removeAll()
+        if codexURL != nil, manageCodex {
             if try allInstalledPluginIDs().contains(Self.pluginID) {
                 _ = try runCodex(["plugin", "remove", Self.pluginID, "--json"])
             }
@@ -597,7 +719,7 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
         let managedFilesRemain = managedRemovalURLs.contains {
             fileManager.fileExists(atPath: $0.path)
         }
-        let codexComponentsAreRemoved = if codexURL != nil {
+        let codexComponentsAreRemoved = if codexURL != nil && !removalIsNativeOnly {
             try !allInstalledPluginIDs().contains(Self.pluginID)
                 && currentManagedHookMetadata().isEmpty
                 && !marketplaceIsInstalled()
@@ -625,6 +747,9 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
     }
 
     private var marketplaceRoot: URL { supportDirectory.appending(path: "Marketplace") }
+    private var removalIsNativeOnly: Bool {
+        (try? Data(contentsOf: removalJournalURL)) == Data("native-only".utf8)
+    }
     private var pluginRoot: URL { marketplaceRoot.appending(path: "plugin") }
     private var codexConfigurationURL: URL {
         homeDirectory.appending(path: ".codex/config.toml")
@@ -665,8 +790,14 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
             durableStatusURL.deletingPathExtension().appendingPathExtension("lock"),
             keyboardHealthURL,
             signalPreviewURL,
+            signalPreviewURL.deletingPathExtension().appendingPathExtension("lock"),
             signalOffAcknowledgementURL,
             supportDirectory.appending(path: "profile.json"),
+            KeyphoreRuntimePaths.keyboardProfilesDirectory(homeDirectory: homeDirectory),
+            supportDirectory.appending(path: "lighting-ownership.json"),
+            KeyphoreRuntimePaths.keyboardSelectionURL(homeDirectory: homeDirectory),
+            KeyboardSelectionStore(url: KeyphoreRuntimePaths.keyboardSelectionURL(homeDirectory: homeDirectory)).lockURL,
+            KeyphoreRuntimePaths.keyboardSelectionSnapshotURL(homeDirectory: homeDirectory),
             supportDirectory.appending(path: "hook-events.jsonl"),
             supportDirectory.appending(path: "companion.stdout.log"),
             supportDirectory.appending(path: "companion.stderr.log"),
@@ -674,6 +805,8 @@ final class SystemGuidedSetupIntegration: GuidedSetupIntegrating, ManagedRemoval
             supportDirectory.appending(path: "companion.lock"),
             supportDirectory.appending(path: "experimental-keyboards.json"),
             supportDirectory.appending(path: "experimental-keyboards.json.lock"),
+            KeyphoreRuntimePaths.agentIntegrationsURL(homeDirectory: homeDirectory),
+            supportDirectory.appending(path: "agent-integrations.install.lock"),
         ]
     }
 
@@ -1403,14 +1536,16 @@ extension GuidedSetup {
     static func systemServices() -> (
         setup: GuidedSetup,
         runtime: (any KeyphoreRuntimeManaging)?,
-        removal: ManagedRemoval?
+        removal: ManagedRemoval?,
+        integrations: SystemAgentIntegrations
     ) {
         let detector = SystemCodexHostDetector()
         let integration = SystemGuidedSetupIntegration(detector: detector)
         return (
             GuidedSetup(hosts: detector, integration: integration, keyboard: SetupKeyboardAdapter()),
             SystemKeyphoreRuntimeAdapter(integration: integration),
-            ManagedRemoval(integration: integration)
+            ManagedRemoval(integration: integration),
+            SystemAgentIntegrations()
         )
     }
 }

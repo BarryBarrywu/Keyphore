@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "PostToolUseFailure": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "Notification": [{ "matcher": "permission_prompt", "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "SubagentStart": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "StopFailure": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "StopCancelled": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"${GROK_PLUGIN_ROOT}/bin/keyphore\" hook grok", "timeout": 1 }] }]
+  }
+}

@@ -1,0 +1,113 @@
+import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+
+const helper = __KEYPHORE_HELPER_URL_JSON__;
+const validID = (value) => typeof value === "string" && value.length > 0
+  && Buffer.byteLength(value) <= 512 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
+
+function deliver(payload) {
+  return new Promise((resolve) => {
+    const child = spawn(helper, ["hook", "opencode"], { stdio: ["pipe", "ignore", "ignore"] });
+    const finish = () => { clearTimeout(timer); resolve(); };
+    const terminate = () => { child.kill("SIGKILL"); finish(); };
+    const timer = setTimeout(terminate, 1000);
+    child.once("error", finish);
+    child.once("close", finish);
+    child.stdin.once("error", terminate);
+    child.stdin.end(JSON.stringify(payload));
+  });
+}
+
+export const KeyphorePlugin = async () => {
+  const sessions = new Map();
+  let events = Promise.resolve();
+  const emit = (event, sessionID, extra = {}) => deliver({ event, session_id: sessionID, ...extra });
+
+  function stateFor(sessionID) {
+    let state = sessions.get(sessionID);
+    if (!state) {
+      state = { turnID: undefined, status: "idle", pending: new Set() };
+      sessions.set(sessionID, state);
+    }
+    return state;
+  }
+
+  async function finishIfReady(sessionID, state) {
+    if (!state.turnID || state.status !== "idle" || state.pending.size) return;
+    await emit("turnComplete", sessionID, { turn_id: state.turnID });
+    state.turnID = undefined;
+  }
+
+  async function handle(input) {
+    const event = input?.event;
+    const properties = event?.properties;
+    const sessionID = ["session.created", "session.deleted"].includes(event?.type)
+      ? properties?.info?.id : properties?.sessionID;
+    if (!validID(sessionID)) return;
+    switch (event.type) {
+      case "session.created": {
+        sessions.delete(sessionID);
+        stateFor(sessionID);
+        await emit("sessionStart", sessionID);
+        break;
+      }
+      case "session.status": {
+        const type = properties.status?.type;
+        if (!["busy", "retry", "idle"].includes(type)) return;
+        const state = stateFor(sessionID);
+        state.status = type;
+        if (type === "busy" && !state.turnID) {
+          state.turnID = randomUUID();
+          state.pending.clear();
+          await emit("turnStart", sessionID, { turn_id: state.turnID });
+          await emit("working", sessionID, { turn_id: state.turnID });
+        } else if (type === "retry" && state.turnID) {
+          await emit("working", sessionID, { turn_id: state.turnID });
+        } else if (type === "idle") {
+          await finishIfReady(sessionID, state);
+        }
+        break;
+      }
+      case "permission.asked":
+      case "question.asked": {
+        const state = sessions.get(sessionID);
+        if (!state?.turnID || !validID(properties.id)) return;
+        state.pending.add(properties.id);
+        await emit("attention", sessionID, { turn_id: state.turnID, request_id: properties.id });
+        break;
+      }
+      case "permission.replied":
+      case "question.replied":
+      case "question.rejected": {
+        const state = sessions.get(sessionID);
+        if (!state?.turnID || !validID(properties.requestID) || !state.pending.delete(properties.requestID)) return;
+        await emit("attentionResolved", sessionID, { turn_id: state.turnID, request_id: properties.requestID });
+        await finishIfReady(sessionID, state);
+        break;
+      }
+      case "session.error": {
+        const state = sessions.get(sessionID);
+        if (!state) return;
+        if (state.turnID) await emit("turnCancelled", sessionID, { turn_id: state.turnID });
+        state.turnID = undefined;
+        state.pending.clear();
+        break;
+      }
+      case "session.deleted": {
+        const state = sessions.get(sessionID);
+        if (state?.turnID) await emit("turnCancelled", sessionID, { turn_id: state.turnID });
+        await emit("sessionEnd", sessionID);
+        sessions.delete(sessionID);
+        break;
+      }
+    }
+  }
+
+  return {
+    event(input) {
+      // Serialize state transitions as well as helper calls; hosts may dispatch concurrently.
+      events = events.then(() => handle(input)).catch(() => {});
+      return events;
+    },
+  };
+};

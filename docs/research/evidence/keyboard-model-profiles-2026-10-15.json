@@ -1,0 +1,397 @@
+{
+  "capturedAt": "2026-10-15T15:09:07.681359+00:00",
+  "reportedFailure": "After selecting Air75 V2, lights did not apply and strip controls disappeared.",
+  "before": {
+    "keyboard-selection.json": {
+      "model": "Air75 V2"
+    },
+    "keyboard-selection-snapshot.json": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792076947202
+      },
+      "phase": "applied"
+    },
+    "keyboard-health.json": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792076947202
+      },
+      "protocolHealthy": false,
+      "status": "connected"
+    },
+    "lighting-ownership.json": {
+      "model": "Air75 V2",
+      "zones": []
+    }
+  },
+  "globalProfileSHA256": "41dfaabfd9fd6581650ac8db6d4f51b8a11b477e3415735896e056537f69032d",
+  "globalProfile": {
+    "attention": {
+      "backlight": {
+        "brightness": {
+          "percent": 100
+        },
+        "color": {
+          "blue": 0,
+          "green": 242,
+          "red": 255
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightBreathing",
+        "speed": 2
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 60
+        },
+        "color": {
+          "blue": 0,
+          "green": 132,
+          "red": 255
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripFlowing",
+        "speed": 2
+      }
+    },
+    "completion": {
+      "backlight": {
+        "brightness": {
+          "percent": 100
+        },
+        "color": {
+          "blue": 174,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightDiagonal",
+        "speed": 4
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 60
+        },
+        "color": {
+          "blue": 0,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripNeon",
+        "speed": 4
+      }
+    },
+    "completionDisplayDuration": {
+      "seconds": 5
+    },
+    "controlledZones": "both",
+    "execution": {
+      "backlight": {
+        "brightness": {
+          "percent": 100
+        },
+        "color": {
+          "blue": 255,
+          "green": 149,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightRipple",
+        "speed": 2
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 55
+        },
+        "color": {
+          "blue": 248,
+          "green": 135,
+          "red": 135
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripFlowing",
+        "speed": 2
+      }
+    },
+    "idle": {
+      "backlight": {
+        "brightness": {
+          "percent": 30
+        },
+        "color": {
+          "blue": 174,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightBreathing",
+        "speed": 2
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 30
+        },
+        "color": {
+          "blue": 174,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripRhythm",
+        "speed": 2
+      }
+    }
+  },
+  "cause": "A global V3 profile requested both lighting zones and unsupported effects. V2 capability validation rejected it before acquiring zones.",
+  "sideLightScope": "No proven stock V2 VIA USB side-light control channel. The fix must show an unavailable control with explanation, without sending side-light commands.",
+  "verification": "Automated tests and live V2 protocol readback passed. Human visual confirmation pending; V2 strip control remains unsupported.",
+  "configurationConversion": {
+    "convertedAt": "2026-10-15T15:14:33.781251+00:00",
+    "backup": "/private/tmp/codex-builds/keyphore-model-profiles-backup.lo4uwhfe",
+    "sourceSHA256": "41dfaabfd9fd6581650ac8db6d4f51b8a11b477e3415735896e056537f69032d",
+    "preservedV3ByteForByte": true,
+    "v2Adjustments": {
+      "controlledZones": {
+        "from": "both",
+        "to": "backlight"
+      },
+      "execution.backlight.effect": {
+        "from": "backlightRipple",
+        "to": "backlightBreathing"
+      },
+      "completion.backlight.effect": {
+        "from": "backlightDiagonal",
+        "to": "backlightStatic"
+      }
+    },
+    "v2SHA256": "7493882b00d707850a156f8fa2bf57c1ee60176df72aab8fa8437b0d68fa986f",
+    "obsoleteGlobalFileMovedTo": "/private/tmp/codex-builds/keyphore-model-profiles-backup.lo4uwhfe/profile-original-live.json"
+  },
+  "checks": {
+    "core": {
+      "tests": 248,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-model-profiles-full.log",
+      "sha256": "2258f7cafcf1c4cd849ee4d7268846ec2fb109f6827cdfc992df6ec8f5fd65c2"
+    },
+    "developmentInstaller": {
+      "tests": 11,
+      "failures": 0
+    },
+    "readOnlyReview": "Core and UI model binding reviewed; no remaining blocking source findings.",
+    "app": {
+      "tests": 102,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-physical-preview-green.log",
+      "sha256": "5c412c4f0cd71c36e0a156e5d0e4519132a38037aee893b51fb8f68dc2a8b1f7",
+      "xcresult": "/private/tmp/codex-builds/keyphore-physical-preview-green.xcresult"
+    },
+    "signedBuild": {
+      "passed": true,
+      "log": "/private/tmp/codex-builds/keyphore-physical-preview-build-open.log",
+      "sha256": "0abbb14d45284dceed862ae1cf0e7f5131f76625403843f4e49258bcd69b39d7"
+    }
+  },
+  "quitRecovery": {
+    "reason": "The old App remained after its Companion had stopped. Original thrown error was not captured.",
+    "verifiedBeforeRecovery": [
+      "quit gate active",
+      "ownership zones empty",
+      "no Companion process",
+      "no launchctl Companion service"
+    ],
+    "action": "Started the already-installed signed Companion under its original service label to produce a real off acknowledgement, then used the App Quit button. App and Companion exited; preflight passed.",
+    "productionChange": "none; no speculative shutdown fix"
+  },
+  "regressionCoverage": [
+    "model-isolated storage and unchanged V3 bytes",
+    "V2 valid first profile",
+    "old-target cleanup before new-target profile load",
+    "old-view callback cannot save into new model",
+    "pending and stale snapshots reject writes",
+    "unhealthy protocol does not block profile correction",
+    "corrupt profile repair preserves explicit target",
+    "quit ignores corrupt profile",
+    "explicit reopen displays Settings window",
+    "V2 strip shown unavailable and correct V2 illustration label"
+  ],
+  "live": {
+    "capturedAt": "2026-10-15T15:23:38.581478+00:00",
+    "initialInstalledState": {
+      "keyboard-health.json": {
+        "model": "Air75 V2",
+        "observedAt": {
+          "millisecondsSince1970": 1792077817795
+        },
+        "protocolHealthy": true,
+        "status": "connected"
+      },
+      "keyboard-selection-snapshot.json": {
+        "activeModel": "Air75 V2",
+        "desiredModel": "Air75 V2",
+        "inventory": [
+          {
+            "count": 1,
+            "model": "Air75 V2"
+          }
+        ],
+        "observedAt": {
+          "millisecondsSince1970": 1792077818334
+        },
+        "phase": "applied"
+      },
+      "lighting-ownership.json": {
+        "zones": [
+          "backlight"
+        ],
+        "model": "Air75 V2"
+      }
+    },
+    "nativeUI": {
+      "settingsVisible": true,
+      "v2IllustrationLabel": true,
+      "stripVisibleAndDisabled": true,
+      "finderReopenAfterClosingSettings": "Passed: double-clicked ~/Applications/Keyphore.app in Finder; existing Settings window became visible.",
+      "signalTabCreatesPreview": true,
+      "deviceCheckButtonEnabled": true,
+      "lightingPageScreenshotInspected": "V2 strip limitation is visible, disabled, and readable; V2 keyboard illustration and supported effect controls displayed."
+    },
+    "additionalFailure": "Clicking signal tabs changed selected UI preset but did not create signal-preview.json. Device check button was disabled despite healthy V2. Manual preview was gated by overall Agent/setup menu ready state.",
+    "firstNewBuildQuit": {
+      "normalUIQuit": true,
+      "ownership": {
+        "zones": []
+      }
+    },
+    "signalTabPreview": {
+      "completedPresets": [
+        "attention"
+      ],
+      "id": "4085C03B-76D2-471D-99AB-DD6186265B2E",
+      "phase": "completed",
+      "presentationIsLit": false,
+      "protocolReadbackSucceeded": true,
+      "requestedAt": {
+        "millisecondsSince1970": 1792078261487
+      },
+      "requestedPreset": "attention",
+      "targetModel": "Air75 V2",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "unmanagedZonesPreserved": true,
+      "visualConfirmation": "notRequested"
+    },
+    "fullDeviceCheck": {
+      "observedRecords": [
+        {
+          "completedPresets": [
+            "execution",
+            "attention",
+            "completion"
+          ],
+          "id": "C5B4E2B0-A65D-4A1F-9978-EC09D6CC36FF",
+          "phase": "awaitingVisualConfirmation",
+          "presentationIsLit": false,
+          "protocolReadbackSucceeded": true,
+          "requestedAt": {
+            "millisecondsSince1970": 1792078290810
+          },
+          "targetModel": "Air75 V2",
+          "unmanagedZoneProtection": "untouchedProtocolChannel",
+          "unmanagedZonesPreserved": true,
+          "visualConfirmation": "notRequested"
+        }
+      ],
+      "finalRecord": {
+        "completedPresets": [
+          "execution",
+          "attention",
+          "completion"
+        ],
+        "id": "C5B4E2B0-A65D-4A1F-9978-EC09D6CC36FF",
+        "phase": "awaitingVisualConfirmation",
+        "presentationIsLit": false,
+        "protocolReadbackSucceeded": true,
+        "requestedAt": {
+          "millisecondsSince1970": 1792078290810
+        },
+        "targetModel": "Air75 V2",
+        "unmanagedZoneProtection": "untouchedProtocolChannel",
+        "unmanagedZonesPreserved": true,
+        "visualConfirmation": "notRequested"
+      },
+      "completedAt": "2026-10-15T15:31:57.392725+00:00",
+      "health": {
+        "model": "Air75 V2",
+        "observedAt": {
+          "millisecondsSince1970": 1792078316764
+        },
+        "protocolHealthy": true,
+        "status": "connected"
+      }
+    },
+    "finalHealth": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792078438939
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "v3SHA256AfterAcceptance": "41dfaabfd9fd6581650ac8db6d4f51b8a11b477e3415735896e056537f69032d",
+    "v2SHA256AfterAcceptance": "7493882b00d707850a156f8fa2bf57c1ee60176df72aab8fa8437b0d68fa986f",
+    "afterAcceptanceQuit": {
+      "normalUIQuit": true,
+      "ownership": {
+        "zones": []
+      },
+      "appAndCompanionStopped": true,
+      "offAcknowledgementPresent": true,
+      "checkedAt": "2026-10-15T15:34:25.869749+00:00"
+    }
+  },
+  "sourceHashes": {
+    "app/Sources/KeyphoreCore/KeyboardProfileStore.swift": "6296cbcceba23c8e5ee5434e89f3b29f5e4dba27d555693c5cb254a5873dd2b8",
+    "app/Sources/KeyphoreCore/SignalRuntime.swift": "1999abc96505940844a04ccc4b3f3180c60e8b9ca2823500142d0b1fc8827e52",
+    "app/Sources/KeyphoreApp/KeyphoreAppState.swift": "ca38783690e720fa10999ccfa4f7fbe32124ab000f56a52ceda24b59c46e4874",
+    "app/Sources/KeyphoreApp/SignalSettingsView.swift": "1e67729135113509704cb4e1a936da9f5dee81549fddd8ce6cee71e5d3a233c7",
+    "app/Sources/KeyphoreApp/KeyphorePopover.swift": "67726ddc81b18921a68ee2f8c6004fbf1e5b475d47ff85e417a91946a477eed4",
+    "app/Sources/KeyphoreApp/KeyphoreAppDelegate.swift": "3eed0ab5c580e9174b2eb16c510c0e6bee8d3bd30f138f9b64cae06e6838241a"
+  },
+  "installedHelperSHA256": "bc0fc555b65f8289c75d32f6e0bf62fdc5bfa28c7907b55b208b49031ef9102a",
+  "handoff": {
+    "settingsWindowVisible": true,
+    "currentKeyboard": "Air75 V2",
+    "health": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792078529945
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "appPath": "/Users/admin/Applications/Keyphore.app",
+    "reopenedAfterAcceptanceQuit": true,
+    "at": "2026-10-15T15:35:30.481692+00:00"
+  }
+}

@@ -252,7 +252,7 @@ final class TransportLifecycleAcceptanceTests: XCTestCase {
         XCTAssertEqual(fixture.healthStore.load(at: .milliseconds(100)), .ambiguous)
         XCTAssertEqual(
             AppCopy.value(.keyboardAmbiguous, language: .english),
-            "Multiple Air65 V3 / Air75 V3 keyboards found. Leave only the target connected."
+            "Multiple supported keyboards found. Leave only the keyboard you want to control connected over wired USB."
         )
     }
 

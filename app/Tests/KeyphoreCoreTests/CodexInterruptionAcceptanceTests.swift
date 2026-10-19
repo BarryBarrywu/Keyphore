@@ -4,6 +4,16 @@ import SQLite3
 import XCTest
 
 final class CodexInterruptionAcceptanceTests: XCTestCase {
+    func testDisconnectedKeyboardDoesNotPreventInterruptedOwnerCleanup() throws {
+        let fixture = try InterruptionFixture()
+        try fixture.start()
+        try fixture.abort()
+        let companion = KeyphoreCompanion(store: fixture.store, profile: .default,
+            lighting: OfflineInterruptionLighting(), interruptionReconciler: fixture.reconciler)
+        XCTAssertThrowsError(try companion.sync(at: .milliseconds(2_000)))
+        XCTAssertTrue(try fixture.store.load().owners.isEmpty)
+    }
+
     func testCapturedInterruptedTurnStopsContributingExecution() throws {
         let fixture = try InterruptionFixture()
         try fixture.start()
@@ -87,6 +97,11 @@ final class CodexInterruptionAcceptanceTests: XCTestCase {
         XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.execution])
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.logURL.path))
     }
+}
+
+private final class OfflineInterruptionLighting: CompanionLightingApplying, CompanionLightingValidating {
+    func validate(_ behavior: LightingBehavior) throws { throw Air65DeviceSelectionError.notFound }
+    func apply(_ behavior: LightingBehavior) throws { XCTFail("Offline validation must prevent hardware writes") }
 }
 
 private final class InterruptionLighting: CompanionLightingApplying {

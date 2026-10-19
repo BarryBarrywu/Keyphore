@@ -371,6 +371,16 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         let fixture = try LegacyMigrationFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         try fixture.prepareCurrentInstallation()
+        let selectionFiles = [
+            KeyphoreRuntimePaths.keyboardSelectionURL(homeDirectory: fixture.home),
+            KeyboardSelectionStore(url: KeyphoreRuntimePaths.keyboardSelectionURL(homeDirectory: fixture.home)).lockURL,
+            KeyphoreRuntimePaths.keyboardSelectionSnapshotURL(homeDirectory: fixture.home),
+        ]
+        for url in selectionFiles { try Data("{}".utf8).write(to: url) }
+        let profiles = KeyboardProfileStore(directory:
+            KeyphoreRuntimePaths.keyboardProfilesDirectory(homeDirectory: fixture.home))
+        try profiles.save(.default, for: .air75V2)
+        try profiles.save(.default, for: .air75V3)
         let unrelatedUserFile = fixture.home.appending(path: "Documents/preserved.txt")
         try FileManager.default.createDirectory(
             at: unrelatedUserFile.deletingLastPathComponent(),
@@ -406,6 +416,8 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
         let snapshot = try ManagedRemoval(integration: integration).removeAfterConfirmation()
 
         XCTAssertEqual(snapshot.status, .completed)
+        for url in selectionFiles { XCTAssertFalse(FileManager.default.fileExists(atPath: url.path)) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: profiles.directory.path))
         XCTAssertFalse(loginLaunch.isEnabled)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.currentService.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.currentLaunchAgent.path))
@@ -728,6 +740,350 @@ final class LegacyMigrationSystemAcceptanceTests: XCTestCase {
     }
 }
 
+final class NativeAgentLifecycleTests: XCTestCase {
+    func testNativeOnlySetupAndRuntimePreparationDoNotRequireCodexOrResetOtherSessions() throws {
+        try verifyNativeLifecycle(brokenManagedCodex: false)
+    }
+
+    func testBrokenPreviouslyManagedCodexDoesNotBlockApprovedNativeInspectionOrReopen() throws {
+        try verifyNativeLifecycle(brokenManagedCodex: true)
+    }
+
+    private func verifyNativeLifecycle(brokenManagedCodex: Bool) throws {
+        let fixture = try LegacyMigrationFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        for url in [fixture.legacyState, fixture.legacyService,
+                    fixture.home.appending(path: "Library/LaunchAgents/com.barrybarrywu.keyphore.plist"),
+                    fixture.bin.appending(path: "codex")] {
+            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+        }
+        if brokenManagedCodex {
+            let codex = fixture.bin.appending(path: "codex")
+            try "#!/bin/sh\nexit 1\n".write(to: codex, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: codex.path)
+            try Data("{}".utf8).write(to: KeyphoreRuntimePaths.configuredStateURL(homeDirectory: fixture.home))
+        }
+        try FileManager.default.copyItem(at: fixture.helper, to: fixture.bin.appending(path: "pi"))
+        let integrations = SystemAgentIntegrations(homeDirectory: fixture.home,
+            environment: ["PATH": fixture.bin.path], helperURL: fixture.helper,
+            commandRunner: { _, _ in XCTFail("Pi installation must not invoke a host command"); return Data() },
+            prepareRuntime: {})
+        try integrations.install(.pi, reviewedDigest: integrations.review(.pi).digest)
+        let detector = SystemCodexHostDetector(fileManager: FixtureRootFileManager(root: fixture.root),
+            environment: ["PATH": fixture.bin.path], homeDirectory: fixture.home,
+            registeredDesktopAppURL: nil, desktopAppURLs: [])
+        XCTAssertEqual(try detector.detectHosts().isEmpty, !brokenManagedCodex)
+        let integration = SystemGuidedSetupIntegration(detector: detector, bundle: fixture.appBundle,
+            homeDirectory: fixture.home, launchctlURL: fixture.launchctl,
+            processListURL: fixture.processList, helperURL: fixture.helper,
+            companionExecutableURL: fixture.companionExecutable,
+            loginLaunchDisabler: {}, loginLaunchIsEnabled: { false })
+        let store = DurableStatusStore(url: KeyphoreRuntimePaths.durableStatusURL(homeDirectory: fixture.home))
+        let owner = SignalOwnerID(product: "opencode", sessionID: "existing", agentID: "main")
+        try store.recordSignal(ownerID: owner, turnID: "turn", signal: .execution,
+            expiresAt: .now.adding(.seconds(60)), replacingSession: false, lockBudget: .seconds(1))
+        try integration.prepareNativeRuntime()
+        let firstCommands = try String(contentsOf: fixture.commandLog, encoding: .utf8)
+        try integration.prepareNativeRuntime()
+        let nextCommands = try String(contentsOf: fixture.commandLog, encoding: .utf8)
+        XCTAssertEqual(firstCommands.components(separatedBy: "launchctl bootstrap").count,
+                       nextCommands.components(separatedBy: "launchctl bootstrap").count)
+        XCTAssertEqual(try store.load().owners.map(\.id), [owner])
+        let setup = GuidedSetup(hosts: detector, integration: integration,
+            keyboard: MissingHostKeyboardHealth())
+        XCTAssertEqual(try setup.inspect().phase, .configured)
+        if !brokenManagedCodex { XCTAssertEqual(try setup.configureAfterReview().phase, .configured) }
+        XCTAssertNoThrow(try integration.disableOwnedHooks())
+        XCTAssertTrue(try integration.enableOwnedHooksIfTrusted())
+        XCTAssertFalse(nextCommands.contains("codex "))
+    }
+}
+
+final class SystemCodexHostDetectorTests: XCTestCase {
+    func testDesktopHostRecognizesSupportedBundledCodexLayouts() throws {
+        let cases = [
+            (
+                appName: "Codex.app",
+                relativeCodexPath: "Contents/Resources/codex",
+                useRegisteredApplication: false
+            ),
+            (
+                appName: "ChatGPT.app",
+                relativeCodexPath: "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+                useRegisteredApplication: true
+            ),
+        ]
+
+        for testCase in cases {
+            let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let app = root.appending(path: testCase.appName)
+            let codex = app.appending(path: testCase.relativeCodexPath)
+            try writeExecutable(to: codex)
+            let detector = SystemCodexHostDetector(
+                fileManager: FixtureRootFileManager(root: root),
+                environment: ["PATH": root.appending(path: "missing-bin").path],
+                homeDirectory: root.appending(path: "home"),
+                registeredDesktopAppURL: testCase.useRegisteredApplication ? app : nil,
+                desktopAppURLs: testCase.useRegisteredApplication ? [] : [app]
+            )
+
+            XCTAssertEqual(try detector.detectHosts(), [.desktopApp], testCase.appName)
+            XCTAssertEqual(detector.preferredCodexURL, codex, testCase.appName)
+        }
+    }
+
+    func testMinimalGUIPathFindsDefaultVoltaAndMiseSymlinks() throws {
+        let managerDirectories = [
+            ".volta/bin",
+            ".local/share/mise/shims",
+        ]
+
+        for managerDirectory in managerDirectories {
+            let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let home = root.appending(path: "home")
+            let target = root.appending(path: "installed/codex")
+            let link = home.appending(path: managerDirectory).appending(path: "codex")
+            try writeExecutable(to: target)
+            try FileManager.default.createDirectory(
+                at: link.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+            let detector = SystemCodexHostDetector(
+                fileManager: FixtureRootFileManager(root: root),
+                environment: ["PATH": "/usr/bin:/bin"],
+                homeDirectory: home,
+                registeredDesktopAppURL: nil,
+                desktopAppURLs: []
+            )
+
+            XCTAssertEqual(try detector.detectHosts(), [.commandLine], managerDirectory)
+            XCTAssertEqual(detector.preferredCodexURL, link, managerDirectory)
+        }
+    }
+
+    func testInheritedManagerDirectoryOverridesFindCodex() throws {
+        let cases = [
+            (
+                variable: "VOLTA_HOME", valueSuffix: "volta",
+                codexSuffix: "volta/bin/codex", usesTilde: false
+            ),
+            (
+                variable: "MISE_SHIMS_DIR", valueSuffix: "mise-shims",
+                codexSuffix: "mise-shims/codex", usesTilde: false
+            ),
+            (
+                variable: "MISE_DATA_DIR", valueSuffix: "mise-data",
+                codexSuffix: "mise-data/shims/codex", usesTilde: false
+            ),
+            (
+                variable: "XDG_DATA_HOME", valueSuffix: "xdg",
+                codexSuffix: "xdg/mise/shims/codex", usesTilde: false
+            ),
+            (
+                variable: "MISE_DATA_DIR", valueSuffix: ".mise-data",
+                codexSuffix: ".mise-data/shims/codex", usesTilde: true
+            ),
+        ]
+
+        for testCase in cases {
+            let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let home = root.appending(path: "home")
+            let base = testCase.usesTilde ? home : root
+            let value = testCase.usesTilde
+                ? "~/\(testCase.valueSuffix)"
+                : base.appending(path: testCase.valueSuffix).path
+            let codex = base.appending(path: testCase.codexSuffix)
+            try writeExecutable(to: codex)
+            let detector = SystemCodexHostDetector(
+                fileManager: FixtureRootFileManager(root: root),
+                environment: [
+                    "PATH": root.appending(path: "missing-bin").path,
+                    testCase.variable: value,
+                ],
+                homeDirectory: home,
+                registeredDesktopAppURL: nil,
+                desktopAppURLs: []
+            )
+
+            XCTAssertEqual(try detector.detectHosts(), [.commandLine], testCase.variable)
+            XCTAssertEqual(detector.preferredCodexURL, codex, testCase.variable)
+        }
+    }
+
+    func testCommandLineSearchPrecedenceUsesOneEffectiveDirectoryPerManager() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = root.appending(path: "home")
+        let pathCodex = root.appending(path: "path bin /codex")
+        let localCodex = home.appending(path: ".local/bin/codex")
+        let voltaCodex = root.appending(path: "volta/bin/codex")
+        let shimsCodex = root.appending(path: "mise-shims/codex")
+        let miseDataCodex = root.appending(path: "mise-data/shims/codex")
+        let xdgCodex = root.appending(path: "xdg/mise/shims/codex")
+        let defaultVoltaCodex = home.appending(path: ".volta/bin/codex")
+        let defaultMiseCodex = home.appending(path: ".local/share/mise/shims/codex")
+        let desktopApp = root.appending(path: "ChatGPT.app")
+        let desktopCodex = desktopApp.appending(
+            path: "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+        )
+        let commandLineCandidates = [
+            pathCodex,
+            localCodex,
+            voltaCodex,
+            shimsCodex,
+            miseDataCodex,
+            xdgCodex,
+            defaultVoltaCodex,
+            defaultMiseCodex,
+        ]
+        for codex in commandLineCandidates + [desktopCodex] {
+            try writeExecutable(to: codex)
+        }
+        var environment = [
+            "PATH": pathCodex.deletingLastPathComponent().path,
+            "VOLTA_HOME": voltaCodex.deletingLastPathComponent().deletingLastPathComponent().path,
+            "MISE_SHIMS_DIR": shimsCodex.deletingLastPathComponent().path,
+            "MISE_DATA_DIR": miseDataCodex.deletingLastPathComponent().deletingLastPathComponent().path,
+            "XDG_DATA_HOME": xdgCodex.deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().path,
+        ]
+        func detector() -> SystemCodexHostDetector {
+            SystemCodexHostDetector(
+                fileManager: FixtureRootFileManager(root: root),
+                environment: environment,
+                homeDirectory: home,
+                registeredDesktopAppURL: nil,
+                desktopAppURLs: [desktopApp]
+            )
+        }
+
+        XCTAssertEqual(try detector().detectHosts(), [.commandLine, .desktopApp])
+        XCTAssertEqual(detector().preferredCodexURL, pathCodex)
+
+        environment["PATH"] = root.appending(path: "missing-bin").path
+        XCTAssertEqual(detector().preferredCodexURL, localCodex)
+        try FileManager.default.removeItem(at: localCodex)
+        XCTAssertEqual(detector().preferredCodexURL, voltaCodex)
+
+        environment["VOLTA_HOME"] = root.appending(path: "missing-volta").path
+        XCTAssertEqual(detector().preferredCodexURL, shimsCodex)
+
+        environment.removeValue(forKey: "VOLTA_HOME")
+        XCTAssertEqual(detector().preferredCodexURL, defaultVoltaCodex)
+        try FileManager.default.removeItem(at: defaultVoltaCodex)
+        XCTAssertEqual(detector().preferredCodexURL, shimsCodex)
+
+        environment["MISE_SHIMS_DIR"] = root.appending(path: "missing-mise-shims").path
+        XCTAssertEqual(detector().preferredCodexURL, desktopCodex)
+        environment.removeValue(forKey: "MISE_SHIMS_DIR")
+        XCTAssertEqual(detector().preferredCodexURL, miseDataCodex)
+        environment.removeValue(forKey: "MISE_DATA_DIR")
+        XCTAssertEqual(detector().preferredCodexURL, xdgCodex)
+        environment.removeValue(forKey: "XDG_DATA_HOME")
+        XCTAssertEqual(detector().preferredCodexURL, defaultMiseCodex)
+        try FileManager.default.removeItem(at: defaultMiseCodex)
+        XCTAssertEqual(detector().preferredCodexURL, desktopCodex)
+    }
+
+    func testEmptyManagerDirectoryOverridesUseDefaults() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = root.appending(path: "home")
+        let defaultVoltaCodex = home.appending(path: ".volta/bin/codex")
+        let defaultMiseCodex = home.appending(path: ".local/share/mise/shims/codex")
+        try writeExecutable(to: defaultVoltaCodex)
+        try writeExecutable(to: defaultMiseCodex)
+        let detector = SystemCodexHostDetector(
+            fileManager: FixtureRootFileManager(root: root),
+            environment: [
+                "PATH": "::",
+                "VOLTA_HOME": "",
+                "MISE_SHIMS_DIR": "",
+                "MISE_DATA_DIR": "",
+                "XDG_DATA_HOME": "",
+            ],
+            homeDirectory: home,
+            registeredDesktopAppURL: nil,
+            desktopAppURLs: []
+        )
+
+        XCTAssertEqual(detector.preferredCodexURL, defaultVoltaCodex)
+        try FileManager.default.removeItem(at: defaultVoltaCodex)
+        XCTAssertEqual(detector.preferredCodexURL, defaultMiseCodex)
+    }
+
+    func testNonExecutableCodexDecoysAreRejected() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = root.appending(path: "home")
+        let pathBin = root.appending(path: "path-bin")
+        let voltaHome = root.appending(path: "volta")
+        let miseShims = root.appending(path: "mise-shims")
+        let desktopApp = root.appending(path: "ChatGPT.app")
+        let decoys = [
+            pathBin.appending(path: "codex"),
+            voltaHome.appending(path: "bin/codex"),
+            miseShims.appending(path: "codex"),
+            home.appending(path: ".volta/bin/codex"),
+            home.appending(path: ".local/share/mise/shims/codex"),
+            desktopApp.appending(
+                path: "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+            ),
+            desktopApp.appending(path: "Contents/Resources/codex"),
+        ]
+        for decoy in decoys {
+            try FileManager.default.createDirectory(
+                at: decoy.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try Data().write(to: decoy)
+        }
+        let detector = SystemCodexHostDetector(
+            fileManager: FixtureRootFileManager(root: root),
+            environment: [
+                "PATH": pathBin.path,
+                "VOLTA_HOME": voltaHome.path,
+                "MISE_SHIMS_DIR": miseShims.path,
+            ],
+            homeDirectory: home,
+            registeredDesktopAppURL: nil,
+            desktopAppURLs: [desktopApp]
+        )
+
+        XCTAssertEqual(try detector.detectHosts(), [])
+        XCTAssertNil(detector.preferredCodexURL)
+    }
+
+    private func writeExecutable(to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: url.path
+        )
+    }
+}
+
+private final class FixtureRootFileManager: FileManager, @unchecked Sendable {
+    private let rootPath: String
+
+    init(root: URL) {
+        rootPath = root.standardizedFileURL.path + "/"
+        super.init()
+    }
+
+    override func isExecutableFile(atPath path: String) -> Bool {
+        path.hasPrefix(rootPath) && super.isExecutableFile(atPath: path)
+    }
+}
+
 private struct MissingHostDetector: CodexHostDetecting {
     func detectHosts() -> Set<CodexHost> { [] }
 }
@@ -1011,8 +1367,10 @@ private struct LegacyMigrationFixture {
         for name in [
             "setup.json",
             "profile.json",
+            "lighting-ownership.json",
             "keyboard-health.json",
             "signal-preview.json",
+            "signal-preview.lock",
             "hardware-health.json",
         ] {
             try Data("managed".utf8).write(to: support.appending(path: name))

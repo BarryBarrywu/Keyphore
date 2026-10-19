@@ -1,0 +1,220 @@
+{
+  "startedAt": "2026-10-18T05:49:50.338152+00:00",
+  "baseCommit": "2306a8b",
+  "request": [
+    "Auto-handoff when swapping wired Air75 V2/V3",
+    "Select the current keyboard directly from menu when multiple keyboards are connected"
+  ],
+  "before": {
+    "keyboard-selection.json": {
+      "model": "Air75 V2"
+    },
+    "keyboard-selection-snapshot.json": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792302589890
+      },
+      "phase": "applied"
+    },
+    "keyboard-health.json": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792302589692
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "lighting-ownership.json": {
+      "model": "Air75 V2",
+      "zones": [
+        "backlight"
+      ]
+    }
+  },
+  "profileHashes": {
+    "air75-v2.json": "c845bf78497c18a598920b08460ab5bd44e194fb707f641624f38f2e29c4bdc6",
+    "air75-v3.json": "610bd3597aeeda172b50048764b31f429b433d2f50662fce544601397839075c"
+  },
+  "policy": "One supported wired keyboard auto-selects after invalid manual preference is cleared; multiple keyboards keep a valid manual choice or require a choice; same-model duplicates remain ambiguous.",
+  "status": "implemented, automated checks passed, signed App installed; V2 live stale-preference and Settings-picker checks passed; two-physical-keyboard check not performed because V3 was absent",
+  "software": {
+    "core": {
+      "result": "passed",
+      "tests": 271,
+      "targetedTests": 34,
+      "warningsAsErrors": true,
+      "regressionReproduced": "Automatic hot-swap with an offline previous owner was blocked with oldTargetUnavailable",
+      "logs": [
+        "/private/tmp/codex-builds/keyphore-auto-routing-red.log",
+        "/private/tmp/codex-builds/keyphore-auto-routing-targeted.log",
+        "/private/tmp/codex-builds/keyphore-auto-routing-full.log"
+      ]
+    },
+    "appTargeted": {
+      "result": "passed",
+      "tests": 22,
+      "statusEdgeTests": 1,
+      "resultBundle": "/private/tmp/codex-builds/keyphore-keyboard-menu-20261018/ui-targeted.xcresult",
+      "covers": [
+        "Real NSMenu target/action while Agent setup is incomplete",
+        "Stale/disconnected/duplicate keyboard action rejection",
+        "Popover layouts for single and multiple keyboards",
+        "Background preference refresh"
+      ]
+    },
+    "appFullFirstRun": {
+      "tests": 114,
+      "failures": 1,
+      "log": "/private/tmp/codex-builds/keyphore-auto-menu-full-20261018.log",
+      "cause": "Existing preview test requested V3 with an expired inventory snapshot; the new action guard correctly refused it. Fixture must publish fresh inventory and persist the request before simulating Companion application."
+    },
+    "appFullFinal": {
+      "result": "passed",
+      "tests": 114,
+      "failures": 0,
+      "warningsAsErrors": true,
+      "log": "/private/tmp/codex-builds/keyphore-auto-menu-full-final-20261018.log",
+      "resultBundle": "/private/tmp/codex-builds/keyphore-auto-menu-full-final-20261018.xcresult"
+    },
+    "finalLocalization": {
+      "result": "passed",
+      "tests": 5,
+      "log": "/private/tmp/codex-builds/keyphore-keyboard-menu-locales-20261018.log"
+    }
+  },
+  "liveStalePreference": {
+    "method": "With the real wired V2 online, atomically seeded an absent V3 preference under the production selection lock; no inventory/health/ownership snapshots were fabricated.",
+    "savedPreferenceBefore": {
+      "model": "Air75 V2"
+    },
+    "snapshotBefore": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792303416480
+      },
+      "phase": "applied"
+    },
+    "seededPreference": {
+      "model": "Air75 V3"
+    },
+    "snapshotAfter": {
+      "activeModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792303417282
+      },
+      "phase": "applied"
+    },
+    "healthAfter": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792303416526
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "elapsedSeconds": 0.105,
+    "profilesUnchanged": true,
+    "profileHashes": {
+      "air75-v2.json": "c845bf78497c18a598920b08460ab5bd44e194fb707f641624f38f2e29c4bdc6",
+      "air75-v3.json": "610bd3597aeeda172b50048764b31f429b433d2f50662fce544601397839075c"
+    },
+    "result": "passed",
+    "limitation": "Only V2 was physically connected; this does not replace a two-physical-keyboard hot-plug test."
+  },
+  "liveSettingsPicker": {
+    "result": "passed",
+    "actions": [
+      "Opened Device page in installed signed App",
+      "Observed Automatic preference and actual Air75 V2 after backend handoff",
+      "Opened picker: Automatic and Air75 V2 / one connected",
+      "Selected V2 to restore the original preference",
+      "Observed pending then applied V2, physical preview enabled"
+    ],
+    "preferenceAfter": {
+      "model": "Air75 V2"
+    },
+    "snapshotAfter": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792303465615
+      },
+      "phase": "applied"
+    },
+    "menuBarLimit": "CUA exposed Settings but did not expose the menu-bar extra; quick menus were verified with real NSMenu target/action tests and rendered popover attachments."
+  },
+  "visualReview": {
+    "firstPopoverAttachment": "/private/tmp/codex-builds/keyphore-auto-menu-preview/585A1A11-42B2-44C7-904A-4DFED8A61F59.png",
+    "finding": "Multiple-device panel still included obsolete connect-one/unplug-others text. Localized menu-selection guidance is being corrected.",
+    "resolution": "Ambiguous state now directs the user to the keyboard menu; obsolete connect-one/unplug-others copy removed.",
+    "finalPopoverAttachment": "keyboard-auto-menu-multiple-2026-10-18.png",
+    "result": "passed visual inspection of rendered multi-keyboard test fixture",
+    "limitation": "This is an NSHostingController test render, not a screenshot with two physical keyboards attached."
+  },
+  "physicalAcceptanceExit": {
+    "method": "tools/keyphore-development-app preflight requests normal App termination and checks the Companion is stopped",
+    "result": "passed after acceptance",
+    "note": "An earlier old-App UI Quit reported failure after clearing ownership and stopping Companion. Restarted the same registered signed Companion and retried normal quit; no forced process termination or fabricated off acknowledgement."
+  },
+  "finalInstall": {
+    "result": "passed",
+    "method": "tools/keyphore-development-app build-open",
+    "path": "/Users/admin/Applications/Keyphore.app",
+    "signingAuthority": "Apple Development: Shawn Ng (5XC9V82HHC)",
+    "team": "58M23C5WLR",
+    "backup": "/Users/admin/.Trash/Keyphore.previous.AtKFw5",
+    "log": "/private/tmp/codex-builds/keyphore-auto-menu-install-final-20261018.log",
+    "appLeftOpen": true,
+    "uiObserved": "Device page shows Air75 V2 connected; target picker and preview controls enabled after startup.",
+    "snapshot": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792303652152
+      },
+      "phase": "applied"
+    },
+    "health": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792303652696
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "profilesUnchanged": true
+  },
+  "completedAt": "2026-10-18T06:07:33.095406+00:00"
+}

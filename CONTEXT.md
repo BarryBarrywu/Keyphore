@@ -1,12 +1,20 @@
 # Keyphore
 
-Keyphore maps Codex task signals onto a dedicated NuPhy Air65 V3 lighting profile that stays off when no Codex signal is active.
+Keyphore maps coding-agent task signals onto a dedicated keyboard lighting profile, with a choice of lights off or custom idle lighting when no task signal is active.
 
 ## Language
 
-**Codex status light model**:
-A global model in which the keyboard shows the current aggregate Codex task state and turns the signal surface off when no task state is active.
+**Agent status light model**:
+A global model in which the keyboard shows the aggregate task state across approved coding tools and turns the signal surface off when no task state is active.
 _Avoid_: Notification light model, task panel
+
+**Agent source**:
+A coding tool whose task lifecycle can contribute signals to Keyphore. Sessions from different sources remain independent even when their identifiers match.
+_Avoid_: Model provider, keyboard device
+
+**Source approval**:
+A person's approval of one source's declared lifecycle events and identifiers. Approval for one source does not authorize another source, and changing the reviewed integration requires renewed approval.
+_Avoid_: Global trust, automatic activation
 
 **Execution signal**:
 A task state indicating that at least one Codex task is actively executing; it remains active until a later lifecycle event changes that task's state.
@@ -25,8 +33,16 @@ The user-selected time from one through sixty seconds for which a completion sig
 _Avoid_: Signal timeout, task timeout, stale-owner limit
 
 **Signal-off state**:
-The unlit main key backlight shown when no Codex task signal is active; it does not restore or depend on the user's other lighting effects.
+The unlit state of the lighting zones controlled by Keyphore. It is the default when no visible task signal is active and always applies when quitting Keyphore, regardless of the idle-lighting setting. Unmanaged lighting zones keep their keyboard settings.
 _Avoid_: Baseline lighting, default lighting, idle lighting
+
+**Idle lighting**:
+The independently configured backlight and strip-light appearance used only when no visible task signal is active, including after the completion display duration expires. A person chooses lights off (the default) or this idle appearance. Idle lighting does not create a task signal, owner, or task count; active signals take priority, and quitting Keyphore still turns the controlled zones off.
+_Avoid_: Completion signal, last task state, restored keyboard settings
+
+**Lighting preset**:
+The appearance edited or previewed for execution, attention, completion, or idle. Idle is a lighting choice, not a coding-agent lifecycle state.
+_Avoid_: Signal owner, task state
 
 **Codex lighting profile**:
 The independent set of task-signal effects owned by this integration, separate from the keyboard's other lighting effects.
@@ -49,7 +65,7 @@ The source-independent model that reduces normalized Codex lifecycle events into
 _Avoid_: ZECTRIX adapter, keyboard driver
 
 **Signal owner**:
-The Codex session or agent responsible for an active attention signal; every owner must be released independently before the aggregate state can leave attention.
+An agent within a session of one coding tool that independently owns a task signal. Every attention owner must be released before the aggregate state can leave attention.
 _Avoid_: Active task, light owner
 
 **Aggregate state**:
@@ -77,19 +93,19 @@ A state category retained in the signal summary even though its lighting present
 _Avoid_: Hidden task, inactive task, ignored signal
 
 **Signal surface**:
-The Air65 V3 main key backlight used by the first version to display notification signals; the rhythm light bar remains outside the signal surface.
+The backlight, strip light, or both that a person selects to display task signals. Zones outside this selection remain under the keyboard's own control.
 _Avoid_: Lighting zone, status LEDs
 
 **Signal color**:
-The solid main-backlight color a person assigns independently to each visible Codex task signal in the Keyphore App.
+The custom color a person assigns independently to each task signal and lighting zone in the Keyphore App. Native multicolor mode uses the selected effect's own colors instead.
 _Avoid_: Keyboard theme, RGB profile, lighting effect
 
 **Signal pattern**:
-The steady or slow-flashing presentation a person assigns independently to each visible Codex task signal in the Keyphore App, independently of its signal color. Slow flashing uses a fixed cycle of about one second lit and one second unlit rather than a user-selected speed or a breathing fade.
-_Avoid_: Signal color, keyboard effect, animation theme, breathing effect
+The native keyboard effect a person assigns independently to each task signal and lighting zone. The available effects and their color, speed, and direction controls depend on the selected zone and keyboard.
+_Avoid_: Signal color, keyboard theme
 
 **Signal brightness**:
-The main-backlight intensity from 1% through 100% that a person assigns independently to each visible Codex task signal in the Keyphore App. Zero intensity is reserved for the signal-off state rather than used to disable a signal.
+The intensity from 0% through 100% that a person assigns independently to each task signal and lighting zone. Zero turns that zone off without changing the task's state.
 _Avoid_: Global brightness, keyboard brightness, signal color
 
 **Signal visibility**:
@@ -97,7 +113,7 @@ The per-signal setting that determines whether a task signal may be presented on
 _Avoid_: Zero brightness, signal-off state
 
 **Default signal profile**:
-The initial visible settings reproduced from the verified implementation: execution is steady `#0000FF` at 100%, attention is steady `#FF8400` at 100%, and completion is steady `#00FF00` at 100% for five seconds. Slow flashing remains optional rather than a default.
+The initial visible settings: execution is blue breathing, attention is orange breathing, and completion is green static for five seconds, with the backlight controlled by default. Each task state also has separately configurable strip-light settings.
 _Avoid_: User profile, keyboard preset, recommended profile
 
 **Verified transport**:
@@ -185,11 +201,11 @@ The end-to-end state in which Keyphore is configured and the supported Air65 V3,
 _Avoid_: Configured state, installed state, keyboard connected
 
 **Settings appearance preview**:
-The on-screen keyboard illustration of the signal appearance currently being edited, independent of the live aggregate state and without taking over the physical signal surface. Settings still take effect immediately, so editing the appearance of the currently displayed signal also updates the physical keyboard; only an explicitly requested signal preview temporarily takes over the signal surface for testing.
+The on-screen keyboard illustration of the lighting preset currently being edited, independent of the live aggregate state. Clicking a preset tab also requests a six-second physical preview; clicking another tab replaces it, and repeating the same tab restarts it. Settings take effect immediately, including edits made during the physical preview. The physical signal surface returns to the latest aggregate state and configured idle choice when the preview ends.
 _Avoid_: Signal preview, physical test, unsaved settings draft
 
 **Signal preview**:
-The user-initiated test that presents each configured task signal on the connected keyboard, verifies protocol readback, and asks the person to confirm the visible result; connecting a keyboard never starts it automatically. New task signals do not interrupt the lighting test: the signal summary continues to reflect real task states with an explicit lighting-test indicator, excludes demonstration colors from its counts, and the physical signal surface returns to the latest aggregate state when the presentation ends rather than restoring a pre-test snapshot.
+The user-initiated presentation of a lighting preset on the connected keyboard with verified protocol readback. Selecting a preset tab previews only that appearance without recording a diagnostic result; Device check presents the three task signals and asks the person to confirm the visible result. Connecting a keyboard never starts either preview automatically. New task signals do not interrupt the preview: the signal summary continues to reflect real task states, excludes demonstration colors from its counts, and the physical signal surface returns to the latest aggregate state and idle setting when the presentation ends rather than restoring a pre-test snapshot.
 _Avoid_: Automatic exercise, protocol diagnostics, ready state
 
 **Diagnostic report**:

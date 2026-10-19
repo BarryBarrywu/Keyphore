@@ -20,21 +20,25 @@ Keyphore (pronounced “key-for”) is a native macOS menu bar app that turns Co
 
 | Default light | What it means |
 | --- | --- |
-| **Blue · Working** | A Codex task or subagent is executing. |
-| **Orange · Attention** | Codex needs your approval or input. |
+| **Blue breathing · Working** | A coding-agent task or subagent is executing. |
+| **Orange breathing · Attention** | A coding agent needs your approval or input. |
 | **Green · Complete** | A turn finished. The signal lasts five seconds by default. |
-| **Off** | No visible task signal is active. |
+| **Off or idle lighting** | No visible task signal is active. Lights are off by default. |
 
-Concurrent tasks share one keyboard signal: **attention → working → complete → off**. A completed turn cannot hide another task that is still working or waiting for you. Disabling a signal reveals the next eligible state.
+Concurrent tasks share one keyboard signal: **attention → working → complete → idle**. A completed turn cannot hide another task that is still working or waiting for you. Disabling a signal reveals the next eligible state. When no task remains, the selected idle setting applies.
 
 *The illustration shows signal states, not a photograph of physical lighting. Actual appearance depends on your keyboard and settings.*
 
 ## Make the signals yours
 
-- **Tune each signal independently.** Choose its color, brightness from 1–100%, steady light or slow flashing, and whether it appears at all.
+- **Configure backlight and strip light separately.** Each task state has independent settings for both zones. Choose whether Keyphore controls the backlight, strip light, or both; unselected zones keep their keyboard settings.
+- **Use the keyboard's native effects.** Air V3 backlight offers 20 effects and its strip light offers five, matching NuPhyIO. Air75 V2 offers all 41 choices in its VIA definition, including All Off. Brightness, speed, direction, and custom-color controls appear where the keyboard and selected effect support them.
+- **Match colors precisely.** Use NuPhyIO's 12 preset colors, a saturation/value picker, HEX or RGB input, and recent colors. Native multicolor mode is separate from the custom color selection.
+- **See the appearance while editing.** The settings illustration works without a connected keyboard. The physical keyboard renders native effects; the illustration is an appearance guide, not an exact simulation of per-key animation.
 - **Choose how long completion stays visible.** Set it from 1–60 seconds; working and attention follow task activity.
+- **Choose what happens when idle.** In **Settings → Lighting → Idle**, select lights off or configure an independent idle effect for each controlled zone. Quitting Keyphore still turns the controlled lights off.
 - **Check the keyboard from the menu bar.** See the current signal, connection state, and a keyboard illustration; open settings without a Dock window.
-- **Preview on the actual keyboard.** Run a lighting test from the App, check protocol readback, and confirm the result you can see.
+- **Preview on the actual keyboard.** Click a task-state or idle tab in lighting settings for a six-second preview. Editing its color or effect restarts that preview; afterward, the keyboard returns to the current task signal. Device check tests all three task signals.
 - **Use the appearance and language you prefer.** Light, dark, or system appearance; English, Simplified Chinese, or system language.
 
 ## Compatibility
@@ -42,11 +46,21 @@ Concurrent tasks share one keyboard signal: **attention → working → complete
 | Component | Current support |
 | --- | --- |
 | Mac | Apple Silicon · macOS 13 or later |
-| Codex | Desktop App or CLI with Plugin and Hook support |
+| Coding tools | Codex desktop/CLI, Claude Code, Pi, OpenCode, Qoder CLI, Grok Build |
 | Keyboards | **NuPhy Air65 V3 and Air75 V3**, stock firmware, supported USB identities |
-| Connection | Wired USB · one supported keyboard at a time |
+| Connection | Wired USB · one controlled keyboard at a time, selectable when several models are connected |
 
-Air65 V3 uses USB ID `19f5:102b`; Air75 V3 uses `19f5:1028`. ISO/JIS variants, Bluetooth, 2.4 GHz receivers, Intel Macs, and custom firmware are outside current support. Claude Code and automatic terminal-failure signals are not integrated.
+Air65 V3 uses USB ID `19f5:102b`; Air75 V3 uses `19f5:1028`. ISO/JIS variants, Bluetooth, 2.4 GHz receivers, Intel Macs, and custom firmware are outside current support.
+
+The **Air75 V2** driver (`19f5:3246`, VIA protocol 12) provides all 41 main-backlight choices in the supplied VIA definition: All Off plus 40 native effects, including gradients, cycles, rainbows, raindrops, heatmaps, reactive effects, and splashes. Non-Off choices expose VIA's color and speed parameters; the effect determines their visible influence, and reactive effects need physical key presses. Its [verification record](./docs/research/air75-v2-via.md) distinguishes software checks, device readback, and visual confirmation. Side lights remain controlled by the keyboard; their App controls are shown as unavailable. The driver never sends VIA Save commands. Each supported model saves its own lighting settings, so switching to V2 does not reuse or overwrite V3 effects.
+
+Use **Current keyboard** in the menu bar popover, the right-click menu, or **Settings → Device** to select a connected model. Automatic selects the only supported wired keyboard. A manual choice stays active while that model is connected; when it is absent and another keyboard is detected, Keyphore returns to Automatic. With multiple keyboards and no valid manual choice, select one from the menu. Switching first turns off and verifies the previous keyboard’s controlled zones if it is still connected. A disconnected previous target is released without claiming its lights were turned off. Multiple keyboards of the same selected model remain ambiguous. The model illustration list only changes the illustration.
+
+In **Settings → Agents**, review and enable each additional coding tool separately. Claude Code, Qoder CLI, and Grok use native plugins; Pi uses a native extension; OpenCode uses a local plugin. An approved native integration can run without Codex installed. Restart the coding tool or reload its extensions after installation. Removing one integration preserves other integrations and their active task signals.
+
+Pi provides execution, completion, and cancellation events, but no general waiting-for-user event. Claude Code and Qoder hooks without a native turn identifier follow the host's delivery order; an uncorrelated late event cannot be assigned reliably to an older turn. Grok child events without a stable agent identifier are ignored. Errors and cancellations clear signals when the host emits the corresponding supported event; arbitrary terminal failures are not inferred from transcripts or process output.
+
+Keyphore retains only lifecycle names and session, agent, turn, or permission-request identifiers. Native Hook payloads are filtered by the local helper; Pi/OpenCode extensions send only those fields. Prompts, answers, tool arguments, and transcript contents are never persisted or uploaded. Each source has independent approval, and a shared quit gate suppresses all sources after an explicit Quit. Grok-imported Claude/Qoder hooks cannot reuse those sources' approval.
 
 The App can recognize and illustrate additional NuPhy models. **Recognition is not lighting support**: the current experimental lighting allowlist is empty. The [bundled model catalog](./app/Sources/KeyphoreCore/Resources/candidate-keyboards.json) records the recognized identities and layouts.
 
@@ -56,12 +70,12 @@ This repository contains the App source. A packaged public download is not linke
 
 Once you have a Keyphore App build:
 
-1. **Open Keyphore and follow Guided setup.** The App manages its Codex Plugin and background component for your macOS user.
-2. **Review and approve the Hooks.** Setup presents the eight task-event definitions before enabling them. Follow any macOS permission prompts shown by the App.
+1. **Open Keyphore and choose your coding tools.** Use Guided setup for Codex or **Settings → Agents** for the other sources. The App manages its integrations and shared background component for your macOS user.
+2. **Review and approve each integration.** Setup presents its events and owned files before enabling it. Follow any macOS permission prompts shown by the App.
 3. **Connect one supported keyboard over USB.** Run Signal preview and confirm the visible lighting result.
-4. **Start a new Codex task.** Adjust the three signals from Keyphore’s settings whenever you like.
+4. **Start a new task in an enabled coding tool.** Adjust the three signals from Keyphore’s settings whenever you like.
 
-Closing settings leaves Keyphore running. **Quit Keyphore** stops its background component, disables its Hooks, and turns the signal lights off. For removal, use the in-App removal action before trashing the App.
+Closing settings leaves Keyphore running. **Quit Keyphore** stops its background component, suppresses owned lifecycle events, and turns the signal lights off. For removal, use the in-App removal action before trashing the App.
 
 ## Prefer a Rust Plugin without the App?
 
@@ -126,7 +140,7 @@ For maintainers opening a development build or testing a physical keyboard, use 
 tools/keyphore-development-app build-open
 ```
 
-That workflow requires the configured signing identity and `codex-temp-guard`. It checks for an existing Companion before installing in `~/Applications/Keyphore.app`. Do not launch a development App directly from DerivedData. After hardware testing, quit through the App so it can turn the signal off and stop the Companion.
+That workflow uses a temporary build directory under `/private/tmp/codex-builds` and requires a valid signing identity. It defaults to the maintainer's Developer ID; local development can explicitly set `KEYPHORE_DEVELOPMENT_TEAM` and `KEYPHORE_SIGNING_IDENTITY` to a matching team and full Apple Development certificate name. The App, helper, and Companion must all pass strict signature checks with that identity. The workflow quits the running App normally and refuses a remaining Companion before installing in `~/Applications/Keyphore.app`. Do not launch a development App directly from DerivedData. After hardware testing, quit through the App so it can turn the signal off and stop the Companion.
 
 <details>
 <summary>Code map and validation boundaries</summary>

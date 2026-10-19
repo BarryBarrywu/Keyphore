@@ -46,12 +46,7 @@ final class LifecycleAcceptanceTests: XCTestCase {
         let defaultProfile = LocalProfile.default
         let profile = LocalProfile(
             execution: defaultProfile.execution,
-            attention: SignalAppearance(
-                isVisible: false,
-                color: defaultProfile.attention.color,
-                brightness: defaultProfile.attention.brightness,
-                pattern: defaultProfile.attention.pattern
-            ),
+            attention: SignalAppearance(isVisible: false, backlight: defaultProfile.attention.backlight, strip: defaultProfile.attention.strip),
             completion: defaultProfile.completion,
             completionDisplayDuration: defaultProfile.completionDisplayDuration
         )

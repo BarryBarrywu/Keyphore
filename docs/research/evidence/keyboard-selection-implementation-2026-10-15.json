@@ -1,0 +1,36 @@
+{
+  "capturedAt": "2026-10-15T11:24:26.968045+00:00",
+  "branch": "feat/air75-v2-via",
+  "checks": {
+    "core": {
+      "log": "/private/tmp/codex-builds/keyphore-selection-final.log",
+      "sha256": "13d84dae6a42d175a2a56d1f361af280e301ec20706c99dbe665eaa36436127b",
+      "tests": 243,
+      "failures": 0
+    },
+    "app": {
+      "log": "/private/tmp/codex-builds/keyphore-selection-app-all.log",
+      "sha256": "eeee2e7b13a1b377bab34bde984ef369d091429e28170745ab98a379953c8fd5",
+      "tests": 98,
+      "failures": 0
+    },
+    "signedBuild": {
+      "log": "/private/tmp/codex-builds/keyphore-selection-build-open.log",
+      "sha256": "292e442b03944adbe1b40f03a7880e7bfb736c1455478ac509771a01b8c22f7e",
+      "passed": true
+    }
+  },
+  "sourceHashes": {
+    "app/Sources/KeyphoreCore/KeyboardSelection.swift": "c12cf76eccd5f2907965e844d06f45eab5c0c021723373e4120c4d34fe20ce38",
+    "app/Sources/KeyphoreCore/SignalRuntime.swift": "eceb39fdc4d7c771cdb3a50634b144a0ddf0ad645715900abe9ae05594062b19",
+    "app/Sources/KeyphoreCore/SignalPreview.swift": "99dfe6a7d757864fb23bb0ab881fc4e651f36c8160d40922385e3037766a46bf",
+    "app/Sources/KeyphoreCore/NuPhyIOAdapter.swift": "6c5355cb112e787e971ba70eed8817ad05c4b5b4353b6cbec67e3c4898a2d6c6",
+    "app/Sources/KeyphoreApp/KeyphoreAppState.swift": "0261f3f5e63034d4b8f44d515fb124d568ed1a7e9cfb88acf79af3ea4da1bef2",
+    "app/Sources/KeyphoreApp/SignalSettingsView.swift": "975d06bb42a96d883b5ea7492f454dd518e48ec5eac5cf90bd963ea4915c4519",
+    "runtime/Sources/main.swift": "8b59709d17282c1db217f57f6e149f7dc8a013b66a815c26bf4af43b35f7e465"
+  },
+  "liveSelectionEvidence": "keyboard-selection-live-2026-10-15.json",
+  "liveResult": "V3 and V2 both connected; explicit V3 then V2 target selection applied. V3 protocol healthy; V2 rejected the unchanged V3-only lighting profile as expected. Original Automatic preference restored.",
+  "oldJournalUpgrade": "Normal quit; verified old journal exactly []; backed up under /private/tmp/codex-builds/keyphore-selection-upgrade before removing it. No nonempty ownership discarded.",
+  "nativeUI": "Live Picker interaction not claimed: CUA could not reliably focus the menu-only app. Picker/state App tests passed; signed Companion selection was exercised through its atomic preference interface."
+}

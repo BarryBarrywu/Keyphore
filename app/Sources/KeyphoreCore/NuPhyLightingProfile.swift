@@ -7,21 +7,22 @@ public struct NuPhyLightingProfile: Equatable, Sendable {
     public let mainAddress: UInt16
     public let mainLength: Int
     public let protectedRange: Range<Int>
-    public let brightnessMirrorAddress: UInt16?
+    public let model: SupportedKeyboardModel
 
-    private init(brightnessMirrorAddress: UInt16?) {
-        revision = 1
+    private init(model: SupportedKeyboardModel) {
+        revision = 2
         stateAddress = 0
         stateLength = 17
         mainAddress = 0
         mainLength = 9
         protectedRange = 9..<17
-        self.brightnessMirrorAddress = brightnessMirrorAddress
+        self.model = model
     }
 
-    public static let air65V3 = Self(brightnessMirrorAddress: 1)
-    // Air75 readback showed a second brightness write scales RGB a second time.
-    public static let air75V3 = Self(brightnessMirrorAddress: nil)
+    public static let air65V3 = Self(model: .air65V3)
+    public static let air75V3 = Self(model: .air75V3)
+
+    public func range(for zone: LightingZone) -> Range<Int> { zone == .backlight ? 0..<9 : 9..<17 }
 
     public static func verified(for model: SupportedKeyboardModel) -> Self? {
         switch model {

@@ -53,15 +53,14 @@ final class ExperimentalKeyboardTests: XCTestCase {
     }
 
     func testVerifiedProfilesPreserveMainAndProtectedZonesAndBrightnessDifference() throws {
-        for (pid, name, expectedWrites) in [(UInt16(0x102b), "Air65 V3", 2), (UInt16(0x1028), "Air75 V3", 1)] {
+        for (pid, name, expectedWrites) in [(UInt16(0x102b), "Air65 V3", 2), (UInt16(0x1028), "Air75 V3", 2)] {
             var keyboard = device(.air75V3)
             keyboard.productID = pid
             keyboard.product = name
             let discovery = ExperimentalDiscovery(devices: [keyboard])
             let adapter = NuPhyIOAdapter(discovery: discovery, challenge: { Array(repeating: 7, count: 56) })
             let originalSide = Array(discovery.transport.state[9..<17])
-            let behavior = LightingBehavior.signal(SignalAppearance(isVisible: true,
-                color: SignalColor(red: 0, green: 0, blue: 255), brightness: SignalBrightness(percent: 30)!, pattern: .steady))
+            let behavior = LightingBehavior.signal(SignalAppearance(isVisible: true, backlight: ZoneAppearance(effect: .backlightStatic, color: SignalColor(red: 0, green: 0, blue: 255), colorMode: .multicolor, brightness: SignalBrightness(percent: 30)!, speed: LightingSpeed(level: 1)!), strip: LocalProfile.default.completion.strip))
             let evidence = try adapter.applyAndVerify(behavior)
             XCTAssertTrue(evidence.protocolReadbackSucceeded)
             XCTAssertEqual(evidence.rhythmAfter, originalSide)

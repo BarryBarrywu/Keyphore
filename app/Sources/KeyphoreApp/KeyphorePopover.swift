@@ -3,7 +3,6 @@ import SwiftUI
 import KeyphoreCore
 
 struct KeyphorePopover: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var state: KeyphoreAppState
     private let foregroundWindowAction: ForegroundWindowAction
@@ -20,11 +19,6 @@ struct KeyphorePopover: View {
         KeyboardSignalPresentation(snapshot: state.snapshot, preview: state.previewRecord)
     }
 
-    private var animatesSignal: Bool {
-        presentation.isLit && !presentation.isPreviewing
-            && presentation.appearance?.pattern == .slowFlashing && !reduceMotion
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 9) {
@@ -37,6 +31,10 @@ struct KeyphorePopover: View {
                 Spacer()
                 settingsButton.buttonStyle(.plain).foregroundStyle(.secondary)
             }.padding(.bottom, 16)
+
+            if state.canSelectKeyboard {
+                KeyboardTargetQuickSelection(state: state).padding(.bottom, 14)
+            }
 
             if state.isStarting {
                 HStack(spacing: 10) {
@@ -83,14 +81,13 @@ struct KeyphorePopover: View {
                            ? 344 / CandidateKeyboardIllustration(model: candidateModels[0]).aspectRatio : 280)
                     .padding(.bottom, 18)
                 } else {
-                    TimelineView(.animation(minimumInterval: 0.2, paused: !animatesSignal)) { context in
-                        Air65KeyboardView(
-                            presentation: presentation,
-                            isPatternLit: !animatesSignal || Int(context.date.timeIntervalSince1970) % 2 == 0,
-                            layout: state.snapshot.keyboardHealth.model == .air75V3 ? .air75ANSI : .air65
-                        )
-                    }
-                    .frame(width: 344, height: 344 * (state.snapshot.keyboardHealth.model == .air75V3 ? 186 : 160) / 416)
+                    let layout = keyboardLayout(for: state.snapshot.keyboardHealth.model)
+                    Air65KeyboardView(
+                        presentation: presentation,
+                        layout: layout,
+                        model: state.snapshot.keyboardHealth.model
+                    )
+                    .frame(width: 344, height: 344 * layout.height / 416)
                     .padding(.bottom, 18)
                 }
 
@@ -146,6 +143,7 @@ struct KeyphorePopover: View {
 
     private var statusTitle: String {
         if usesGenericKeyboardPresentation { return AppCopy.value(.keyboardDisconnected) }
+        if state.snapshot.keyboardHealth == .ambiguous { return AppCopy.value(.keyboardSelectionChooseTarget) }
         if candidateModels.count > 1 { return AppCopy.value(.candidateMultiple) }
         if case .unverified(let interfaces) = state.snapshot.keyboardHealth {
             return Array(Set(interfaces.map { $0.model?.rawValue ?? $0.product })).sorted().joined(separator: ", ")
@@ -160,27 +158,31 @@ struct KeyphorePopover: View {
         }
     }
 
-    private var connectionDetail: AppCopyKey {
+    var connectionDetail: AppCopyKey {
         switch state.snapshot.keyboardHealth {
         case .connected: .statusUSBConnected
         case .disconnected: .statusWaitingForUSB
+        case .ambiguous: state.keyboardSelectionMessageKey ?? .keyboardSelectionChooseTarget
         default: state.snapshot.keyboardHealth.copyKey
         }
     }
 
-    private var statusDetail: String {
+    var statusDetail: String {
         if usesGenericKeyboardPresentation { return AppCopy.value(.previewUnavailable) }
+        if state.snapshot.keyboardHealth == .ambiguous { return AppCopy.value(.keyboardSelectionPopoverHint) }
         if state.snapshot.keyboardHealth.model?.isExperimental == true { return AppCopy.value(.experimentalEnabled) }
         if case .unverified = state.snapshot.keyboardHealth { return AppCopy.value(.keyboardUnverifiedDetail) }
         if state.menuState != .ready { return AppCopy.value(.previewUnavailable) }
         if presentation.isPreviewing {
+            if state.previewRecord?.currentPreset == .idle { return AppCopy.value(.settingsIdle) }
             return AppCopy.value(presentation.signal.presentation(in: state.snapshot.profile).copyKey)
         }
         switch presentation.signal {
         case .execution: return AppCopy.value(.statusExecutionDetail)
         case .attention: return AppCopy.value(.statusAttentionDetail)
         case .completion: return AppCopy.value(.statusCompletionDetail)
-        case .signalOff: return AppCopy.value(.signalOffDescription)
+        case .signalOff:
+            return AppCopy.value(state.snapshot.profile.idle.isVisible ? .statusIdleDetail : .signalOffDescription)
         }
     }
 
@@ -203,6 +205,45 @@ struct KeyphorePopover: View {
 
 }
 
+struct KeyboardTargetQuickSelection: View {
+    @ObservedObject var state: KeyphoreAppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Label(AppCopy.value(.keyboardSelectionTitle), systemImage: "keyboard")
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Menu {
+                    ForEach(state.keyboardSelectionOptions) { option in
+                        Button {
+                            state.requestKeyboardSelection(option.model)
+                        } label: {
+                            if option.model == state.desiredKeyboardModel {
+                                Label(state.keyboardTargetLabel(option), systemImage: "checkmark")
+                            } else {
+                                Text(state.keyboardTargetLabel(option))
+                            }
+                        }.disabled(!state.canRequestKeyboardSelection(option.model))
+                    }
+                } label: {
+                    Text(state.keyboardSelectionActiveLabel).lineLimit(1)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel(AppCopy.value(.keyboardSelectionTitle))
+                .disabled(!state.canRequestKeyboardSelection(nil))
+                .simultaneousGesture(TapGesture().onEnded { state.refreshKeyboardSelection() })
+            }.font(.system(size: 11))
+            if let key = state.keyboardSelectionMessageKey {
+                Text(AppCopy.value(key)).font(.system(size: 10))
+                    .foregroundStyle(key == .keyboardSelectionPending ? Color.secondary : .orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 extension AppAppearance {
     var preferredColorScheme: ColorScheme? {
         switch self {
@@ -223,12 +264,14 @@ struct SignalPreviewFeedback: View {
                 Text(AppCopy.value(.migrationPreviewDescription)).foregroundStyle(.secondary)
             }
             if allowsRestart {
-                Button(AppCopy.value(state.previewRecord == nil ? .deviceCheckStart : .deviceCheckRetry), action: state.beginSignalPreview)
-                    .disabled(state.menuState != .ready || state.previewRecord?.phase == .pending
+                Button(AppCopy.value(state.previewRecord == nil ? .deviceCheckStart : .deviceCheckRetry)) {
+                    state.beginSignalPreview()
+                }
+                    .disabled(!state.canPreviewLighting || state.previewRecord?.phase == .pending
                               || state.previewRecord?.phase == .presenting
                               || state.previewRecord?.phase == .awaitingVisualConfirmation)
             }
-            if let preview = state.previewRecord {
+            if let preview = state.previewRecord, preview.requestedPreset == nil {
                 Text(AppCopy.value(.deviceCheckRecent)).font(.caption).foregroundStyle(.secondary)
                 switch preview.phase {
                 case .pending, .presenting:
@@ -242,6 +285,7 @@ struct SignalPreviewFeedback: View {
                 case .confirmed: Text(AppCopy.value(.previewConfirmed)).foregroundStyle(.secondary)
                 case .rejected: Text(AppCopy.value(.previewRejected)).foregroundStyle(.secondary)
                 case .failed: Text(AppCopy.value(.previewFailed)).foregroundStyle(.red)
+                case .completed: EmptyView()
                 }
             }
         }.font(.system(size: 12))
@@ -257,8 +301,15 @@ private struct GuidedSetupView: View {
                 .font(.headline)
 
             if state.setupSnapshot.phase == .codexHostMissing {
-                Label(AppCopy.value(.setupHostMissing), systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.secondary)
+                if state.canManageAgentIntegrations {
+                    ScrollView {
+                        AgentIntegrationsView(state: state)
+                    }
+                    .frame(maxHeight: 360)
+                } else {
+                    Label(AppCopy.value(.setupHostMissing), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
                 Button(AppCopy.value(.setupRepair), action: state.refresh)
             } else if state.setupSnapshot.phase == .legacyMigrationReview
                         || state.setupSnapshot.phase == .legacyMigrationRepair {

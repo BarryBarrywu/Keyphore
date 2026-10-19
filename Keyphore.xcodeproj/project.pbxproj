@@ -48,6 +48,12 @@
 		F19A71F9BA23D9ED02CC3DD5 /* SystemGuidedSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97EA601A7391D49F787A9328 /* SystemGuidedSetup.swift */; };
 		F416EBAFDBF91FAC72F940AF /* KeyphoreCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE7231315E09E2E55FE92E8F /* KeyphoreCore */; };
 		F51848C6801D298DC8909C48 /* LegacyMigrationSystemAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0D39BFC5AACFAFF0523B45 /* LegacyMigrationSystemAcceptanceTests.swift */; };
+		854AB8AB9A0AC3F20D3A5063 /* AgentIntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67015B4670E2650BD58A71D9 /* AgentIntegrationsView.swift */; };
+		1B995FF51455CF9BA3EFFC96 /* AgentIntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67015B4670E2650BD58A71D9 /* AgentIntegrationsView.swift */; };
+		365C23DA62059A75A77897E4 /* SystemAgentIntegrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528EFAF836DA790101656301 /* SystemAgentIntegrations.swift */; };
+		61A913A77774CE8CFCEA5A7F /* SystemAgentIntegrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528EFAF836DA790101656301 /* SystemAgentIntegrations.swift */; };
+		ED3DEF12E49323106567A460 /* AgentIntegrationInstallationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABCE588C580C5BF57FD2288 /* AgentIntegrationInstallationTests.swift */; };
+		B98BAE7899716EA1E478FC45 /* AgentIntegrationsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6B5549E0B3766E2BAD5BA81 /* AgentIntegrationsViewTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +100,10 @@
 		E7B04CCBFF0D5602D2A465F9 /* SignalColor+SwiftUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SignalColor+SwiftUI.swift"; sourceTree = "<group>"; };
 		F5C2BBC9EAC1806FEA00D8F8 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		FC514F7D097DCC14D6EF98FB /* AppLifecycleAcceptanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleAcceptanceTests.swift; sourceTree = "<group>"; };
+		67015B4670E2650BD58A71D9 /* AgentIntegrationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntegrationsView.swift; sourceTree = "<group>"; };
+		528EFAF836DA790101656301 /* SystemAgentIntegrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAgentIntegrations.swift; sourceTree = "<group>"; };
+		2ABCE588C580C5BF57FD2288 /* AgentIntegrationInstallationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntegrationInstallationTests.swift; sourceTree = "<group>"; };
+		B6B5549E0B3766E2BAD5BA81 /* AgentIntegrationsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntegrationsViewTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +147,8 @@
 		2009D738C055B4E9D1E83EDB /* KeyphoreAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				2ABCE588C580C5BF57FD2288 /* AgentIntegrationInstallationTests.swift */,
+				B6B5549E0B3766E2BAD5BA81 /* AgentIntegrationsViewTests.swift */,
 				FC514F7D097DCC14D6EF98FB /* AppLifecycleAcceptanceTests.swift */,
 				4A418CD6D9D3A9DAB5EA4356 /* ForegroundWindowActionTests.swift */,
 				BB0D39BFC5AACFAFF0523B45 /* LegacyMigrationSystemAcceptanceTests.swift */,
@@ -199,6 +211,8 @@
 		CECF92B69D02393CEA0972E0 /* KeyphoreApp */ = {
 			isa = PBXGroup;
 			children = (
+				67015B4670E2650BD58A71D9 /* AgentIntegrationsView.swift */,
+				528EFAF836DA790101656301 /* SystemAgentIntegrations.swift */,
 				37D92695170702B9C3A7E604 /* AggregateSignal+Presentation.swift */,
 				CA21CB3661C6A998618B32AE /* Air65KeyboardView.swift */,
 				F5C2BBC9EAC1806FEA00D8F8 /* DiagnosticsView.swift */,
@@ -413,6 +427,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				854AB8AB9A0AC3F20D3A5063 /* AgentIntegrationsView.swift in Sources */,
+				365C23DA62059A75A77897E4 /* SystemAgentIntegrations.swift in Sources */,
 				90B49C9C3949DA10AFAB0E12 /* AggregateSignal+Presentation.swift in Sources */,
 				9AFF24B6ADDF7EBD8AC27925 /* Air65KeyboardView.swift in Sources */,
 				B2B19524EC3A91A415B33966 /* DiagnosticsView.swift in Sources */,
@@ -433,6 +449,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B995FF51455CF9BA3EFFC96 /* AgentIntegrationsView.swift in Sources */,
+				61A913A77774CE8CFCEA5A7F /* SystemAgentIntegrations.swift in Sources */,
+				ED3DEF12E49323106567A460 /* AgentIntegrationInstallationTests.swift in Sources */,
+				B98BAE7899716EA1E478FC45 /* AgentIntegrationsViewTests.swift in Sources */,
 				C29B97853A7370436BABD7EE /* AggregateSignal+Presentation.swift in Sources */,
 				32D6EE5C8490F6E4D2752769 /* Air65KeyboardView.swift in Sources */,
 				B464B6D9AB0EED111F13C466 /* AppLifecycleAcceptanceTests.swift in Sources */,

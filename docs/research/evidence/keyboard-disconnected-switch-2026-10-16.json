@@ -1,0 +1,164 @@
+{
+  "startedAt": "2026-10-16T04:48:43.302410+00:00",
+  "reportedIssue": "User selected Air75 V3 but lighting UI still showed Air75 V2 strip unsupported.",
+  "before": {
+    "keyboard-selection.json": {
+      "model": "Air75 V3"
+    },
+    "keyboard-selection-snapshot.json": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V3",
+      "failure": "oldTargetUnavailable",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V3"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792126123175
+      },
+      "phase": "blocked"
+    },
+    "keyboard-health.json": {
+      "observedAt": {
+        "millisecondsSince1970": 1792126123175
+      },
+      "protocolHealthy": false,
+      "status": "disconnected"
+    },
+    "lighting-ownership.json": {
+      "zones": [
+        "backlight"
+      ],
+      "model": "Air75 V2"
+    }
+  },
+  "profileHashes": {
+    "air75-v2.json": "8a32be0a8129f7e78f872b2fb176f3f8feb8ea6d74473816713a94bb9abdc03b",
+    "air75-v3.json": "41dfaabfd9fd6581650ac8db6d4f51b8a11b477e3415735896e056537f69032d"
+  },
+  "nativeUIBefore": "V2 41-effect catalog and disabled V2 strip message shown while explicit selection is V3.",
+  "cause": "Offline former V2 ownership blocked explicit V3 handoff; UI followed actual old target.",
+  "status": "Fixed and installed: actual V3 target applied, protocol healthy, backlight and strip owned; V3 strip UI enabled and V2 warning absent. Installation preserved both profiles; subsequent user edits are intentional.",
+  "checks": {
+    "core": {
+      "tests": 265,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-disconnected-switch-green.log",
+      "sha256": "54d28e1730e8314a4962aaf44f04552f485bea6ad108619da02bad3c23941ea9"
+    },
+    "appBuild": {
+      "passed": true,
+      "log": "/private/tmp/codex-builds/keyphore-disconnected-switch-app-build.log",
+      "sha256": "98609afdf74d42306cbca9faa6d02ad00fb9e2ce125d9ce857679d79feb55bee"
+    },
+    "signedBuild": {
+      "passed": true,
+      "log": "/private/tmp/codex-builds/keyphore-disconnected-switch-build-open.log",
+      "sha256": "89405487deb335365898c856b0f4addb83f373bad17beef424c017f3cf88ba61"
+    }
+  },
+  "fix": "Release an absent previous control endpoint only for an explicit different model selection and a successful fresh inventory. No off claim; profiles preserved; Auto/quit and connected-old cleanup guards unchanged.",
+  "review": "Independent expert review found no remaining blocking issue.",
+  "after": {
+    "at": "2026-10-16T04:54:56.073739+00:00",
+    "state": {
+      "keyboard-selection.json": {
+        "model": "Air75 V3"
+      },
+      "keyboard-selection-snapshot.json": {
+        "activeModel": "Air75 V3",
+        "desiredModel": "Air75 V3",
+        "inventory": [
+          {
+            "count": 1,
+            "model": "Air75 V3"
+          }
+        ],
+        "observedAt": {
+          "millisecondsSince1970": 1792126495882
+        },
+        "phase": "applied"
+      },
+      "keyboard-health.json": {
+        "model": "Air75 V3",
+        "observedAt": {
+          "millisecondsSince1970": 1792126495152
+        },
+        "protocolHealthy": true,
+        "status": "connected"
+      },
+      "lighting-ownership.json": {
+        "zones": [
+          "strip",
+          "backlight"
+        ],
+        "model": "Air75 V3"
+      }
+    },
+    "profilesUnchanged": true,
+    "offlineV2OffVerified": false,
+    "offlineV2ControlReleased": true
+  },
+  "installedHelperSHA256": "c1f962f71a9c6abe4fd5fcd5fdf76e3b7f3484353981991ff2312efe01057f62",
+  "nativeUIAfter": {
+    "observedAt": "2026-10-16T04:55:58.815020+00:00",
+    "illustration": "Air75 V3 ANSI 键盘示意图",
+    "stripControl": "条形灯、由 Keyphore 控制",
+    "stripControlEnabled": true,
+    "v2UnsupportedWarningPresent": false,
+    "observedUserInteraction": "User changed to Idle and adjusted V3 brightness to 80% during read-only UI observation; no assistant lighting edits were sent."
+  },
+  "latestState": {
+    "keyboard-selection-snapshot.json": {
+      "activeModel": "Air75 V3",
+      "desiredModel": "Air75 V3",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V3"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792126558217
+      },
+      "phase": "applied"
+    },
+    "keyboard-health.json": {
+      "model": "Air75 V3",
+      "observedAt": {
+        "millisecondsSince1970": 1792126558217
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "lighting-ownership.json": {
+      "zones": [
+        "strip",
+        "backlight"
+      ],
+      "model": "Air75 V3"
+    },
+    "signal-preview.json": {
+      "completedPresets": [],
+      "currentPreset": "idle",
+      "id": "50FD6B5A-3650-480B-A650-BC7BA6716458",
+      "phase": "presenting",
+      "presentationIsLit": true,
+      "protocolReadbackSucceeded": true,
+      "requestedAt": {
+        "millisecondsSince1970": 1792126555195
+      },
+      "requestedPreset": "idle",
+      "stageStartedAt": {
+        "millisecondsSince1970": 1792126556425
+      },
+      "targetModel": "Air75 V3",
+      "unmanagedZoneProtection": "readback",
+      "unmanagedZonesPreserved": true,
+      "visualConfirmation": "notRequested"
+    }
+  },
+  "sourceSHA256": "761acb799b758d8e462a4e61aa0519bd384a3d5fd0a238a39fafa284e7662784"
+}

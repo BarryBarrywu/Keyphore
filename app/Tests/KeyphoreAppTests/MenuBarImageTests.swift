@@ -3,12 +3,67 @@ import XCTest
 import KeyphoreCore
 
 final class MenuBarImageTests: XCTestCase {
+    func testColorPickerStatePreservesHiddenHueAndSaturationThroughBlackAndGray() {
+        var state = SignalColorPickerState(SignalColor(red: 0, green: 0, blue: 255))
+
+        state.synchronize(with: SignalColor(red: 0, green: 0, blue: 0))
+        state.update(hue: 1.0 / 3.0, saturation: 0.5)
+        XCTAssertEqual(state.color, SignalColor(red: 0, green: 0, blue: 0))
+        XCTAssertEqual(state.update(brightness: 1), SignalColor(red: 128, green: 255, blue: 128))
+
+        state.synchronize(with: SignalColor(red: 128, green: 128, blue: 128))
+        state.update(hue: 5.0 / 6.0)
+        XCTAssertEqual(state.update(saturation: 1), SignalColor(red: 128, green: 0, blue: 128))
+    }
+
+    func testColorPickerStateSynchronizesOrdinaryExternalRGBChanges() {
+        var state = SignalColorPickerState(SignalColor(red: 0, green: 0, blue: 255))
+        let external = SignalColor(red: 18, green: 171, blue: 240)
+
+        state.synchronize(with: external)
+
+        XCTAssertEqual(state.color, external)
+
+        state.update(hue: 1)
+        state.synchronize(with: state.color)
+        XCTAssertEqual(state.hue, 1)
+    }
+
+    func testOfficialPaletteAndNativeColorTextFormatsPreserveExactRGBBytes() throws {
+        XCTAssertEqual(SignalPalette.colors.map { SignalColorTextCodec.format($0, as: .hex) }, [
+            "#FF6D1E", "#FFF200", "#00FFAE", "#0095FF", "#8787F8", "#FF3B96",
+            "#FC1616", "#FFBF00", "#0FE8FB", "#22FF22", "#2222FF", "#FF4BFF",
+        ])
+        let color = SignalColor(red: 0x12, green: 0xAB, blue: 0xF0)
+        XCTAssertEqual(SignalColorTextCodec.parse("#12ABF0", format: .hex), color)
+        XCTAssertEqual(SignalColorTextCodec.parse("1af", format: .hex), SignalColor(red: 0x11, green: 0xAA, blue: 0xFF))
+        XCTAssertEqual(SignalColorTextCodec.parse("rgb(18, 171, 240)", format: .rgb), color)
+        XCTAssertEqual(SignalColorTextCodec.format(color, as: .rgb), "rgb(18, 171, 240)")
+        XCTAssertNil(SignalColorTextCodec.parse("rgb(256, 0, 0)", format: .rgb))
+    }
+
+    func testRecentColorsAreUniqueNewestFirstAndCappedAtTwelve() throws {
+        let suite = "keyphore-color-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for value in 0..<14 {
+            _ = RecentSignalColors.record(SignalColor(red: UInt8(value), green: 0, blue: 0), in: defaults)
+        }
+        _ = RecentSignalColors.record(SignalColor(red: 5, green: 0, blue: 0), in: defaults)
+        let restored = RecentSignalColors.load(from: defaults)
+        XCTAssertEqual(restored.count, 12)
+        XCTAssertEqual(restored.first, SignalColor(red: 5, green: 0, blue: 0))
+        XCTAssertEqual(Set(restored.map { $0.red }).count, 12)
+    }
+
     func testKeyboardShowsTheLiveSignalAndConfiguredAppearance() {
         let appearance = SignalAppearance(
             isVisible: true,
-            color: SignalColor(red: 170, green: 80, blue: 40),
-            brightness: SignalBrightness(percent: 35)!,
-            pattern: .slowFlashing
+            backlight: ZoneAppearance(
+                effect: .backlightStatic, color: SignalColor(red: 170, green: 80, blue: 40),
+                brightness: SignalBrightness(percent: 35)!
+            ),
+            strip: LocalProfile.default.execution.strip
         )
         let profile = LocalProfile.default.replacingAppearance(appearance, for: .execution)
         let presentation = KeyboardSignalPresentation(
@@ -23,7 +78,7 @@ final class MenuBarImageTests: XCTestCase {
     func testKeyboardUsesThePreviewStageIncludingItsUnlitPhase() throws {
         var preview = try previewRecord()
         preview.phase = .presenting
-        preview.currentSignal = .attention
+        preview.currentPreset = .attention
         preview.presentationIsLit = true
         let lit = KeyboardSignalPresentation(snapshot: snapshot(), preview: preview)
         XCTAssertEqual(lit.signal, .attention)
@@ -52,7 +107,7 @@ final class MenuBarImageTests: XCTestCase {
         ] {
             var preview = try previewRecord()
             preview.phase = phase
-            preview.currentSignal = .completion
+            preview.currentPreset = .completion
             let presentation = KeyboardSignalPresentation(snapshot: snapshot(), preview: preview)
             XCTAssertEqual(presentation.signal, .execution)
             XCTAssertTrue(presentation.isLit)
@@ -65,8 +120,8 @@ final class MenuBarImageTests: XCTestCase {
             snapshot: snapshot(ready: false), preview: nil
         ).isLit)
         let hidden = SignalAppearance(
-            isVisible: false, color: LocalProfile.default.execution.color,
-            brightness: .full, pattern: .steady
+            isVisible: false, backlight: LocalProfile.default.execution.backlight,
+            strip: LocalProfile.default.execution.strip
         )
         XCTAssertFalse(KeyboardSignalPresentation(
             snapshot: snapshot(profile: LocalProfile.default.replacingAppearance(hidden, for: .execution)),
@@ -74,12 +129,33 @@ final class MenuBarImageTests: XCTestCase {
         ).isLit)
     }
 
-    private func snapshot(ready: Bool = true, profile: LocalProfile = .default) -> LifecycleSnapshot {
+    func testIdleKeepsNoTaskStatusWhileFollowingTheConfiguredIdleAppearance() {
+        let idle = SignalAppearance(
+            isVisible: true, backlight: LocalProfile.defaultIdle.backlight,
+            strip: LocalProfile.defaultIdle.strip
+        )
+        let profile = LocalProfile.default.replacingAppearance(idle, forPreset: .idle)
+        let presentation = KeyboardSignalPresentation(
+            snapshot: snapshot(signal: .signalOff, profile: profile), preview: nil
+        )
+
+        XCTAssertEqual(presentation.signal, .signalOff)
+        XCTAssertEqual(presentation.appearance, idle)
+        XCTAssertTrue(presentation.isLit)
+        XCTAssertEqual(
+            AggregateSignal.signalOff.presentation(in: profile).menuBarAccessibilityLabel,
+            "\(AppCopy.value(.productName)), \(AppCopy.value(.settingsIdle))"
+        )
+    }
+
+    private func snapshot(
+        ready: Bool = true, signal: AggregateSignal = .execution, profile: LocalProfile = .default
+    ) -> LifecycleSnapshot {
         LifecycleSnapshot(
             health: .configured(keyboard: ready ? .connected(protocolHealthy: true) : .disconnected),
             menuState: ready ? .ready : .configured,
             durableStatus: .execution,
-            currentSignal: .execution,
+            currentSignal: signal,
             profile: profile
         )
     }

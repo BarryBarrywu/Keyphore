@@ -1,0 +1,525 @@
+{
+  "startedAt": "2026-10-16T04:23:18.901067+00:00",
+  "requestedScope": "All effects in the user-supplied Air75 V2 VIA3 definition, including All Off.",
+  "definitionSHA256": "5c159cd4f219b8556e44ecc5aaecbbc1b905dcb69b4ad0ff3009f4f5f7fa7dbe",
+  "expectedEffects": [
+    {
+      "id": 0,
+      "name": "All Off"
+    },
+    {
+      "id": 1,
+      "name": "Solid Color"
+    },
+    {
+      "id": 2,
+      "name": "Gradient Up/Down"
+    },
+    {
+      "id": 3,
+      "name": "Gradient Left/Right"
+    },
+    {
+      "id": 4,
+      "name": "Breathing"
+    },
+    {
+      "id": 5,
+      "name": "Band Sat."
+    },
+    {
+      "id": 6,
+      "name": "Band Val."
+    },
+    {
+      "id": 7,
+      "name": "Pinwheel Sat."
+    },
+    {
+      "id": 8,
+      "name": "Pinwheel Val."
+    },
+    {
+      "id": 9,
+      "name": "Spiral Sat."
+    },
+    {
+      "id": 10,
+      "name": "Spiral Val."
+    },
+    {
+      "id": 11,
+      "name": "Cycle All"
+    },
+    {
+      "id": 12,
+      "name": "Cycle Left/Right"
+    },
+    {
+      "id": 13,
+      "name": "Cycle Up/Down"
+    },
+    {
+      "id": 14,
+      "name": "Rainbow Moving Chevron"
+    },
+    {
+      "id": 15,
+      "name": "Cycle Out/In"
+    },
+    {
+      "id": 16,
+      "name": "Cycle Out/In Dual"
+    },
+    {
+      "id": 17,
+      "name": "Cycle Pinwheel"
+    },
+    {
+      "id": 18,
+      "name": "Cycle Spiral"
+    },
+    {
+      "id": 19,
+      "name": "Dual Beacon"
+    },
+    {
+      "id": 20,
+      "name": "Rainbow Beacon"
+    },
+    {
+      "id": 21,
+      "name": "Rainbow Pinwheels"
+    },
+    {
+      "id": 22,
+      "name": "Raindrops"
+    },
+    {
+      "id": 23,
+      "name": "Jellybean Raindrops"
+    },
+    {
+      "id": 24,
+      "name": "Hue Breathing"
+    },
+    {
+      "id": 25,
+      "name": "Hue Pendulum"
+    },
+    {
+      "id": 26,
+      "name": "Hue Wave"
+    },
+    {
+      "id": 27,
+      "name": "Typing Heatmap"
+    },
+    {
+      "id": 28,
+      "name": "Digital Rain"
+    },
+    {
+      "id": 29,
+      "name": "Reactive Simple"
+    },
+    {
+      "id": 30,
+      "name": "Reactive"
+    },
+    {
+      "id": 31,
+      "name": "Reactive Wide"
+    },
+    {
+      "id": 32,
+      "name": "Reactive Multiwide"
+    },
+    {
+      "id": 33,
+      "name": "Reactive Cross"
+    },
+    {
+      "id": 34,
+      "name": "Reactive Multicross"
+    },
+    {
+      "id": 35,
+      "name": "Reactive Nexus"
+    },
+    {
+      "id": 36,
+      "name": "Reactive MultiNexus"
+    },
+    {
+      "id": 37,
+      "name": "Splash"
+    },
+    {
+      "id": 38,
+      "name": "MultiSplash"
+    },
+    {
+      "id": 39,
+      "name": "Solid Splash"
+    },
+    {
+      "id": 40,
+      "name": "Solid MultiSplash"
+    }
+  ],
+  "checks": {
+    "core": {
+      "tests": 259,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-via-effects-full.log",
+      "sha256": "df5568280932dade12ab9164b559800b56b96a4ddc729b9cde3c252e4fe74135"
+    },
+    "app": {
+      "tests": 106,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-via-effects-app-expert.log",
+      "xcresult": "/private/tmp/codex-builds/keyphore-via-effects-app-expert.xcresult",
+      "sha256": "5ea12b737b5b424a13f81da43e62fe2e35a6a4fb5aba9d4b689328caeaf8e934"
+    },
+    "signedBuild": {
+      "passed": true,
+      "log": "/private/tmp/codex-builds/keyphore-via-effects-build-open.log",
+      "sha256": "73ee0c0581b1fa39ae8edd2dac71b301591d5cdec27fbb60013d783df4bd3bcf"
+    }
+  },
+  "hardwareAcceptance": "Not run: V2 absent; pending V2 ownership must be cleared by verified off after reconnect.",
+  "visualLimit": "Mode/parameter readback is distinct from rendered animation; reactive effects require physical keyboard input.",
+  "userProfileChanges": "none planned; physical acceptance will use an isolated temporary lighting session and restore App configuration.",
+  "beforeAcceptance": {
+    "at": "2026-10-16T04:33:41.713570+00:00",
+    "backup": "/private/tmp/codex-builds/keyphore-full-effects-backup.sif9clbb",
+    "profiles": {
+      "air75-v2.json": {
+        "sha256": "8a32be0a8129f7e78f872b2fb176f3f8feb8ea6d74473816713a94bb9abdc03b",
+        "profile": {
+          "attention": {
+            "backlight": {
+              "brightness": {
+                "percent": 100
+              },
+              "color": {
+                "blue": 0,
+                "green": 242,
+                "red": 255
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightBreathing",
+              "speed": 2
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 60
+              },
+              "color": {
+                "blue": 0,
+                "green": 132,
+                "red": 255
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripFlowing",
+              "speed": 2
+            }
+          },
+          "completion": {
+            "backlight": {
+              "brightness": {
+                "percent": 100
+              },
+              "color": {
+                "blue": 34,
+                "green": 255,
+                "red": 34
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightBreathing",
+              "speed": 4
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 60
+              },
+              "color": {
+                "blue": 0,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripNeon",
+              "speed": 4
+            }
+          },
+          "completionDisplayDuration": {
+            "seconds": 5
+          },
+          "controlledZones": "backlight",
+          "execution": {
+            "backlight": {
+              "brightness": {
+                "percent": 100
+              },
+              "color": {
+                "blue": 255,
+                "green": 149,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightBreathing",
+              "speed": 2
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 55
+              },
+              "color": {
+                "blue": 248,
+                "green": 135,
+                "red": 135
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripFlowing",
+              "speed": 2
+            }
+          },
+          "idle": {
+            "backlight": {
+              "brightness": {
+                "percent": 30
+              },
+              "color": {
+                "blue": 174,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightBreathing",
+              "speed": 4
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 30
+              },
+              "color": {
+                "blue": 174,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripRhythm",
+              "speed": 2
+            }
+          }
+        }
+      },
+      "air75-v3.json": {
+        "sha256": "41dfaabfd9fd6581650ac8db6d4f51b8a11b477e3415735896e056537f69032d",
+        "profile": {
+          "attention": {
+            "backlight": {
+              "brightness": {
+                "percent": 100
+              },
+              "color": {
+                "blue": 0,
+                "green": 242,
+                "red": 255
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightBreathing",
+              "speed": 2
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 60
+              },
+              "color": {
+                "blue": 0,
+                "green": 132,
+                "red": 255
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripFlowing",
+              "speed": 2
+            }
+          },
+          "completion": {
+            "backlight": {
+              "brightness": {
+                "percent": 100
+              },
+              "color": {
+                "blue": 174,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightDiagonal",
+              "speed": 4
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 60
+              },
+              "color": {
+                "blue": 0,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripNeon",
+              "speed": 4
+            }
+          },
+          "completionDisplayDuration": {
+            "seconds": 5
+          },
+          "controlledZones": "both",
+          "execution": {
+            "backlight": {
+              "brightness": {
+                "percent": 100
+              },
+              "color": {
+                "blue": 255,
+                "green": 149,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightRipple",
+              "speed": 2
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 55
+              },
+              "color": {
+                "blue": 248,
+                "green": 135,
+                "red": 135
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripFlowing",
+              "speed": 2
+            }
+          },
+          "idle": {
+            "backlight": {
+              "brightness": {
+                "percent": 30
+              },
+              "color": {
+                "blue": 174,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "backlightBreathing",
+              "speed": 2
+            },
+            "isVisible": true,
+            "strip": {
+              "brightness": {
+                "percent": 30
+              },
+              "color": {
+                "blue": 174,
+                "green": 255,
+                "red": 0
+              },
+              "colorMode": "custom",
+              "direction": 1,
+              "effect": "stripRhythm",
+              "speed": 2
+            }
+          }
+        }
+      }
+    },
+    "selection": {
+      "model": "Air75 V2"
+    },
+    "ownership": {
+      "zones": [
+        "backlight"
+      ],
+      "model": "Air75 V2"
+    },
+    "detectedWiredKeyboard": "Air75 V3 (19f5:1028); V2 absent"
+  },
+  "quitRecovery": "Current signed Companion restored under original label with quit gate active; App normal Quit accepted a fresh disconnected health result. V2 ownership preserved; no claim of verified off while V2 is absent.",
+  "installedHelperSHA256": "6fe10105700c5ebb2675525f406b64a5c38eee049bd69d91f728523d3610d5d0",
+  "uiVerification": {
+    "settingsWindowVisible": true,
+    "v2CapabilityAndExpandedCatalogVisible": true,
+    "englishSourceTooltipsVisible": true,
+    "screenshotInspected": true,
+    "liveSelectionAndScrolling": "Not verified while V2 is disconnected; editing controls disabled. Catalog and hosted V2 layout covered by App tests."
+  },
+  "handoff": {
+    "at": "2026-10-16T04:36:37.420006+00:00",
+    "appPath": "/Users/admin/Applications/Keyphore.app",
+    "selectionSnapshot": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "failure": "notFound",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V3"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792125396874
+      },
+      "phase": "blocked"
+    },
+    "profilesUnchanged": true,
+    "ownership": {
+      "zones": [
+        "backlight"
+      ],
+      "model": "Air75 V2"
+    }
+  },
+  "sourceHashes": {
+    "app/Sources/KeyphoreCore/SignalProfile.swift": "a3b6a156b295330f77e1e866417979e8886bf30d512d7635c21d88043a3ec8a4",
+    "app/Sources/KeyphoreCore/Air65Device.swift": "b1df8edd0fb6c62e2bd16bfaa3cf13418153184eb8d0bdbabf4b59f9a77193fc",
+    "app/Sources/KeyphoreCore/VIALightingAdapter.swift": "0f05114fa5994aac8bfb9cbd79a2215203fc64553e7aee7540647b0322edfc95",
+    "app/Sources/KeyphoreCore/NuPhyIOAdapter.swift": "19f3b2dc5feb7a905c7d9cfd97de1adc188f124fea66c7a91672bf27b636d31e",
+    "app/Sources/KeyphoreApp/SignalSettingsView.swift": "b170e484a42111d594a99499d745b4654cc3fc1798e22d5a4a1d95296c9e69e5",
+    "app/Sources/KeyphoreApp/AggregateSignal+Presentation.swift": "5595f1734148245e289273ceda2f1b18c0d0f7fa1ca0419c99c279a142dea957"
+  },
+  "probe": {
+    "source": "air75-v2-full-effects-probe.swift",
+    "sha256": "100cff6784db2da782328a4c4ecdc91ce92186f8bbdb73bce2c7d4c2a82396ce",
+    "executable": "/private/tmp/codex-builds/keyphore-via-full-effects-probe/.build/out/Products/Debug/Probe",
+    "executed": false
+  }
+}

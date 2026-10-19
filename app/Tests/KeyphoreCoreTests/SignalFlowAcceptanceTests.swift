@@ -105,7 +105,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(
             fixture.lighting.behaviors,
             [
-                .signal(LocalProfile.default.completion),
+                .signal(LocalProfile.steadyTestProfile.completion),
                 .off,
             ]
         )
@@ -145,7 +145,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.companion.sync(at: .milliseconds(200))
         try fixture.companion.sync(at: .milliseconds(5_100))
 
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
         let remaining = try fixture.store.load().owners
         XCTAssertEqual(remaining.map(\.id.sessionID), ["session-executing"])
     }
@@ -160,7 +160,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(5_100))
 
         XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.execution])
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
     }
 
     func testNewTurnAttentionSurvivesAStaleCompletionTimer() throws {
@@ -174,7 +174,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(5_100))
 
         XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.attention])
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.attention)])
     }
 
     func testFailureContentNeverCreatesATaskFailureSignal() throws {
@@ -202,8 +202,8 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(
             fixture.lighting.behaviors,
             [
-                .signal(LocalProfile.default.execution),
-                .signal(LocalProfile.default.completion),
+                .signal(LocalProfile.steadyTestProfile.execution),
+                .signal(LocalProfile.steadyTestProfile.completion),
             ]
         )
         let persisted = try String(contentsOf: fixture.statusURL, encoding: .utf8)
@@ -227,7 +227,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
             try fixture.companion.sync(at: .milliseconds(200))
 
-            XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+            XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.attention)])
         }
     }
 
@@ -258,7 +258,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(signalOff.currentSignal, .signalOff)
         XCTAssertEqual(
             fixture.lighting.behaviors,
-            [.signal(LocalProfile.default.completion), .off]
+            [.signal(LocalProfile.steadyTestProfile.completion), .off]
         )
         XCTAssertEqual(
             menuLighting.behaviors,
@@ -291,8 +291,8 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(
             fixture.lighting.behaviors,
             [
-                .signal(LocalProfile.default.attention),
-                .signal(LocalProfile.default.execution),
+                .signal(LocalProfile.steadyTestProfile.attention),
+                .signal(LocalProfile.steadyTestProfile.execution),
             ]
         )
     }
@@ -331,8 +331,8 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(
             fixture.lighting.behaviors,
             [
-                .signal(LocalProfile.default.attention),
-                .signal(LocalProfile.default.execution),
+                .signal(LocalProfile.steadyTestProfile.attention),
+                .signal(LocalProfile.steadyTestProfile.execution),
             ]
         )
     }
@@ -351,7 +351,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(3_600_000))
 
         XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.attention])
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.attention)])
     }
 
     func testLaterExecutionCannotHideAnotherSessionsAttention() throws {
@@ -361,7 +361,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
         try fixture.companion.sync(at: .milliseconds(10))
 
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.attention)])
     }
 
     func testStaleAttentionExpiresAfterOneHourAndRevealsRenewedExecution() throws {
@@ -381,8 +381,8 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(
             fixture.lighting.behaviors,
             [
-                .signal(LocalProfile.default.attention),
-                .signal(LocalProfile.default.execution),
+                .signal(LocalProfile.steadyTestProfile.attention),
+                .signal(LocalProfile.steadyTestProfile.execution),
             ]
         )
         XCTAssertFalse(try fixture.store.load().owners.contains { $0.id.sessionID == "stale" })
@@ -401,7 +401,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
         try fixture.companion.sync(at: .milliseconds(100))
 
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
         XCTAssertEqual(try fixture.store.load().owners.map(\.signal), [.execution])
     }
 
@@ -494,7 +494,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.handle("Stop", session: "session-1", turn: "turn-1", at: 100)
         try fixture.companion.sync(at: .milliseconds(100))
 
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.attention)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.attention)])
         XCTAssertEqual(
             Dictionary(
                 uniqueKeysWithValues: try fixture.store.load().owners.map {
@@ -540,7 +540,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
         try fixture.companion.sync(at: .milliseconds(0))
 
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
     }
 
     func testSubagentEndingLeavesMainExecutionOwnerActive() throws {
@@ -565,7 +565,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         XCTAssertEqual(status.owners.map(\.id.agentID), ["main"])
 
         try fixture.companion.sync(at: .milliseconds(20))
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
     }
 
     func testMainOwnerCompletionCannotClearAnotherActiveSession() throws {
@@ -606,7 +606,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
             ["agent-1": .execution, "main": .completion]
         )
         try fixture.companion.sync(at: .milliseconds(20))
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
     }
 
     func testEmptyDurableStatusAppliesSignalOff() throws {
@@ -730,12 +730,12 @@ final class SignalFlowAcceptanceTests: XCTestCase {
         try fixture.companion.handle(expiry: staleExpiry, at: .milliseconds(3_600_000))
 
         XCTAssertEqual(try fixture.store.load().owners.count, 1)
-        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.default.execution)])
+        XCTAssertEqual(fixture.lighting.behaviors, [.signal(LocalProfile.steadyTestProfile.execution)])
 
         try fixture.companion.sync(at: .milliseconds(7_199_000))
         XCTAssertEqual(
             fixture.lighting.behaviors,
-            [.signal(LocalProfile.default.execution), .off]
+            [.signal(LocalProfile.steadyTestProfile.execution), .off]
         )
     }
 
@@ -748,7 +748,7 @@ final class SignalFlowAcceptanceTests: XCTestCase {
 
         XCTAssertEqual(
             fixture.lighting.behaviors,
-            [.signal(LocalProfile.default.execution), .off]
+            [.signal(LocalProfile.steadyTestProfile.execution), .off]
         )
         XCTAssertTrue(try fixture.store.load().owners.isEmpty)
     }
@@ -821,7 +821,7 @@ private final class SignalFixture {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         statusURL = directory.appending(path: "status.json")
         store = DurableStatusStore(url: statusURL)
-        let defaultProfile = LocalProfile.default
+        let defaultProfile = LocalProfile.steadyTestProfile
         profile = LocalProfile(
             execution: defaultProfile.execution,
             attention: defaultProfile.attention,

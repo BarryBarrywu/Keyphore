@@ -1,0 +1,73 @@
+{
+  "capturedAt": "2026-10-15T10:03:35.236116+00:00",
+  "helperSHA256": "650d0cc2a33a29164735458296b72f462fe329d7090f1aaa8b23d144b48dd4bb",
+  "exitCode": 0,
+  "steps": [
+    {
+      "mainState": [
+        255,
+        4,
+        139,
+        122,
+        254
+      ],
+      "model": "Air75 V2",
+      "stage": "before"
+    },
+    {
+      "mainState": [
+        253,
+        4,
+        153,
+        170,
+        255
+      ],
+      "protocolReadbackSucceeded": true,
+      "stage": "blue-breathing",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "visualConfirmation": "notRequested"
+    },
+    {
+      "mainState": [
+        253,
+        4,
+        153,
+        22,
+        255
+      ],
+      "protocolReadbackSucceeded": true,
+      "stage": "orange-breathing",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "visualConfirmation": "notRequested"
+    },
+    {
+      "mainState": [
+        253,
+        1,
+        153,
+        85,
+        255
+      ],
+      "protocolReadbackSucceeded": true,
+      "stage": "green-static",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "visualConfirmation": "notRequested"
+    },
+    {
+      "mainState": [
+        253,
+        0,
+        153,
+        85,
+        255
+      ],
+      "protocolReadbackSucceeded": true,
+      "stage": "off",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "visualConfirmation": "notRequested"
+    }
+  ],
+  "stderr": "",
+  "visualConfirmation": "pending-user",
+  "physicalReconnectAndWake": "notRun"
+}

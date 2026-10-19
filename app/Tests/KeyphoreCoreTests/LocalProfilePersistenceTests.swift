@@ -12,9 +12,10 @@ final class LocalProfilePersistenceTests: XCTestCase {
     func testEachSignalAppearanceAndCompletionDurationPersistLocally() throws {
         let fixture = try ProfileStoreFixture()
         let profile = LocalProfile(
-            execution: appearance(visible: false, red: 1, green: 2, blue: 3, brightness: 11, pattern: .slowFlashing),
-            attention: appearance(visible: true, red: 4, green: 5, blue: 6, brightness: 22, pattern: .steady),
-            completion: appearance(visible: true, red: 7, green: 8, blue: 9, brightness: 33, pattern: .slowFlashing),
+            execution: appearance(visible: false, red: 1, green: 2, blue: 3, brightness: 11, pattern: .backlightBreathing),
+            attention: appearance(visible: true, red: 4, green: 5, blue: 6, brightness: 22, pattern: .backlightStatic),
+            completion: appearance(visible: true, red: 7, green: 8, blue: 9, brightness: 33, pattern: .backlightBreathing),
+            idle: appearance(visible: true, red: 10, green: 11, blue: 12, brightness: 44, pattern: .backlightWave),
             completionDisplayDuration: CompletionDisplayDuration(seconds: 60)!
         )
 
@@ -23,8 +24,14 @@ final class LocalProfilePersistenceTests: XCTestCase {
         XCTAssertEqual(try fixture.store.load(), profile)
     }
 
-    func testZeroBrightnessAndOutOfRangeCompletionDurationRemainInvalid() {
-        XCTAssertNil(SignalBrightness(percent: 0))
+    func testPersistedProfileRequiresIdleField() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(LocalProfile.default)) as? [String: Any])
+        object.removeValue(forKey: "idle")
+        XCTAssertThrowsError(try JSONDecoder().decode(LocalProfile.self, from: JSONSerialization.data(withJSONObject: object)))
+    }
+
+    func testZeroBrightnessIsOffAndCompletionDurationRemainsBounded() {
+        XCTAssertNotNil(SignalBrightness(percent: 0))
         XCTAssertNil(CompletionDisplayDuration(seconds: 0))
         XCTAssertNil(CompletionDisplayDuration(seconds: 61))
     }
@@ -43,7 +50,7 @@ final class LocalProfilePersistenceTests: XCTestCase {
         )
         let hook = ProductionHookHandler(
             store: statusStore,
-            profileProvider: { try fixture.store.load() }
+            completionDurationProvider: { try fixture.store.load().completionDisplayDuration }
         )
 
         try hook.handle(
@@ -62,7 +69,7 @@ final class LocalProfilePersistenceTests: XCTestCase {
         let statusStore = DurableStatusStore(url: fixture.directory.appending(path: "status.json"))
         let hook = ProductionHookHandler(
             store: statusStore,
-            profileProvider: { fixture.store.loadOrDefault() }
+            completionDurationProvider: { fixture.store.loadOrDefault().completionDisplayDuration }
         )
 
         try hook.handle(
@@ -81,14 +88,9 @@ final class LocalProfilePersistenceTests: XCTestCase {
         green: UInt8,
         blue: UInt8,
         brightness: UInt8,
-        pattern: SignalPattern
+        pattern: NativeLightingEffect
     ) -> SignalAppearance {
-        SignalAppearance(
-            isVisible: visible,
-            color: SignalColor(red: red, green: green, blue: blue),
-            brightness: SignalBrightness(percent: brightness)!,
-            pattern: pattern
-        )
+        SignalAppearance(isVisible: visible, backlight: ZoneAppearance(effect: pattern, color: SignalColor(red: red, green: green, blue: blue), colorMode: .multicolor, brightness: SignalBrightness(percent: brightness)!, speed: LightingSpeed(level: 1)!), strip: LocalProfile.default.completion.strip)
     }
 }
 

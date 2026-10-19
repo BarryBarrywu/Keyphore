@@ -3,6 +3,27 @@ import XCTest
 import KeyphoreCore
 
 final class DiagnosticReportAcceptanceTests: XCTestCase {
+    func testHealthyNativeIntegrationDoesNotRecommendInstallingCodex() throws {
+        let report = DiagnosticReport(
+            snapshot: DiagnosticSnapshot(
+                appVersion: "0.1.0 (1)",
+                macOSVersion: "macOS 15.6.1",
+                codexHosts: [],
+                integration: SetupIntegrationHealth(
+                    pluginInstalled: true,
+                    hooksTrusted: true,
+                    companionRegistered: true,
+                    managedStatePresent: true
+                ),
+                keyboard: .disconnected
+            ),
+            language: .english
+        )
+
+        XCTAssertEqual(try report.field(.codexHost).value, "Not installed")
+        XCTAssertNil(try report.field(.codexHost).action)
+    }
+
     func testPreviewShowsTheExactReviewedFieldsAndActionableFailures() throws {
         let report = DiagnosticReport(
             snapshot: DiagnosticSnapshot(
@@ -37,7 +58,7 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
         XCTAssertEqual(try report.field(.keyboard).value, "Ambiguous device")
         XCTAssertEqual(
             try report.field(.keyboard).action,
-            "Leave only the target Air65 V3 / Air75 V3 connected over wired USB."
+            "Leave only the keyboard you want to control connected over wired USB."
         )
         XCTAssertEqual(try report.field(.protocolReadback).value, "Not available")
         XCTAssertEqual(
@@ -194,7 +215,7 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
         let keyboard = try XCTUnwrap(fields.first { $0["id"] as? String == "keyboard" })
         let hook = try XCTUnwrap(fields.first { $0["id"] as? String == "hook" })
         XCTAssertEqual(keyboard["value"] as? String, "未连接")
-        XCTAssertEqual(keyboard["action"] as? String, "请通过有线 USB 连接一把 Air65 V3 / Air75 V3。")
+        XCTAssertEqual(keyboard["action"] as? String, "请通过有线 USB 连接一把受支持的 NuPhy 键盘。")
         XCTAssertEqual(hook["value"] as? String, "未安装")
         XCTAssertEqual(hook["action"] as? String, "请配置 Keyphore。")
     }
@@ -229,13 +250,13 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = SignalPreviewStore(url: root.appending(path: "signal-preview.json"))
         let snapshot = DiagnosticSnapshot(appVersion: "test", macOSVersion: "test", codexHosts: [],
-            integration: .notConfigured, keyboard: .disconnected)
+            integration: .notConfigured, keyboard: .connected(protocolHealthy: true, model: .air75V3))
         XCTAssertNil(DiagnosticReport(snapshot: snapshot, language: .english).preview)
         for confirmation in [VisualConfirmation.confirmed, .rejected] {
-            var record = try store.begin(at: .milliseconds(1_000))
+            var record = try store.begin(targetModel: .air75V2, at: .milliseconds(1_000))
             record.phase = .awaitingVisualConfirmation
             record.protocolReadbackSucceeded = true
-            record.rhythmLightPreserved = true
+            record.unmanagedZonesPreserved = true
             try store.save(record)
             try store.recordVisualConfirmation(confirmation)
             let report = DiagnosticReport(snapshot: snapshot, language: .english, preview: try store.load())
@@ -244,6 +265,8 @@ final class DiagnosticReportAcceptanceTests: XCTestCase {
             let json = try unzip(arguments: ["-p", zip.path, "diagnostic-report.json"])
             let decoded = try JSONDecoder().decode(DiagnosticReport.self, from: Data(json.utf8))
             XCTAssertEqual(decoded, report)
+            XCTAssertTrue(try decoded.field(.keyboard).value.contains("Air75 V3"))
+            XCTAssertTrue(try XCTUnwrap(decoded.preview).contains("Keyboard: Air75 V2"))
             XCTAssertTrue(try XCTUnwrap(decoded.preview).contains(confirmation == .confirmed ? "Visual confirmation: Yes, they looked correct" : "Visual confirmation: No, something looked wrong"))
             XCTAssertFalse(json.contains(record.id))
             XCTAssertFalse(json.contains(root.path))

@@ -7,60 +7,93 @@ struct KeyboardSignalPresentation {
     let isControlAvailable: Bool
     let isLit: Bool
     let isPreviewing: Bool
+    let controlledZones: ControlledZones
 
     init(snapshot: LifecycleSnapshot, preview: SignalPreviewRecord?) {
         isPreviewing = preview?.phase == .pending || preview?.phase == .presenting
         if isPreviewing {
-            switch preview?.currentSignal {
+            switch preview?.currentPreset {
             case .execution: signal = .execution
             case .attention: signal = .attention
             case .completion: signal = .completion
-            case nil: signal = .signalOff
+            case .idle, nil: signal = .signalOff
             }
         } else {
             signal = snapshot.currentSignal
         }
-        switch signal {
-        case .execution: appearance = snapshot.profile.execution
-        case .attention: appearance = snapshot.profile.attention
-        case .completion: appearance = snapshot.profile.completion
-        case .signalOff: appearance = nil
+        if isPreviewing, preview?.currentPreset == .idle {
+            appearance = snapshot.profile.idle
+        } else {
+            switch signal {
+            case .execution: appearance = snapshot.profile.execution
+            case .attention: appearance = snapshot.profile.attention
+            case .completion: appearance = snapshot.profile.completion
+            case .signalOff: appearance = snapshot.profile.idle
+            }
         }
         isControlAvailable = snapshot.menuState == .ready
+        controlledZones = snapshot.profile.controlledZones
         isLit = isControlAvailable
             && appearance?.isVisible == true
+            && Self.hasLitZone(appearance, controlledZones: controlledZones)
             && (!isPreviewing || preview?.presentationIsLit == true)
     }
 
-    var color: Color { appearance?.color.swiftUIColor ?? .clear }
+    init(signal: AggregateSignal, appearance: SignalAppearance, controlledZones: ControlledZones) {
+        self.signal = signal
+        self.appearance = appearance
+        isControlAvailable = true
+        isPreviewing = false
+        self.controlledZones = controlledZones
+        isLit = appearance.isVisible && Self.hasLitZone(appearance, controlledZones: controlledZones)
+    }
+
+    func color(for zone: LightingZone) -> Color {
+        appearance?.appearance(for: zone).color.swiftUIColor ?? .clear
+    }
+
+    func opacity(for zone: LightingZone) -> Double {
+        guard isLit, controlledZones.contains(zone), let appearance else { return 0 }
+        let zoneAppearance = appearance.appearance(for: zone)
+        guard !zoneAppearance.effect.isOff else { return 0 }
+        return Double(zoneAppearance.brightness.percent) / 100
+    }
+
+    private static func hasLitZone(
+        _ appearance: SignalAppearance?, controlledZones: ControlledZones
+    ) -> Bool {
+        guard let appearance else { return false }
+        return !LightingBehavior.signal(appearance, controlledZones: controlledZones).isOff
+    }
 }
 
 extension AggregateSignal {
     func presentation(in profile: LocalProfile) -> AggregateSignalPresentation {
         switch self {
         case .signalOff:
-            AggregateSignalPresentation(
-                copyKey: .signalOff,
+            let idleIsLit = !LightingBehavior.signal(profile.idle, controlledZones: profile.controlledZones).isOff
+            return AggregateSignalPresentation(
+                copyKey: idleIsLit ? .settingsIdle : .signalOff,
                 signal: self,
-                color: Color.secondary.opacity(0.16)
+                color: profile.idle.backlight.color.swiftUIColor
             )
         case .execution:
-            AggregateSignalPresentation(
+            return AggregateSignalPresentation(
                 copyKey: .execution,
                 signal: self,
-                color: profile.execution.color.swiftUIColor
+                color: profile.execution.backlight.color.swiftUIColor
             )
         case .attention:
-            AggregateSignalPresentation(
+            return AggregateSignalPresentation(
                 copyKey: .attention,
                 signal: self,
-                color: profile.attention.color.swiftUIColor
+                color: profile.attention.backlight.color.swiftUIColor
             )
         case .completion:
-            AggregateSignalPresentation(
+            return AggregateSignalPresentation(
                 copyKey: .completion,
                 signal: self,
-                color: profile.completion.color.swiftUIColor
+                color: profile.completion.backlight.color.swiftUIColor
             )
         }
     }

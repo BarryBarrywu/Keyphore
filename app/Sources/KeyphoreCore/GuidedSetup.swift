@@ -304,6 +304,7 @@ public extension SetupKeyboardHealthProviding {
 }
 
 public protocol GuidedSetupIntegrating: AnyObject {
+    func hasAdditionalHost() throws -> Bool
     func inspectLegacyMigration() throws -> LegacyMigrationStatus
     func beginLegacyMigration() throws
     func disableLegacyHooks() throws
@@ -314,6 +315,7 @@ public protocol GuidedSetupIntegrating: AnyObject {
     func completeLegacyHookConsent() throws
     func completeLegacySignalPreview() throws
     func health() throws -> SetupIntegrationHealth
+    func healthForCodexConfiguration() throws -> SetupIntegrationHealth
     func stage(_ hooks: [HookDefinition]) throws
     func installedHookHashes() throws -> [HookEvent: String]
     func trust(_ hooks: [HookDefinition]) throws
@@ -327,6 +329,8 @@ public protocol GuidedSetupIntegrating: AnyObject {
 }
 
 public extension GuidedSetupIntegrating {
+    func hasAdditionalHost() throws -> Bool { false }
+    func healthForCodexConfiguration() throws -> SetupIntegrationHealth { try health() }
     func inspectLegacyMigration() throws -> LegacyMigrationStatus { .none }
     func beginLegacyMigration() throws { throw GuidedSetupError.legacyMigrationRequired }
     func disableLegacyHooks() throws { throw GuidedSetupError.legacyMigrationRequired }
@@ -360,7 +364,7 @@ public final class GuidedSetup: @unchecked Sendable {
 
     public func inspect() throws -> GuidedSetupSnapshot {
         let detectedHosts = try hosts.detectHosts()
-        guard !detectedHosts.isEmpty else {
+        guard try !detectedHosts.isEmpty || integration.hasAdditionalHost() else {
             return GuidedSetupSnapshot(
                 phase: .codexHostMissing,
                 detectedHosts: [],
@@ -414,6 +418,7 @@ public final class GuidedSetup: @unchecked Sendable {
 
     public func configureAfterReview() throws -> GuidedSetupSnapshot {
         let detectedHosts = try hosts.detectHosts()
+        if detectedHosts.isEmpty, try integration.hasAdditionalHost() { return try inspect() }
         guard !detectedHosts.isEmpty else {
             throw GuidedSetupError.codexHostMissing
         }
@@ -425,10 +430,11 @@ public final class GuidedSetup: @unchecked Sendable {
             break
         }
         let reviewedHooks = HookDefinition.reviewedRelease
-        var health = try integration.health()
+        let additionalHost = try integration.hasAdditionalHost()
+        var health = try integration.healthForCodexConfiguration()
         if !health.pluginInstalled || !health.hooksTrusted || !health.managedStatePresent {
             try integration.stage(reviewedHooks)
-            health = try integration.health()
+            health = try integration.healthForCodexConfiguration()
         }
         let installedHashes = try integration.installedHookHashes()
         guard installedHashes == HookDefinition.reviewedHashes else {
@@ -437,16 +443,16 @@ public final class GuidedSetup: @unchecked Sendable {
         if !health.hooksTrusted {
             try integration.trust(reviewedHooks)
         }
-        if !health.managedStatePresent {
+        if !health.managedStatePresent && !additionalHost {
             try integration.resetRuntimeState()
         }
-        if !health.companionRegistered || !health.managedStatePresent {
+        if !health.companionRegistered || (!health.managedStatePresent && !additionalHost) {
             try integration.registerCompanion()
         }
         if !health.managedStatePresent {
             try integration.persistConfigured()
         }
-        guard try integration.health().isConfigured else {
+        guard try integration.healthForCodexConfiguration().isConfigured else {
             throw GuidedSetupError.configurationIncomplete
         }
         if case .awaitingHookConsent = migrationStatus {
@@ -466,6 +472,7 @@ public final class GuidedSetup: @unchecked Sendable {
 
     public func repairTrustedInstallationIfNeeded() throws -> GuidedSetupSnapshot? {
         let detectedHosts = try hosts.detectHosts()
+        if try integration.hasAdditionalHost() { return try inspect() }
         guard !detectedHosts.isEmpty, try integration.inspectLegacyMigration() == .none else {
             return nil
         }

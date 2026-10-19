@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-10-15T09:10:34.832749+00:00",
+  "case": "mixed-v2-v3-preview-rejected",
+  "helperPath": "/Users/admin/Applications/Keyphore.app/Contents/Helpers/keyphore",
+  "helperSHA256": "650d0cc2a33a29164735458296b72f462fe329d7090f1aaa8b23d144b48dd4bb",
+  "exitCode": 1,
+  "stdout": "",
+  "stderr": "Air75 V2 inspection/preview failed: ambiguous\n",
+  "passed": true,
+  "lightingStagesCompleted": [],
+  "visualConfirmation": "notRequested"
+}

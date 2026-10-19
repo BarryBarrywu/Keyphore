@@ -1,0 +1,394 @@
+{
+  "capturedAt": "2026-10-15T15:55:23.738604+00:00",
+  "symptom": "User reported blinking and unable to control after prior fixes.",
+  "beforeBackup": "/private/tmp/codex-builds/keyphore-v2-flicker.o2f_bx82",
+  "staticControl": {
+    "action": "Clicked Static for execution in the installed App.",
+    "savedExecution": {
+      "brightness": {
+        "percent": 100
+      },
+      "color": {
+        "blue": 255,
+        "green": 149,
+        "red": 0
+      },
+      "colorMode": "custom",
+      "direction": 1,
+      "effect": "backlightStatic",
+      "speed": 2
+    },
+    "userConfirmation": "稳定了",
+    "meaning": "User confirmed the static effect is stable. Original active execution profile used breathing. No evidence of repeated USB writes causing static flicker."
+  },
+  "remainingRootCause": "Only idle edits restarted preview. After a selected preset preview completed, editing attention/completion while live execution was active saved settings but did not preview the edited preset.",
+  "status": "Unresolved physical control; user supplying VIA reference. Automated tests passed but are insufficient for this symptom.",
+  "liveReproduction": {
+    "before": {
+      "completedPresets": [
+        "completion"
+      ],
+      "id": "456A025C-3D38-4553-AE9A-846044489BA4",
+      "phase": "completed",
+      "presentationIsLit": false,
+      "protocolReadbackSucceeded": true,
+      "requestedAt": {
+        "millisecondsSince1970": 1792079830183
+      },
+      "requestedPreset": "completion",
+      "targetModel": "Air75 V2",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "unmanagedZonesPreserved": true,
+      "visualConfirmation": "notRequested"
+    },
+    "after": {
+      "completedPresets": [
+        "completion"
+      ],
+      "id": "456A025C-3D38-4553-AE9A-846044489BA4",
+      "phase": "completed",
+      "presentationIsLit": false,
+      "protocolReadbackSucceeded": true,
+      "requestedAt": {
+        "millisecondsSince1970": 1792079830183
+      },
+      "requestedPreset": "completion",
+      "targetModel": "Air75 V2",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "unmanagedZonesPreserved": true,
+      "visualConfirmation": "notRequested"
+    },
+    "savedCompletion": {
+      "brightness": {
+        "percent": 100
+      },
+      "color": {
+        "blue": 30,
+        "green": 109,
+        "red": 255
+      },
+      "colorMode": "custom",
+      "direction": 1,
+      "effect": "backlightStatic",
+      "speed": 4
+    },
+    "activeTaskSignal": "execution",
+    "reproduced": true
+  },
+  "temporaryCompletionColorRestored": true,
+  "checks": {
+    "app": {
+      "tests": 103,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-edit-preview-final.log",
+      "xcresult": "/private/tmp/codex-builds/keyphore-edit-preview-final.xcresult",
+      "sha256": "89e8c2a7b45bb8dfb08982684602caecbd3fc4b522ad94df521e0c4884e7e7bc"
+    },
+    "red": "/private/tmp/codex-builds/keyphore-edit-preview-red.log"
+  },
+  "expectedFinalV2Profile": {
+    "attention": {
+      "backlight": {
+        "brightness": {
+          "percent": 100
+        },
+        "color": {
+          "blue": 0,
+          "green": 242,
+          "red": 255
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightBreathing",
+        "speed": 2
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 60
+        },
+        "color": {
+          "blue": 0,
+          "green": 132,
+          "red": 255
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripFlowing",
+        "speed": 2
+      }
+    },
+    "completion": {
+      "backlight": {
+        "brightness": {
+          "percent": 100
+        },
+        "color": {
+          "blue": 174,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightStatic",
+        "speed": 4
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 60
+        },
+        "color": {
+          "blue": 0,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripNeon",
+        "speed": 4
+      }
+    },
+    "completionDisplayDuration": {
+      "seconds": 5
+    },
+    "controlledZones": "backlight",
+    "execution": {
+      "backlight": {
+        "brightness": {
+          "percent": 100
+        },
+        "color": {
+          "blue": 255,
+          "green": 149,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightStatic",
+        "speed": 2
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 55
+        },
+        "color": {
+          "blue": 248,
+          "green": 135,
+          "red": 135
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripFlowing",
+        "speed": 2
+      }
+    },
+    "idle": {
+      "backlight": {
+        "brightness": {
+          "percent": 30
+        },
+        "color": {
+          "blue": 174,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightBreathing",
+        "speed": 2
+      },
+      "isVisible": true,
+      "strip": {
+        "brightness": {
+          "percent": 30
+        },
+        "color": {
+          "blue": 174,
+          "green": 255,
+          "red": 0
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "stripRhythm",
+        "speed": 2
+      }
+    }
+  },
+  "userProfileDelta": "Only execution.backlight.effect changed from breathing to static; user confirmed stability. All other profile fields remain unchanged.",
+  "latestUserFeedback": {
+    "at": "2026-10-15T16:07:03.027544+00:00",
+    "message": "切换颜色和灯效都没生效，我给你via和配置文件会有帮助吗",
+    "interpretation": "Latest installed edit-preview fix has not passed user visual acceptance; do not claim resolved. User was editing idle breathing speed4/brightness30 when test was interrupted. Await VIA definitions/config and working reference."
+  },
+  "latestStateBeforeVIAHandoff": {
+    "profiles/air75-v2.json": {
+      "attention": {
+        "backlight": {
+          "brightness": {
+            "percent": 100
+          },
+          "color": {
+            "blue": 0,
+            "green": 242,
+            "red": 255
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "backlightBreathing",
+          "speed": 2
+        },
+        "isVisible": true,
+        "strip": {
+          "brightness": {
+            "percent": 60
+          },
+          "color": {
+            "blue": 0,
+            "green": 132,
+            "red": 255
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "stripFlowing",
+          "speed": 2
+        }
+      },
+      "completion": {
+        "backlight": {
+          "brightness": {
+            "percent": 100
+          },
+          "color": {
+            "blue": 174,
+            "green": 255,
+            "red": 0
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "backlightStatic",
+          "speed": 4
+        },
+        "isVisible": true,
+        "strip": {
+          "brightness": {
+            "percent": 60
+          },
+          "color": {
+            "blue": 0,
+            "green": 255,
+            "red": 0
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "stripNeon",
+          "speed": 4
+        }
+      },
+      "completionDisplayDuration": {
+        "seconds": 5
+      },
+      "controlledZones": "backlight",
+      "execution": {
+        "backlight": {
+          "brightness": {
+            "percent": 100
+          },
+          "color": {
+            "blue": 255,
+            "green": 149,
+            "red": 0
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "backlightStatic",
+          "speed": 2
+        },
+        "isVisible": true,
+        "strip": {
+          "brightness": {
+            "percent": 55
+          },
+          "color": {
+            "blue": 248,
+            "green": 135,
+            "red": 135
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "stripFlowing",
+          "speed": 2
+        }
+      },
+      "idle": {
+        "backlight": {
+          "brightness": {
+            "percent": 30
+          },
+          "color": {
+            "blue": 174,
+            "green": 255,
+            "red": 0
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "backlightBreathing",
+          "speed": 4
+        },
+        "isVisible": true,
+        "strip": {
+          "brightness": {
+            "percent": 30
+          },
+          "color": {
+            "blue": 174,
+            "green": 255,
+            "red": 0
+          },
+          "colorMode": "custom",
+          "direction": 1,
+          "effect": "stripRhythm",
+          "speed": 2
+        }
+      }
+    },
+    "signal-preview.json": {
+      "completedPresets": [],
+      "id": "3FACFFE2-AB16-4303-BE40-E9EA4FDC2ECA",
+      "phase": "failed",
+      "presentationIsLit": false,
+      "protocolReadbackSucceeded": false,
+      "requestedAt": {
+        "millisecondsSince1970": 1792080262514
+      },
+      "requestedPreset": "idle",
+      "targetModel": "Air75 V2",
+      "unmanagedZoneProtection": "readback",
+      "unmanagedZonesPreserved": false,
+      "visualConfirmation": "notRequested"
+    },
+    "keyboard-health.json": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792080422817
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    },
+    "keyboard-selection-snapshot.json": {
+      "activeModel": "Air75 V2",
+      "desiredModel": "Air75 V2",
+      "inventory": [
+        {
+          "count": 1,
+          "model": "Air75 V2"
+        }
+      ],
+      "observedAt": {
+        "millisecondsSince1970": 1792080422085
+      },
+      "phase": "applied"
+    }
+  }
+}

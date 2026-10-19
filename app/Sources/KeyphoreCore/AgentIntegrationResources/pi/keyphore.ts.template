@@ -1,0 +1,76 @@
+import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+
+const helper = __KEYPHORE_HELPER_URL_JSON__;
+const validID = (value) => typeof value === "string" && value.length > 0
+  && Buffer.byteLength(value) <= 512 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
+
+function deliver(payload) {
+  return new Promise((resolve) => {
+    const child = spawn(helper, ["hook", "pi"], { stdio: ["pipe", "ignore", "ignore"] });
+    const finish = () => { clearTimeout(timer); resolve(); };
+    const terminate = () => { child.kill("SIGKILL"); finish(); };
+    const timer = setTimeout(terminate, 1000);
+    child.once("error", finish);
+    child.once("close", finish);
+    child.stdin.once("error", terminate);
+    child.stdin.end(JSON.stringify(payload));
+  });
+}
+
+export default function keyphore(pi) {
+  let sessionID;
+  let turnID;
+  let failed = false;
+  let events = Promise.resolve();
+  const emit = (event, extra = {}) => deliver({ event, session_id: sessionID, ...extra });
+  const on = (name, handler) => pi.on(name, (event, ctx) => {
+    // Snapshot identity before queueing: a live sessionManager may switch during helper IO.
+    let id;
+    try { id = ctx?.sessionManager?.getSessionId(); } catch { return Promise.resolve(); }
+    if (!validID(id)) return Promise.resolve();
+    events = events.then(() => handler(event, id)).catch(() => {});
+    return events;
+  });
+
+  on("session_start", async (_event, id) => {
+    if (sessionID && sessionID !== id) await emit("sessionEnd");
+    sessionID = id;
+    turnID = undefined;
+    failed = false;
+    await emit("sessionStart");
+  });
+
+  on("agent_start", async (_event, id) => {
+    if (sessionID && sessionID !== id) await emit("sessionEnd");
+    sessionID = id;
+    turnID = randomUUID();
+    failed = false;
+    await emit("turnStart", { turn_id: turnID });
+    await emit("working", { turn_id: turnID });
+  });
+
+  on("message_end", (event, id) => {
+    if (id !== sessionID || !turnID || event?.message?.role !== "assistant") return;
+    const outcome = event.message.stopReason;
+    if (["stop", "length", "toolUse", "error", "aborted"].includes(outcome)) {
+      // A successful retry replaces its prior error; only the final assistant outcome matters.
+      failed = outcome === "error" || outcome === "aborted";
+    }
+  });
+
+  on("agent_settled", async (event, id) => {
+    if (id !== sessionID || !turnID || typeof event?.aborted !== "boolean") return;
+    await emit(event.aborted || failed ? "turnCancelled" : "turnComplete", { turn_id: turnID });
+    turnID = undefined;
+    failed = false;
+  });
+
+  on("session_shutdown", async (_event, id) => {
+    if (id !== sessionID) return;
+    if (turnID) await emit("turnCancelled", { turn_id: turnID });
+    await emit("sessionEnd");
+    turnID = undefined;
+    failed = false;
+  });
+}

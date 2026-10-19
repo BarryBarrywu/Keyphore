@@ -126,7 +126,14 @@ public enum Air65DeviceSelector {
     public static let vendorID: UInt16 = 0x19f5
     public static let productID: UInt16 = 0x102b
 
-    public static func select(from devices: [HIDDeviceDescriptor]) throws -> HIDDeviceDescriptor {
+    public static func select(from devices: [HIDDeviceDescriptor], preferredModel: SupportedKeyboardModel? = nil) throws -> HIDDeviceDescriptor {
+        try KeyboardSelectionStore.validate(preferredModel)
+        if let preferredModel {
+            let matches = devices.filter { SupportedKeyboardModel.identify($0) == preferredModel }
+            guard !matches.isEmpty else { throw Air65DeviceSelectionError.notFound }
+            guard matches.count == 1 else { throw Air65DeviceSelectionError.ambiguous }
+            return matches[0]
+        }
         let supported = devices.filter { SupportedKeyboardModel.identify($0) != nil }
         if supported.count > 1 { throw Air65DeviceSelectionError.ambiguous }
         if let device = supported.first { return device }
@@ -146,7 +153,32 @@ public struct SupportedKeyboardModel: RawRepresentable, Codable, Equatable, Send
     public init(rawValue: String) { self.rawValue = rawValue }
     public static let air65V3 = Self(rawValue: "Air65 V3")
     public static let air75V3 = Self(rawValue: "Air75 V3")
-    public var isExperimental: Bool { self != .air65V3 && self != .air75V3 }
+    public static let air75V2 = Self(rawValue: "Air75 V2")
+    public static let selectableModels: [Self] = [.air65V3, .air75V3, .air75V2]
+    public var isExperimental: Bool { self != .air65V3 && self != .air75V3 && self != .air75V2 }
+    public var supportsStripLighting: Bool { self != .air75V2 }
+
+    public func supportedEffects(for zone: LightingZone) -> [NativeLightingEffect] {
+        if self == .air75V2 { return zone == .backlight ? NativeLightingEffect.viaCatalog : [] }
+        return NativeLightingEffect.catalog(for: zone)
+    }
+
+    public func supportsSpeed(for effect: NativeLightingEffect) -> Bool {
+        guard supportedEffects(for: effect.zone).contains(effect) else { return false }
+        return self == .air75V2 ? !effect.isOff : effect.supportsSpeed
+    }
+
+    public func supportsColor(for effect: NativeLightingEffect) -> Bool {
+        supportedEffects(for: effect.zone).contains(effect) && effect.supportsColor
+    }
+
+    public func supportsMulticolor(for effect: NativeLightingEffect) -> Bool {
+        self != .air75V2 && supportedEffects(for: effect.zone).contains(effect) && effect.supportsMulticolor
+    }
+
+    public func supportsDirection(for effect: NativeLightingEffect) -> Bool {
+        self != .air75V2 && supportedEffects(for: effect.zone).contains(effect) && effect.directionAxis != nil
+    }
     public init(from decoder: any Decoder) throws {
         rawValue = try decoder.singleValueContainer().decode(String.self)
     }
@@ -156,8 +188,10 @@ public struct SupportedKeyboardModel: RawRepresentable, Codable, Equatable, Send
     }
 
     public static func identify(_ device: HIDDeviceDescriptor) -> Self? {
-        guard device.vendorID == 0x19f5, device.bus == .usb,
-              device.interfaceNumber == 3, device.usagePage == 1, device.usage == 0 else { return nil }
+        guard device.vendorID == 0x19f5, device.bus == .usb else { return nil }
+        if device.productID == 0x3246, device.product == "NuPhy Air75 V2",
+           device.usagePage == 0xff60, device.usage == 0x61 { return .air75V2 }
+        guard device.interfaceNumber == 3, device.usagePage == 1, device.usage == 0 else { return nil }
         switch (device.productID, device.product) {
         case (0x102b, "Air65 V3"): return .air65V3
         case (0x1028, "Air75 V3"), (0x1028, "NuPhy Air75 V3"): return .air75V3

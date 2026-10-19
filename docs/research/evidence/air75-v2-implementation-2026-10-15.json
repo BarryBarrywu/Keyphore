@@ -1,0 +1,48 @@
+{
+  "capturedAt": "2026-10-15T09:12:59.403837+00:00",
+  "branch": "feat/air75-v2-via",
+  "baseCommit": "aa62c3ecfca054f7ce69af40d90138a94c671c4d",
+  "software": {
+    "core": {
+      "log": "/private/tmp/codex-builds/keyphore-v2-core-final-all.log",
+      "sha256": "2a498c4c82cf4569305c873d4aeee6c58e7962ace41737e47f2b52c80f3af242",
+      "tests": 222,
+      "failures": 0
+    },
+    "app": {
+      "log": "/private/tmp/codex-builds/keyphore-v2-xcode-tests.log",
+      "sha256": "4e5ad53b381ea92a17467f7f4eac4c8590771684e89565a70efaa923b1a8f0b1",
+      "tests": 93,
+      "failures": 0
+    },
+    "uiFinal": {
+      "log": "/private/tmp/codex-builds/keyphore-v2-ui-final.log",
+      "sha256": "931ec3b953a2303168c1846abaf150b041aa317ea7b24c04a40d43c08e949077",
+      "tests": 8,
+      "failures": 0
+    },
+    "developmentWorkflow": {
+      "log": "/private/tmp/codex-builds/keyphore-v2-development-workflow-tests.log",
+      "sha256": "4c88291be3b6430277a1f215804e40bd6e2a43ef0ced3d3d3c11a3b25cacba09",
+      "tests": 6,
+      "passed": true
+    },
+    "signedBuild": {
+      "log": "/private/tmp/codex-builds/keyphore-v2-build-open.log",
+      "sha256": "d832d91a7348204f34ebbcff5c3d578ab69dd7bd6b7846ee6e9a85d417647fdd",
+      "passed": true
+    }
+  },
+  "installedApp": "/Users/admin/Applications/Keyphore.app",
+  "helperSHA256": "650d0cc2a33a29164735458296b72f462fe329d7090f1aaa8b23d144b48dd4bb",
+  "originalProfileUnchanged": true,
+  "physical": {
+    "readOnlyVIA": "passed",
+    "mixedDeviceRejection": "passed",
+    "lightingSetAndReadback": "passed",
+    "visualConfirmation": "pending-user",
+    "physicalReconnectAndWake": "notRun",
+    "lightingEvidence": "air75-v2-lighting-2026-10-15.json"
+  },
+  "nativeUIObservation": "CUA getApp timed out; automated App tests passed"
+}

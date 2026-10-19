@@ -61,7 +61,14 @@ public final class SystemAir65TransportDiscovery: Air65TransportDiscovering {
         guard let device = devicesByID[descriptor.id] else {
             throw SystemAir65HIDError.deviceDisappeared
         }
-        let state = reportStatesByID[descriptor.id] ?? SystemAir65ReportState()
+        let format: HIDReportFormat = SupportedKeyboardModel.identify(descriptor) == .air75V2 ? .via : .nuphy
+        if format == .via {
+            let reportDescriptor = (IOHIDDeviceGetProperty(device, kIOHIDReportDescriptorKey as CFString) as? Data).map(Array.init) ?? []
+            try VIAProtocol.validateDescriptor(reportDescriptor,
+                inputSize: numberProperty(device, kIOHIDMaxInputReportSizeKey),
+                outputSize: numberProperty(device, kIOHIDMaxOutputReportSizeKey))
+        }
+        let state = reportStatesByID[descriptor.id] ?? SystemAir65ReportState(format: format)
         reportStatesByID[descriptor.id] = state
         return try SystemAir65ReportTransport(device: device, state: state)
     }
@@ -131,6 +138,28 @@ public enum SystemAir65HIDError: Error, Sendable {
     case unexpectedReportLength(Int)
 }
 
+enum HIDReportFormat {
+    case nuphy, via
+
+    var bufferSize: Int { self == .via ? 32 : 65 }
+
+    func output(_ report: [UInt8]) throws -> [UInt8] {
+        if self == .nuphy { return try NuPhyProtocol.parseReport(report) }
+        guard report.count == 32 else { throw SystemAir65HIDError.unexpectedReportLength(report.count) }
+        return report
+    }
+
+    func input(_ report: [UInt8], reportID: UInt32) throws -> [UInt8] {
+        if self == .via {
+            guard reportID == 0, report.count == 32 else { throw VIAProtocolError.invalidReport }
+            return report
+        }
+        if report.count == 64 { return report }
+        if report.count == 65 { return Array(report.dropFirst()) }
+        throw SystemAir65HIDError.unexpectedReportLength(report.count)
+    }
+}
+
 private final class SystemAir65ReportTransport: Air65ReportTransport {
     private let device: IOHIDDevice
     private let state: SystemAir65ReportState
@@ -145,12 +174,12 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
         IOHIDDeviceRegisterInputReportCallback(
             device,
             state.inputBuffer,
-            65,
-            { context, result, _, _, _, report, reportLength in
+            state.format.bufferSize,
+            { context, result, _, _, reportID, report, reportLength in
                 guard let context else { return }
                 let state = Unmanaged<SystemAir65ReportState>
                     .fromOpaque(context).takeUnretainedValue()
-                state.accept(result: result, report: report, length: reportLength)
+                state.accept(result: result, report: report, length: reportLength, reportID: reportID)
             },
             Unmanaged.passUnretained(state).toOpaque()
         )
@@ -162,7 +191,7 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
         IOHIDDeviceRegisterInputReportCallback(
             device,
             state.inputBuffer,
-            65,
+            state.format.bufferSize,
             nil,
             nil
         )
@@ -175,7 +204,7 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
     }
 
     func send(_ report: [UInt8]) throws {
-        let parsed = try NuPhyProtocol.parseReport(report)
+        let parsed = try state.format.output(report)
         let result = parsed.withUnsafeBytes { bytes in
             IOHIDDeviceSetReport(
                 device,
@@ -206,29 +235,30 @@ private final class SystemAir65ReportTransport: Air65ReportTransport {
 }
 
 private final class SystemAir65ReportState {
-    let inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 65)
+    let format: HIDReportFormat
+    let inputBuffer: UnsafeMutablePointer<UInt8>
     private var reports: [Result<[UInt8], Error>] = []
     private let lock = NSLock()
 
-    init() {
-        inputBuffer.initialize(repeating: 0, count: 65)
+    init(format: HIDReportFormat) {
+        self.format = format
+        inputBuffer = .allocate(capacity: format.bufferSize)
+        inputBuffer.initialize(repeating: 0, count: format.bufferSize)
     }
 
     deinit {
-        inputBuffer.deinitialize(count: 65)
+        inputBuffer.deinitialize(count: format.bufferSize)
         inputBuffer.deallocate()
     }
 
-    func accept(result: IOReturn, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
+    func accept(result: IOReturn, report: UnsafeMutablePointer<UInt8>, length: CFIndex, reportID: UInt32) {
         let received: Result<[UInt8], Error>
         if result != kIOReturnSuccess {
             received = .failure(SystemAir65HIDError.reportReadFailed(result))
-        } else if length == 64 {
-            received = .success(Array(UnsafeBufferPointer(start: report, count: 64)))
-        } else if length == 65 {
-            received = .success(Array(UnsafeBufferPointer(start: report + 1, count: 64)))
-        } else {
+        } else if length < 0 || length > format.bufferSize {
             received = .failure(SystemAir65HIDError.unexpectedReportLength(length))
+        } else {
+            received = Result { try format.input(Array(UnsafeBufferPointer(start: report, count: length)), reportID: reportID) }
         }
         lock.lock()
         reports.append(received)

@@ -19,7 +19,7 @@ final class SwiftParityAcceptanceTests: XCTestCase {
             let hook = ProductionHookHandler(store: store)
             let keyboard = ParityKeyboard(rhythm: fixture.rhythm)
             let adapter = NuPhyIOAdapter(discovery: keyboard)
-            var companion = KeyphoreCompanion(store: store, profile: .default, lighting: adapter)
+            var companion = KeyphoreCompanion(store: store, profile: .steadyTestProfile, lighting: adapter)
             var expiry: SignalExpiry?
             var recovery = CompanionRecoveryController(companion: companion)
             let epoch = StatusTimestamp.now.millisecondsSince1970
@@ -33,7 +33,7 @@ final class SwiftParityAcceptanceTests: XCTestCase {
                     expiry = try XCTUnwrap(store.load().expiries.first)
                 }
                 if step.restart == true {
-                    companion = KeyphoreCompanion(store: store, profile: .default, lighting: adapter)
+                    companion = KeyphoreCompanion(store: store, profile: .steadyTestProfile, lighting: adapter)
                     recovery = CompanionRecoveryController(companion: companion)
                     keyboard.state.replaceSubrange(0..<9, with: Array(repeating: 0, count: 9))
                 }
@@ -48,11 +48,13 @@ final class SwiftParityAcceptanceTests: XCTestCase {
                 } else {
                     try recovery.poll(at: now)
                 }
-                let displayedSignal = try XCTUnwrap(fixture.main_states.first {
+                let displayedSignal = keyboard.state[1] == 0 ? "off" : try XCTUnwrap(fixture.main_states.first {
                     $0.value == Array(keyboard.state.prefix(9))
                 }?.key)
                 XCTAssertEqual(displayedSignal, step.displayed_signal, "\(scenario.id) step \(index)")
-                XCTAssertEqual(Array(keyboard.state.prefix(9)), fixture.main_states[displayedSignal])
+                if displayedSignal != "off" {
+                    XCTAssertEqual(Array(keyboard.state.prefix(9)), fixture.main_states[displayedSignal])
+                }
                 XCTAssertEqual(Array(keyboard.state.suffix(8)), fixture.rhythm)
                 let aggregate: String
                 switch lifecycleSnapshot(outcome: try store.outcome(at: now),

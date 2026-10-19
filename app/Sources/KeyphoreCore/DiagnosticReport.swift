@@ -70,11 +70,13 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
     public let preview: [String]?
 
     public init(snapshot: DiagnosticSnapshot, language: AppLanguage, preview: SignalPreviewRecord? = nil) {
-        self.preview = preview.map { record in
+        self.preview = preview.flatMap { record in
+            guard record.requestedPreset == nil else { return nil }
             func text(_ key: AppCopyKey) -> String { AppCopy.value(key, language: language) }
             let phase: AppCopyKey = switch record.phase {
             case .pending: .diagnosticPreviewPending
             case .presenting: .previewRunning
+            case .completed: .previewProtocolVerified
             case .awaitingVisualConfirmation: .previewConfirmPrompt
             case .confirmed: .previewConfirmed
             case .rejected: .previewRejected
@@ -89,13 +91,17 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
             func result(_ passed: Bool) -> String {
                 text(passed ? .diagnosticHealthy : unfinished ? .diagnosticNotAvailable : .diagnosticFailed)
             }
+            let zoneEvidence = record.unmanagedZoneProtection == .untouchedProtocolChannel
+                ? "\(text(.diagnosticPreviewUntouched)): \(record.unmanagedZonesPreserved ? text(.diagnosticChannelIsolation) : result(false))"
+                : "\(text(.diagnosticPreviewRhythm)): \(result(record.unmanagedZonesPreserved))"
             return [
                 text(.deviceCheckRecent),
                 Date(timeIntervalSince1970: Double(record.requestedAt.millisecondsSince1970) / 1000)
                     .formatted(Date.FormatStyle(date: .numeric, time: .standard).locale(Locale(identifier: language.rawValue))),
                 text(phase),
+                "\(text(.diagnosticFieldKeyboard)): \(record.targetModel?.rawValue ?? text(.diagnosticNotAvailable))",
                 "\(text(.diagnosticFieldProtocol)): \(result(record.protocolReadbackSucceeded))",
-                "\(text(.diagnosticPreviewRhythm)): \(result(record.rhythmLightPreserved))",
+                zoneEvidence,
                 "\(text(.diagnosticPreviewVisual)): \(text(confirmation))",
             ]
         }
@@ -174,7 +180,8 @@ public struct DiagnosticReport: Codable, Equatable, Sendable {
             codexHost = Self.field(
                 .codexHost,
                 value: Self.hostKey(hosts),
-                action: hosts.isEmpty ? .diagnosticActionInstallCodex : nil,
+                action: hosts.isEmpty && snapshot.integration?.isConfigured != true
+                    ? .diagnosticActionInstallCodex : nil,
                 language: language
             )
         } else {

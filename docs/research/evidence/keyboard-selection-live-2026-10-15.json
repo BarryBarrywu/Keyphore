@@ -1,0 +1,80 @@
+{
+  "capturedAt": "2026-10-15T11:19:15.527173+00:00",
+  "case": "live-companion-v3-to-v2-target-selection",
+  "steps": [
+    {
+      "requested": "Air75 V3",
+      "snapshot": {
+        "activeModel": "Air75 V3",
+        "desiredModel": "Air75 V3",
+        "inventory": [
+          {
+            "count": 1,
+            "model": "Air75 V3"
+          },
+          {
+            "count": 1,
+            "model": "Air75 V2"
+          }
+        ],
+        "observedAt": {
+          "millisecondsSince1970": 1792063154749
+        },
+        "phase": "applied"
+      },
+      "health": {
+        "model": "Air75 V3",
+        "observedAt": {
+          "millisecondsSince1970": 1792063154749
+        },
+        "protocolHealthy": true,
+        "status": "connected"
+      },
+      "ownership": {
+        "zones": [
+          "backlight",
+          "strip"
+        ],
+        "model": "Air75 V3"
+      }
+    },
+    {
+      "requested": "Air75 V2",
+      "snapshot": {
+        "activeModel": "Air75 V2",
+        "desiredModel": "Air75 V2",
+        "inventory": [
+          {
+            "count": 1,
+            "model": "Air75 V3"
+          },
+          {
+            "count": 1,
+            "model": "Air75 V2"
+          }
+        ],
+        "observedAt": {
+          "millisecondsSince1970": 1792063155264
+        },
+        "phase": "applied"
+      },
+      "health": {
+        "model": "Air75 V2",
+        "observedAt": {
+          "millisecondsSince1970": 1792063155264
+        },
+        "protocolHealthy": false,
+        "status": "connected"
+      },
+      "ownership": {
+        "zones": [],
+        "model": "Air75 V2"
+      }
+    }
+  ],
+  "error": null,
+  "originalPreferenceRestored": true,
+  "profileUnchanged": true,
+  "helperSHA256": "9c2634b1ac5c35adfd502ee21918b2ca8f43c611209117f2fe328a0b5ede862e",
+  "method": "Atomic preference requests consumed by the running signed Companion; UI controls separately covered by App tests."
+}

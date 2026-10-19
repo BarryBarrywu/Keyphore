@@ -1,0 +1,13 @@
+{
+  "name": "keyphore-app",
+  "owner": {
+    "name": "Keyphore"
+  },
+  "plugins": [
+    {
+      "name": "keyphore-claude-code",
+      "source": "./",
+      "version": "0.2.0"
+    }
+  ]
+}

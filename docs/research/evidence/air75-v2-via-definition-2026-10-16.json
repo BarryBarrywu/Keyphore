@@ -1,0 +1,464 @@
+{
+  "at": "2026-10-15T16:21:31.656996+00:00",
+  "archive": "/Users/admin/nuphy-air75-v2-via3.zip",
+  "archiveSHA256": "ede5e63589df3a10cb6183dcc572e4c2cc7064f3534e30bd3232cee5bc5168d5",
+  "definitionSHA256": "5c159cd4f219b8556e44ecc5aaecbbc1b905dcb69b4ad0ff3009f4f5f7fa7dbe",
+  "name": "NuPhy Air75 V2",
+  "vendorId": "0x19F5",
+  "productId": "0x3246",
+  "controls": [
+    {
+      "label": "Brightness",
+      "content": [
+        "id_qmk_rgb_matrix_brightness",
+        3,
+        1
+      ]
+    },
+    {
+      "label": "Effect",
+      "content": [
+        "id_qmk_rgb_matrix_effect",
+        3,
+        2
+      ]
+    },
+    {
+      "label": "Effect Speed",
+      "content": [
+        "id_qmk_rgb_matrix_effect_speed",
+        3,
+        3
+      ]
+    },
+    {
+      "label": "Color",
+      "content": [
+        "id_qmk_rgb_matrix_color",
+        3,
+        4
+      ]
+    }
+  ],
+  "effects": [
+    [
+      0,
+      "All Off"
+    ],
+    [
+      1,
+      "Solid Color"
+    ],
+    [
+      2,
+      "Gradient Up/Down"
+    ],
+    [
+      3,
+      "Gradient Left/Right"
+    ],
+    [
+      4,
+      "Breathing"
+    ],
+    [
+      5,
+      "Band Sat."
+    ],
+    [
+      6,
+      "Band Val."
+    ],
+    [
+      7,
+      "Pinwheel Sat."
+    ],
+    [
+      8,
+      "Pinwheel Val."
+    ],
+    [
+      9,
+      "Spiral Sat."
+    ],
+    [
+      10,
+      "Spiral Val."
+    ],
+    [
+      11,
+      "Cycle All"
+    ],
+    [
+      12,
+      "Cycle Left/Right"
+    ],
+    [
+      13,
+      "Cycle Up/Down"
+    ],
+    [
+      14,
+      "Rainbow Moving Chevron"
+    ],
+    [
+      15,
+      "Cycle Out/In"
+    ],
+    [
+      16,
+      "Cycle Out/In Dual"
+    ],
+    [
+      17,
+      "Cycle Pinwheel"
+    ],
+    [
+      18,
+      "Cycle Spiral"
+    ],
+    [
+      19,
+      "Dual Beacon"
+    ],
+    [
+      20,
+      "Rainbow Beacon"
+    ],
+    [
+      21,
+      "Rainbow Pinwheels"
+    ],
+    [
+      22,
+      "Raindrops"
+    ],
+    [
+      23,
+      "Jellybean Raindrops"
+    ],
+    [
+      24,
+      "Hue Breathing"
+    ],
+    [
+      25,
+      "Hue Pendulum"
+    ],
+    [
+      26,
+      "Hue Wave"
+    ],
+    [
+      27,
+      "Typing Heatmap"
+    ],
+    [
+      28,
+      "Digital Rain"
+    ],
+    [
+      29,
+      "Reactive Simple"
+    ],
+    [
+      30,
+      "Reactive"
+    ],
+    [
+      31,
+      "Reactive Wide"
+    ],
+    [
+      32,
+      "Reactive Multiwide"
+    ],
+    [
+      33,
+      "Reactive Cross"
+    ],
+    [
+      34,
+      "Reactive Multicross"
+    ],
+    [
+      35,
+      "Reactive Nexus"
+    ],
+    [
+      36,
+      "Reactive MultiNexus"
+    ],
+    [
+      37,
+      "Splash"
+    ],
+    [
+      38,
+      "MultiSplash"
+    ],
+    [
+      39,
+      "Solid Splash"
+    ],
+    [
+      40,
+      "Solid MultiSplash"
+    ]
+  ],
+  "sideCustomKeycodes": [
+    {
+      "name": "Side\nLight+",
+      "title": "Side Light +"
+    },
+    {
+      "name": "Side\nLight-",
+      "title": "Side Light -"
+    },
+    {
+      "name": "Side\nMode",
+      "title": "Side Next Mode"
+    },
+    {
+      "name": "Side\nColor",
+      "title": "Side Next Color"
+    },
+    {
+      "name": "Side\nFast",
+      "title": "Side Speed +"
+    },
+    {
+      "name": "Side\nSlow",
+      "title": "Side Speed -"
+    }
+  ],
+  "comparison": {
+    "identityMatches": true,
+    "channelAndValueIDsMatch": true,
+    "staticIndex": 1,
+    "breathingIndex": 4,
+    "sideUSBMenuPresent": false
+  },
+  "limitations": "Definition contains UI metadata/keycode names, not current device settings or firmware build identity. This alone does not prove visual control.",
+  "extractedDefinition": "/Users/admin/nuphy-air75-v2-via3.json",
+  "officialVIAClient": {
+    "commit": "935106a990af39bdd1ade881c02366eac486240d",
+    "setThenSave": "https://github.com/the-via/app/blob/935106a990af39bdd1ade881c02366eac486240d/src/store/menusSlice.ts#L99-L127",
+    "transport": "https://github.com/the-via/app/blob/935106a990af39bdd1ade881c02366eac486240d/src/utils/keyboard-api.ts#L760-L813",
+    "findings": [
+      "Each color/effect edit sends SET then queues SAVE for that channel.",
+      "UI JSON passes channel/value IDs directly; no alternative V2 control channel found.",
+      "VIA controls send the changed field; Keyphore applies a lighting state with a temporary brightness-zero step."
+    ],
+    "limitation": "The supplied NuPhy QMK source implements SAVE as EEPROM persistence, not the render trigger. Actual installed firmware version remains unverified. Do not infer SAVE is needed for runtime signals."
+  },
+  "newFailureEvidence": {
+    "source": "air75-v2-edit-preview-2026-10-15.json",
+    "preset": "idle",
+    "requestedState": {
+      "brightnessPercent": 30,
+      "effect": "breathing",
+      "color": "00FFAE",
+      "speedLevel": 4
+    },
+    "record": "failed before first successful presentation; later healthy live execution is not proof that idle preview worked.",
+    "expectedReadbackByCurrentDriver": [
+      75,
+      4,
+      255,
+      114,
+      255
+    ]
+  },
+  "confirmedBrightnessFailure": {
+    "at": "2026-10-15T16:35:50.336834+00:00",
+    "transcript": "air75-v2-brightness-before-2026-10-16.json",
+    "sha256": "9b40ff8ca6f4ec324ac02477669c88e11e46fafb287feec3badd3302e51ba2ea",
+    "driverExpected": [
+      75,
+      4,
+      255,
+      114,
+      255
+    ],
+    "actualDevice": [
+      76,
+      4,
+      255,
+      114,
+      255
+    ],
+    "error": "readbackMismatch",
+    "mechanism": "Device accepted the target effect/color/speed; strict source-specific brightness prediction falsely rejected it, causing failed preview and live signal restoration.",
+    "cleanup": "Off readback verified and journal cleared.",
+    "firmwareLimitation": "Installed firmware brightness maximum is not established; full255→253 did not prove the assumed maximum128."
+  },
+  "uiVerification": {
+    "idle30OriginalGreen": {
+      "completedPresets": [
+        "idle"
+      ],
+      "id": "71F89548-10F8-4C3E-99C5-E1D227343CC1",
+      "phase": "completed",
+      "presentationIsLit": false,
+      "protocolReadbackSucceeded": true,
+      "requestedAt": {
+        "millisecondsSince1970": 1792082567172
+      },
+      "requestedPreset": "idle",
+      "targetModel": "Air75 V2",
+      "unmanagedZoneProtection": "untouchedProtocolChannel",
+      "unmanagedZonesPreserved": true,
+      "visualConfirmation": "notRequested"
+    },
+    "idle30EditedOrange": {
+      "observed": [
+        {
+          "completedPresets": [
+            "idle"
+          ],
+          "id": "BBC2A281-DC21-4D57-972C-F5B27B0C01AD",
+          "phase": "completed",
+          "presentationIsLit": false,
+          "protocolReadbackSucceeded": true,
+          "requestedAt": {
+            "millisecondsSince1970": 1792082580590
+          },
+          "requestedPreset": "idle",
+          "targetModel": "Air75 V2",
+          "unmanagedZoneProtection": "untouchedProtocolChannel",
+          "unmanagedZonesPreserved": true,
+          "visualConfirmation": "notRequested"
+        }
+      ],
+      "final": {
+        "completedPresets": [
+          "idle"
+        ],
+        "id": "BBC2A281-DC21-4D57-972C-F5B27B0C01AD",
+        "phase": "completed",
+        "presentationIsLit": false,
+        "protocolReadbackSucceeded": true,
+        "requestedAt": {
+          "millisecondsSince1970": 1792082580590
+        },
+        "requestedPreset": "idle",
+        "targetModel": "Air75 V2",
+        "unmanagedZoneProtection": "untouchedProtocolChannel",
+        "unmanagedZonesPreserved": true,
+        "visualConfirmation": "notRequested"
+      },
+      "profile": {
+        "brightness": {
+          "percent": 30
+        },
+        "color": {
+          "blue": 30,
+          "green": 109,
+          "red": 255
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightBreathing",
+        "speed": 4
+      }
+    },
+    "idle30EditedStatic": {
+      "preview": {
+        "completedPresets": [
+          "idle"
+        ],
+        "id": "B96A8C30-1904-4AFC-97BE-F7103A871807",
+        "phase": "completed",
+        "presentationIsLit": false,
+        "protocolReadbackSucceeded": true,
+        "requestedAt": {
+          "millisecondsSince1970": 1792082608670
+        },
+        "requestedPreset": "idle",
+        "targetModel": "Air75 V2",
+        "unmanagedZoneProtection": "untouchedProtocolChannel",
+        "unmanagedZonesPreserved": true,
+        "visualConfirmation": "notRequested"
+      },
+      "profile": {
+        "brightness": {
+          "percent": 30
+        },
+        "color": {
+          "blue": 30,
+          "green": 109,
+          "red": 255
+        },
+        "colorMode": "custom",
+        "direction": 1,
+        "effect": "backlightStatic",
+        "speed": 4
+      }
+    },
+    "restoredUserIdle": {
+      "preview": {
+        "completedPresets": [
+          "idle"
+        ],
+        "id": "C547ED3A-130A-4990-9B64-A0D2033FA12A",
+        "phase": "completed",
+        "presentationIsLit": false,
+        "protocolReadbackSucceeded": true,
+        "requestedAt": {
+          "millisecondsSince1970": 1792082622247
+        },
+        "requestedPreset": "idle",
+        "targetModel": "Air75 V2",
+        "unmanagedZoneProtection": "untouchedProtocolChannel",
+        "unmanagedZonesPreserved": true,
+        "visualConfirmation": "notRequested"
+      },
+      "profileMatchesBeforeTests": true
+    }
+  },
+  "checks": {
+    "core": {
+      "tests": 251,
+      "failures": 0,
+      "log": "/private/tmp/codex-builds/keyphore-via-quantization-green.log",
+      "sha256": "a48eb532ebb5f134f3791de4e625f1187ae157a1b09c53ad37ca916c33ece32f"
+    },
+    "appBuild": {
+      "passed": true,
+      "log": "/private/tmp/codex-builds/keyphore-via-quantization-app-build.log",
+      "sha256": "9440241f2b3cee04dc4af14519ff5c8d67abb7a6e41ca5889ea8aa354a75e80e"
+    },
+    "signedBuild": {
+      "passed": true,
+      "log": "/private/tmp/codex-builds/keyphore-via-quantization-build-open.log",
+      "sha256": "a6c7885e3bc250230c00ec28422d51f3a03adfe5616c1128bd714f9c341b6a00"
+    }
+  },
+  "installedHelperSHA256": "8722913877aa9e8fbdb1115d3a511e105b6d9dd14f4fd03999e8e0b310865022",
+  "status": "Accepted: hardware brightness reproduction, real UI regression, and user visual confirmation passed for V2 main-backlight color/effect control.",
+  "completedAt": "2026-10-15T16:44:04.613640+00:00",
+  "afterAcceptanceQuit": {
+    "normalUIQuit": true,
+    "appAndCompanionStopped": true,
+    "ownershipEmpty": true
+  },
+  "handoff": {
+    "settingsWindowVisible": true,
+    "reopenedAfterAcceptanceQuit": true,
+    "at": "2026-10-15T16:45:49.573287+00:00",
+    "health": {
+      "model": "Air75 V2",
+      "observedAt": {
+        "millisecondsSince1970": 1792082749331
+      },
+      "protocolHealthy": true,
+      "status": "connected"
+    }
+  },
+  "userAcceptance": {
+    "at": "2026-10-16T02:07:22.426965+00:00",
+    "message": "可以了",
+    "scope": "Latest installed brightness-quantization fix: user confirms V2 main-backlight color and effect control works. Does not establish V2 side-light USB support."
+  }
+}

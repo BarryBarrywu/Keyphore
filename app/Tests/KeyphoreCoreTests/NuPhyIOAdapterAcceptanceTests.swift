@@ -2,41 +2,169 @@ import KeyphoreCore
 import XCTest
 
 final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
-    func testProductionAdapterUsesAir75WriteAndReacquiresModelAfterInterruption() throws {
+    func testSettlingOnlyReadsUntilTheNativeModeMatchesAndChecksUnmanagedBytesOnEveryRead() throws {
+        for corruptStrip in [false, true] {
+            let challenge = Array(repeating: UInt8(7), count: 56)
+            let key = NuPhySessionKey(0x5a)
+            let side: [UInt8] = [4, 60, 2, 1, 0, 255, 0, 0]
+            let initial: [UInt8] = [1, 100, 2, 0, 1, 0, 139, 139, 255]
+            let expected: [UInt8] = [4, 30, 2, 0, 0, 0, 139, 139, 255]
+            var stale = expected
+            stale[0] = 1
+            var actualSide = side
+            if corruptStrip { actualSide[1] = 10 }
+            let transport = FakeReportTransport(exactResponses: [
+                sessionResponse(challenge: challenge, key: key),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: initial + side),
+                response(command: 0xd6, length: 9, address: 0, key: key),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: stale + actualSide),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: expected + side),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: expected + side),
+                response(command: 0xd6, length: 1, address: 1, key: key),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: expected + side),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: expected + side),
+            ])
+            var device = air65()
+            device.productID = 0x1028
+            device.product = "Air75 V3"
+            let adapter = NuPhyIOAdapter(discovery: FakeDiscovery(devices: [device], transport: transport), challenge: { challenge })
+            let behavior = LightingBehavior(backlight: .signal(ZoneAppearance(effect: .backlightBreathing,
+                color: SignalColor(red: 139, green: 139, blue: 255), brightness: SignalBrightness(percent: 30)!)), strip: .unmanaged)
+            if corruptStrip {
+                XCTAssertThrowsError(try adapter.apply(behavior)) {
+                    XCTAssertEqual($0 as? NuPhyIOAdapterError, .unmanagedZoneChanged(.strip))
+                }
+                XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }.count, 1)
+            } else {
+                XCTAssertEqual(try adapter.applyAndVerify(behavior).mainState, expected)
+                XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd5, 0xd5, 0xd5, 0xd6, 0xd5, 0xd5])
+            }
+            XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }.count, corruptStrip ? 1 : 2)
+        }
+    }
+
+    func testZeroBrightnessAppearanceTurnsOffWithoutQueuingItsSelectedMode() throws {
         let challenge = Array(repeating: UInt8(7), count: 56)
         let key = NuPhySessionKey(0x5a)
-        let side: [UInt8] = [0, 60, 2, 1, 0, 255, 0, 0]
-        let expected: [UInt8] = [3, 30, 3, 0, 1, 0, 0, 0, 255]
+        let initial: [UInt8] = [4, 30, 2, 0, 0, 0, 139, 139, 255]
+        var expected = initial
+        expected[1] = 0
+        let side: [UInt8] = [4, 60, 2, 1, 0, 255, 0, 0]
         let transport = FakeReportTransport(responses: [
             sessionResponse(challenge: challenge, key: key),
-            response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + side),
-            response(command: 0xd6, length: 9, address: 0, key: key),
-            response(command: 0xd5, length: 17, address: 0, key: key, payload: expected + side),
-            sessionResponse(challenge: challenge, key: key),
-            response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + side),
-            response(command: 0xd6, length: 9, address: 0, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: initial + side),
             response(command: 0xd6, length: 1, address: 1, key: key),
             response(command: 0xd5, length: 17, address: 0, key: key, payload: expected + side),
         ])
         var device = air65()
         device.productID = 0x1028
         device.product = "Air75 V3"
+        let adapter = NuPhyIOAdapter(discovery: FakeDiscovery(devices: [device], transport: transport), challenge: { challenge })
+        let behavior = LightingBehavior(backlight: .signal(ZoneAppearance(effect: .backlightStatic,
+            color: SignalColor(red: 0, green: 255, blue: 0), brightness: SignalBrightness(percent: 0)!)), strip: .unmanaged)
+        XCTAssertEqual(try adapter.applyAndVerify(behavior).mainState, expected)
+        XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }, [try NuPhyRequest.write(address: 1, payload: [0]).encoded(using: key)])
+    }
+
+    func testNativeBothZonesUseOfficialPayloadAndBrightnessApplySequence() throws {
+        let challenge = Array(repeating: UInt8(7), count: 56)
+        let key = NuPhySessionKey(0x5a)
+        let initialMain: [UInt8] = [1, 100, 2, 0, 1, 0, 139, 139, 255]
+        let initialSide: [UInt8] = [4, 60, 2, 1, 0, 255, 0, 0]
+        let expectedMain: [UInt8] = [4, 30, 4, 0, 0, 0, 139, 139, 255]
+        let expectedSide: [UInt8] = [3, 60, 0, 0, 0, 255, 0, 0]
+        let transport = FakeReportTransport(responses: [
+            sessionResponse(challenge: challenge, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: initialMain + initialSide),
+            response(command: 0xd6, length: 9, address: 0, key: key),
+            response(command: 0xd6, length: 1, address: 1, key: key),
+            response(command: 0xd6, length: 8, address: 9, key: key),
+            response(command: 0xd6, length: 1, address: 10, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: expectedMain + expectedSide),
+            sessionResponse(challenge: challenge, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: expectedMain + expectedSide),
+        ])
+        var device = air65()
+        device.productID = 0x1028
+        device.product = "Air75 V3"
+        let adapter = NuPhyIOAdapter(discovery: FakeDiscovery(devices: [device], transport: transport), challenge: { challenge })
+        let behavior = LightingBehavior(
+            backlight: .signal(ZoneAppearance(effect: .backlightBreathing, color: SignalColor(red: 139, green: 139, blue: 255),
+                                              brightness: SignalBrightness(percent: 30)!, speed: LightingSpeed(level: 0)!)),
+            strip: .signal(ZoneAppearance(effect: .stripBreathing, color: SignalColor(red: 255, green: 0, blue: 0),
+                                          brightness: SignalBrightness(percent: 60)!, speed: LightingSpeed(level: 4)!)))
+        let evidence = try adapter.applyAndVerify(behavior)
+        XCTAssertTrue(evidence.unmanagedZonesPreserved)
+        XCTAssertEqual(evidence.rhythmAfter, expectedSide)
+        XCTAssertTrue(try adapter.displays(behavior))
+        XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }, [
+            try NuPhyRequest.write(address: 0, payload: expectedMain).encoded(using: key),
+            try NuPhyRequest.write(address: 9, payload: expectedSide).encoded(using: key),
+            try NuPhyRequest.write(address: 1, payload: [30]).encoded(using: key),
+            try NuPhyRequest.write(address: 10, payload: [60]).encoded(using: key),
+        ])
+    }
+
+    func testStripOnlyProtectsBacklightAndRejectsWrongZoneEffectBeforeSending() throws {
+        let challenge = Array(repeating: UInt8(7), count: 56)
+        let key = NuPhySessionKey(0x5a)
+        let main: [UInt8] = [4, 30, 2, 0, 0, 0, 139, 139, 255]
+        let side: [UInt8] = [3, 60, 2, 0, 0, 255, 0, 0]
+        let target: [UInt8] = [0, 100, 2, 1, 0, 12, 34, 56]
+        let transport = FakeReportTransport(responses: [
+            sessionResponse(challenge: challenge, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: main + side),
+            response(command: 0xd6, length: 8, address: 9, key: key),
+            response(command: 0xd6, length: 1, address: 10, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: main + target),
+        ])
+        let adapter = NuPhyIOAdapter(discovery: FakeDiscovery(devices: [air65()], transport: transport), challenge: { challenge })
+        let appearance = ZoneAppearance(effect: .stripFlowing, color: SignalColor(red: 12, green: 34, blue: 56), colorMode: .multicolor)
+        let evidence = try adapter.applyAndVerify(LightingBehavior(backlight: .unmanaged, strip: .signal(appearance)))
+        XCTAssertEqual(evidence.mainState, main)
+        XCTAssertTrue(evidence.unmanagedZonesPreserved)
+        XCTAssertEqual(transport.sent[2], try NuPhyRequest.write(address: 9, payload: target).encoded(using: key))
+        let sent = transport.sent.count
+        XCTAssertThrowsError(try adapter.apply(LightingBehavior(backlight: .signal(appearance), strip: .unmanaged)))
+        XCTAssertEqual(transport.sent.count, sent)
+    }
+
+    func testProductionAdapterUsesAir75WriteAndReacquiresModelAfterInterruption() throws {
+        let challenge = Array(repeating: UInt8(7), count: 56)
+        let key = NuPhySessionKey(0x5a)
+        let side: [UInt8] = [0, 60, 2, 1, 0, 255, 0, 0]
+        let air75Expected: [UInt8] = [3, 30, 3, 0, 1, 0, 0, 0, 255]
+        let air65Expected: [UInt8] = [3, 30, 3, 0, 1, 0, 0, 0, 255]
+        let transport = FakeReportTransport(responses: [
+            sessionResponse(challenge: challenge, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + side),
+            response(command: 0xd6, length: 9, address: 0, key: key),
+            response(command: 0xd6, length: 1, address: 1, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: air75Expected + side),
+            sessionResponse(challenge: challenge, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + side),
+            response(command: 0xd6, length: 9, address: 0, key: key),
+            response(command: 0xd6, length: 1, address: 1, key: key),
+            response(command: 0xd5, length: 17, address: 0, key: key, payload: air65Expected + side),
+        ])
+        var device = air65()
+        device.productID = 0x1028
+        device.product = "Air75 V3"
         let discovery = FakeDiscovery(devices: [device], transport: transport)
         let adapter = NuPhyIOAdapter(discovery: discovery, challenge: { challenge })
-        let behavior = LightingBehavior.signal(SignalAppearance(
-            isVisible: true, color: SignalColor(red: 0, green: 0, blue: 255),
-            brightness: SignalBrightness(percent: 30)!, pattern: .steady
-        ))
+        let behavior = LightingBehavior.signal(SignalAppearance(isVisible: true, backlight: ZoneAppearance(effect: .backlightStatic, color: SignalColor(red: 0, green: 0, blue: 255), colorMode: .multicolor, brightness: SignalBrightness(percent: 30)!, speed: LightingSpeed(level: 1)!), strip: LocalProfile.default.completion.strip))
         XCTAssertTrue(try adapter.applyAndVerify(behavior).protocolReadbackSucceeded)
         XCTAssertEqual(adapter.connectedModel, .air75V3)
-        XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd5])
+        XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd5, 0xd5, 0xd6, 0xd5, 0xd5])
+        XCTAssertEqual(transport.sent[2], try NuPhyRequest.write(address: 0, payload: air75Expected).encoded(using: key))
         adapter.invalidateTransport()
         XCTAssertNil(adapter.connectedModel)
         discovery.devices = [air65()]
         XCTAssertTrue(try adapter.applyAndVerify(behavior).protocolReadbackSucceeded)
         XCTAssertEqual(adapter.connectedModel, .air65V3)
         XCTAssertEqual(discovery.openCount, 2)
-        XCTAssertEqual(transport.sent[7], try NuPhyRequest.write(address: 1, payload: [30]).encoded(using: key))
+        XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }[2], try NuPhyRequest.write(address: 0, payload: air65Expected).encoded(using: key))
+        XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }[3], try NuPhyRequest.write(address: 1, payload: [30]).encoded(using: key))
     }
 
     func testAir75PreviewMismatchStopsColorsAndAttemptsSignalOff() throws {
@@ -44,30 +172,39 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         let key = NuPhySessionKey(0x5a)
         let side: [UInt8] = [0, 60, 2, 1, 0, 255, 0, 0]
         let actual: [UInt8] = [3, 20, 3, 0, 1, 0, 0, 0, 255]
+        let badRead = response(command: 0xd5, length: 17, address: 0, key: key, payload: actual + side)
         let transport = FakeReportTransport(responses: [
             sessionResponse(challenge: challenge, key: key),
             response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + side),
             response(command: 0xd6, length: 9, address: 0, key: key),
-            response(command: 0xd5, length: 17, address: 0, key: key, payload: actual + side),
-            sessionResponse(challenge: challenge, key: key),
-            response(command: 0xd5, length: 17, address: 0, key: key, payload: actual + side),
-            response(command: 0xd6, length: 9, address: 0, key: key),
-            response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + side),
+            response(command: 0xd6, length: 1, address: 1, key: key), badRead,
         ])
-        let device = HIDDeviceDescriptor(
-            id: "air75-control", vendorID: 0x19f5, productID: 0x1028,
-            product: "Air75 V3", bus: .usb, interfaceNumber: 3, usagePage: 1, usage: 0
-        )
-        let adapter = NuPhyIOAdapter(
-            discovery: FakeDiscovery(devices: [device], transport: transport), challenge: { challenge }
-        )
+        transport.fallback = badRead
+        var sessions = 0
+        transport.onSend = { packet in
+            guard packet[1] == 0xee else { return }
+            sessions += 1
+            if sessions == 2 {
+                transport.fallback = nil
+                transport.enqueue([
+                    self.sessionResponse(challenge: challenge, key: key), badRead,
+                    self.response(command: 0xd6, length: 1, address: 1, key: key),
+                    self.response(command: 0xd5, length: 17, address: 0, key: key, payload: [3, 0, 3, 0, 1, 0, 0, 0, 255] + side),
+                ])
+            }
+        }
+        var device = air65()
+        device.productID = 0x1028
+        device.product = "Air75 V3"
+        let adapter = NuPhyIOAdapter(discovery: FakeDiscovery(devices: [device], transport: transport), challenge: { challenge })
         XCTAssertThrowsError(try adapter.previewAir75MainBacklight { _ in XCTFail("No color verified") }) {
             XCTAssertEqual($0 as? NuPhyIOAdapterError, .air75ReadbackMismatch(
-                expected: [3, 30, 3, 0, 1, 0, 0, 0, 255], actual: actual + side
-            ))
+                expected: [3, 30, 2, 0, 0, 0, 0, 0, 255], actual: actual + side))
         }
-        XCTAssertEqual(transport.sent.count, 8)
-        XCTAssertEqual(transport.sent[6], try NuPhyRequest.write(address: 0, payload: signalOff).encoded(using: key))
+        let writes = transport.sent.filter { $0[1] == 0xd6 }
+        XCTAssertEqual(writes.count, 2, "Failed configuration never applies brightness; cleanup writes zero once")
+        XCTAssertEqual(writes.last, try NuPhyRequest.write(address: 1, payload: [0]).encoded(using: key))
+        transport.onSend = nil
     }
 
     func testAir75AcceptancePreviewPreservesSideStateAndEndsOff() throws {
@@ -75,9 +212,9 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         let key = NuPhySessionKey(0x5a)
         let side: [UInt8] = [0, 60, 2, 1, 0, 255, 0, 0]
         let states: [[UInt8]] = [
-            [3, 30, 3, 0, 1, 0, 0, 0, 255],
-            [3, 30, 3, 0, 1, 0, 255, 132, 0],
-            [3, 30, 3, 0, 1, 0, 0, 255, 0], signalOff,
+            [3, 30, 2, 0, 0, 0, 0, 0, 255],
+            [3, 30, 2, 0, 0, 0, 255, 132, 0],
+            [3, 30, 2, 0, 0, 0, 0, 255, 0], [3, 0, 2, 0, 0, 0, 0, 255, 0],
         ]
         var responses: [[UInt8]] = []
         var initial: [UInt8] = [3, 100, 3, 0, 1, 0, 255, 255, 255]
@@ -85,7 +222,10 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
             responses += [
                 sessionResponse(challenge: challenge, key: key),
                 response(command: 0xd5, length: 17, address: 0, key: key, payload: initial + side),
-                response(command: 0xd6, length: 9, address: 0, key: key),
+            ]
+            if state[1] != 0 { responses.append(response(command: 0xd6, length: 9, address: 0, key: key)) }
+            responses += [
+                response(command: 0xd6, length: 1, address: 1, key: key),
                 response(command: 0xd5, length: 17, address: 0, key: key, payload: state + side),
             ]
             initial = state
@@ -102,8 +242,8 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         try adapter.previewAir75MainBacklight { steps.append($0) }
         XCTAssertEqual(steps, ["blue", "orange", "green", "off"])
         let writes = transport.sent.filter { $0[1] == 0xd6 }
-        XCTAssertEqual(writes.count, 4)
-        for packet in writes {
+        XCTAssertEqual(writes.count, 7)
+        for packet in writes.filter({ $0[4] ^ key.value == 9 }) {
             XCTAssertEqual(packet[5] ^ key.value, 0)
             XCTAssertEqual(packet[4] ^ key.value, 9)
             XCTAssertEqual(packet[6] ^ key.value, 0)
@@ -153,12 +293,7 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         )
         let discovery = FakeDiscovery(devices: [air65()], transport: transport)
         let adapter = NuPhyIOAdapter(discovery: discovery, challenge: { challenge })
-        let appearance = SignalAppearance(
-            isVisible: true,
-            color: SignalColor(red: 12, green: 34, blue: 56),
-            brightness: SignalBrightness(percent: 42)!,
-            pattern: .steady
-        )
+        let appearance = SignalAppearance(isVisible: true, backlight: ZoneAppearance(effect: .backlightStatic, color: SignalColor(red: 12, green: 34, blue: 56), colorMode: .multicolor, brightness: SignalBrightness(percent: 42)!, speed: LightingSpeed(level: 1)!), strip: LocalProfile.default.completion.strip)
 
         let evidence = try adapter.applyAndVerify(.signal(appearance))
 
@@ -171,7 +306,7 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
             try NuPhyRequest.write(address: 0, payload: expectedMain).encoded(using: key)
         )
         XCTAssertEqual(
-            transport.sent[3],
+            transport.sent.filter { $0[1] == 0xd6 }[1],
             try NuPhyRequest.write(address: 1, payload: [42]).encoded(using: key)
         )
         XCTAssertTrue(try adapter.displays(.signal(appearance)))
@@ -182,13 +317,14 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         let challenge = Array(repeating: UInt8(7), count: 56)
         let key = NuPhySessionKey(0x5a)
         let rhythm: [UInt8] = [4, 60, 2, 1, 0, 255, 0, 0]
+        var expectedOff = blue
+        expectedOff[1] = 0
         let transport = FakeReportTransport(
             responses: [
                 sessionResponse(challenge: challenge, key: key),
                 response(command: 0xd5, length: 17, address: 0, key: key, payload: blue + rhythm),
-                response(command: 0xd6, length: 9, address: 0, key: key),
                 response(command: 0xd6, length: 1, address: 1, key: key),
-                response(command: 0xd5, length: 17, address: 0, key: key, payload: signalOff + rhythm),
+                response(command: 0xd5, length: 17, address: 0, key: key, payload: expectedOff + rhythm),
             ]
         )
         let adapter = NuPhyIOAdapter(
@@ -198,7 +334,8 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
 
         let evidence = try adapter.applyAndVerify(.off)
 
-        XCTAssertEqual(evidence.mainState, signalOff)
+        XCTAssertEqual(evidence.mainState, expectedOff)
+        XCTAssertEqual(transport.sent.filter { $0[1] == 0xd6 }, [try NuPhyRequest.write(address: 1, payload: [0]).encoded(using: key)])
         XCTAssertEqual(evidence.rhythmAfter, rhythm)
     }
 
@@ -223,7 +360,7 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
 
         let evidence = try adapter.applyAndVerify(.off)
 
-        XCTAssertEqual(evidence.mainState, signalOff)
+        XCTAssertEqual(evidence.mainState, canonicalOff)
         XCTAssertEqual(evidence.rhythmBefore, rhythm)
         XCTAssertEqual(evidence.rhythmAfter, rhythm)
         XCTAssertTrue(try adapter.displays(.off))
@@ -297,8 +434,8 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
             challenge: { challenge }
         )
 
-        XCTAssertThrowsError(try adapter.applyAndVerify(.signal(LocalProfile.default.execution))) {
-            XCTAssertEqual($0 as? NuPhyIOAdapterError, .rhythmLightChanged)
+        XCTAssertThrowsError(try adapter.applyAndVerify(.signal(LocalProfile.steadyTestProfile.execution))) {
+            XCTAssertEqual($0 as? NuPhyIOAdapterError, .unmanagedZoneChanged(.strip))
         }
     }
 
@@ -382,7 +519,7 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         discovery.isStale = true
         let companion = KeyphoreCompanion(
             store: store,
-            profile: .default,
+            profile: .steadyTestProfile,
             lighting: NuPhyIOAdapter(discovery: discovery, challenge: { challenge }),
             keyboardHealthStore: healthStore
         )
@@ -397,7 +534,7 @@ final class NuPhyIOAdapterAcceptanceTests: XCTestCase {
         XCTAssertEqual(healthStore.load(at: .milliseconds(200)), .connected(protocolHealthy: true, model: .air65V3))
         XCTAssertEqual(discovery.invalidationCount, 1)
         XCTAssertEqual(discovery.openCount, 1)
-        XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd6, 0xd5])
+        XCTAssertEqual(transport.sent.map { $0[1] }, [0xee, 0xd5, 0xd6, 0xd5, 0xd5, 0xd6, 0xd5, 0xd5])
     }
 
     private let blue: [UInt8] = [3, 100, 3, 0, 1, 0, 0, 0, 255]
@@ -474,16 +611,55 @@ private final class FakeDiscovery: Air65TransportDiscovering {
 private final class FakeReportTransport: Air65ReportTransport {
     private var responses: [[UInt8]]
     private(set) var sent: [[UInt8]] = []
+    var fallback: [UInt8]?
+    var onSend: (([UInt8]) -> Void)?
+
+    func enqueue(_ values: [[UInt8]]) { responses += Self.nativeSequence(values) }
 
     init(responses: [[UInt8]]) {
-        self.responses = responses
+        self.responses = Self.nativeSequence(responses)
+    }
+
+    init(exactResponses: [[UInt8]]) {
+        self.responses = exactResponses
+    }
+
+    // Fixtures provide the captured before/after states and write receipts. Native writes
+    // settle the full configuration before brightness, with two matching reads per phase.
+    private static func nativeSequence(_ recorded: [[UInt8]]) -> [[UInt8]] {
+        var result: [[UInt8]] = []
+        var start = 0
+        while start < recorded.count {
+            let end = recorded.indices.dropFirst(start + 1).first { recorded[$0][1] == 0xee } ?? recorded.count
+            let group = Array(recorded[start..<end])
+            let writes = group.filter { $0[1] == 0xd6 }
+            if let firstWrite = group.firstIndex(where: { $0[1] == 0xd6 }),
+               let lastWrite = group.lastIndex(where: { $0[1] == 0xd6 }) {
+                let reads = Array(group.dropFirst(lastWrite + 1)).filter { $0[1] == 0xd5 }
+                let fullWrites = writes.filter { $0[4] ^ $0[7] > 1 }
+                let brightness = writes.filter { $0[4] ^ $0[7] == 1 }
+                if let final = reads.last {
+                    result += group.prefix(firstWrite)
+                    result += fullWrites
+                    if !fullWrites.isEmpty { result += reads + [final] }
+                    result += brightness
+                    result += fullWrites.isEmpty ? reads + [final] : [final, final]
+                } else { result += group }
+            } else {
+                result += group
+                if group.filter({ $0[1] == 0xd5 }).count > 1, let final = group.last { result.append(final) }
+            }
+            start = end
+        }
+        return result
     }
 
     func send(_ report: [UInt8]) throws {
         sent.append(report)
+        onSend?(report)
     }
 
     func receive(timeout: TimeInterval) throws -> [UInt8]? {
-        responses.isEmpty ? nil : responses.removeFirst()
+        responses.isEmpty ? fallback : responses.removeFirst()
     }
 }

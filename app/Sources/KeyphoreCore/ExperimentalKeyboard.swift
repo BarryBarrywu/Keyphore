@@ -186,7 +186,9 @@ public final class ExperimentalKeyboardController {
             guard (0..<4).contains(record.step) else { throw ExperimentalKeyboardError.invalidTransition }
             let colors: [SignalColor] = [SignalColor(red: 0, green: 0, blue: 255), SignalColor(red: 255, green: 132, blue: 0), SignalColor(red: 0, green: 255, blue: 0)]
             let behavior: LightingBehavior = record.step < 3 ? .signal(SignalAppearance(
-                isVisible: true, color: colors[record.step], brightness: SignalBrightness(percent: 30)!, pattern: .steady
+                isVisible: true,
+                backlight: ZoneAppearance(effect: .backlightStatic, color: colors[record.step], brightness: SignalBrightness(percent: 30)!),
+                strip: LocalProfile.default.completion.strip
             )) : .off
             let evidence = try lighting.applyExperimental(behavior, identity: identity)
             guard evidence.protocolReadbackSucceeded, evidence.rhythmBefore == record.protectedState,

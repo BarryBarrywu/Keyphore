@@ -144,6 +144,8 @@ targets:
       - path: app/Sources/KeyphoreApp/ManagedUpdateController.swift
       - path: app/Sources/KeyphoreApp/SignalColor+SwiftUI.swift
       - path: app/Sources/KeyphoreApp/SystemGuidedSetup.swift
+      - path: app/Sources/KeyphoreApp/AgentIntegrationsView.swift
+      - path: app/Sources/KeyphoreApp/SystemAgentIntegrations.swift
       - path: app/Sources/KeyphoreApp/ForegroundWindowAction.swift
       - path: app/Sources/KeyphoreApp/Air65KeyboardView.swift
       - path: app/Sources/KeyphoreApp/KeyphorePopover.swift
